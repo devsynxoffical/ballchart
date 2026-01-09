@@ -7,5 +7,8 @@ class RouteNames {
   static const adminStats = '/admin-stats';
   static const onboarding = '/onboarding';
   static const roleselecting = '/roleselecting';
+  static const home = '/home';
   static const auth = '/auth';
+  static const battle = '/battle';
+  static const login = '/login';
 }

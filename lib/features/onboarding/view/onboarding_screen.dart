@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hoopstar/core/widgets/custom_button.dart';
 
-import '../../../core/widgets/feature_card.dart';
+import '../../../core/widgets/onboarding/feature_card.dart';
 import '../viewmodel/onboarding_viewmodel.dart';
 
 class OnboardingScreen extends StatelessWidget {

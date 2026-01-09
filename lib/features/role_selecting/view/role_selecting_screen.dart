@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/feature_card_selectingrole.dart';
+import 'package:hoopstar/core/widgets/roleSelect/feature_card_selectingrole.dart';
 import 'package:hoopstar/features/role_selecting/viewmodel/roleselecting_viewmodel.dart';
 
 import '../../../core/widgets/custom_button.dart';
