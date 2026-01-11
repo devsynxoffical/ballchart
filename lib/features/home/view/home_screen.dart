@@ -71,12 +71,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
-
-      bottomNavigationBar: HoopStarBottomNav(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-        },
-      ),
     );
   }
 }

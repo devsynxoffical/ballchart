@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hoopstar/core/widgets/custom_button.dart';
 
+import '../../../core/constants/colors.dart';
 import '../../../core/widgets/onboarding/feature_card.dart';
 import '../viewmodel/onboarding_viewmodel.dart';
 
@@ -25,7 +26,7 @@ class OnboardingScreen extends StatelessWidget {
                 height: 110,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFFF59E0B),
+                  color: AppColors.yellow,
                 ),
                 child: const Center(
                   child: Icon(
@@ -44,7 +45,7 @@ class OnboardingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFFF59E0B),
+                  color: AppColors.yellow,
                 ),
               ),
 
@@ -64,7 +65,7 @@ class OnboardingScreen extends StatelessWidget {
                 icon: Icons.groups,
                 title: 'Team Management',
                 subtitle: 'Connect with coaches and players',
-                iconColor: const Color(0xFFF59E0B),
+                iconColor: AppColors.yellow,
               ),
 
               const SizedBox(height: 14),
@@ -82,7 +83,7 @@ class OnboardingScreen extends StatelessWidget {
                 icon: Icons.bar_chart,
                 title: 'Track Progress',
                 subtitle: 'Rise from Rookie to Captain',
-                iconColor: const Color(0xFFF59E0B),
+                iconColor: AppColors.yellow,
               ),
 
               const Spacer(),
@@ -93,7 +94,7 @@ class OnboardingScreen extends StatelessWidget {
                 onPressed: () {
                   OnboardingViewModel.goToRoleSelecting(context); // navigate
                 },
-                backgroundColor: Color(0xFFF59E0B),
+                backgroundColor: AppColors.yellow,
               ),
             ],
           ),

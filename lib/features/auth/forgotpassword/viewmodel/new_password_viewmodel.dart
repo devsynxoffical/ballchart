@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hoopstar/routes/routes_names.dart';
 
-class AuthViewmodel {
+class NewPasswordViewmodel {
   // Function to navigate to RoleSelecting screen
-  static void goToRoleSelecting(BuildContext context) {
-    Navigator.pushNamed(context, RouteNames.mainApp);
-  }
-
   static void goToLogin(BuildContext context) {
     Navigator.pushNamed(context, RouteNames.login);
   }
-
 }

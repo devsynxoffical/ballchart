@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hoopstar/core/widgets/roleSelect/feature_card_selectingrole.dart';
 import 'package:hoopstar/features/role_selecting/viewmodel/roleselecting_viewmodel.dart';
 
+import '../../../core/constants/colors.dart';
 import '../../../core/widgets/custom_button.dart';
 
 enum UserRole { none, coach, player }
@@ -19,11 +20,11 @@ class _RoleSelectingScreenState extends State<RoleSelectingScreen> {
   Color get selectedColor {
     switch (selectedRole) {
       case UserRole.coach:
-        return const Color(0xFFF59E0B); // Yellow
+        return AppColors.yellow; // Yellow
       case UserRole.player:
         return const Color(0xFF3B82F6); // Blue
       default:
-        return const Color(0xFFF59E0B); // Yellow
+        return AppColors.yellow; // Yellow
     }
   }
 
@@ -71,7 +72,7 @@ class _RoleSelectingScreenState extends State<RoleSelectingScreen> {
                 icon: Icons.assignment,
                 title: 'Coach',
                 subtitle: 'Manage teams, create training plans, and track player progress',
-                iconColor: const Color(0xFFF59E0B),
+                iconColor: AppColors.yellow,
                 isSelected: selectedRole == UserRole.coach,
                 onTap: () {
                   setState(() {

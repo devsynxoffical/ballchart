@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/colors.dart';
+
 class CustomTextFieldCreateAccount extends StatelessWidget {
   final String label;
   final String hintText;
@@ -64,7 +66,7 @@ class CustomTextFieldCreateAccount extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
-                color: Color(0xFFF59E0B),
+                color: AppColors.yellow,
                 width: 2,
               ),
             ),

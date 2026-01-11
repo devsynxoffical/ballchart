@@ -1,14 +1,15 @@
-// app/route_names.dart
+
 class RouteNames {
-  static const tactical = '/tactical';
-  static const development = '/development';
-  static const reports = '/reports';
-  static const videoAnalysis = '/video-analysis';
-  static const adminStats = '/admin-stats';
   static const onboarding = '/onboarding';
   static const roleselecting = '/roleselecting';
   static const home = '/home';
   static const auth = '/auth';
   static const battle = '/battle';
   static const login = '/login';
+  static const strategy = '/strategy';
+  static const profile = '/profile';
+  static const mainApp = '/mainApp';
+  static const forgotpassword_enter_email = '/forgotpassword_enter_email';
+  static const forgotpass_enter_otp = '/forgotpass_enter_otp';
+  static const forgotpass_enter_new_pass = '/forgotpass_enter_new_pass';
 }

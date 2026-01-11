@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hoopstar/features/login/viewmodel/login_viewmodel.dart';
+import '../../../core/constants/colors.dart';
 import '../../../core/widgets/auth/custom_textfield_createaccount.dart';
 import '../../../core/widgets/custom_button.dart';
 
@@ -38,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: 60,
                 height: 60,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFF59E0B),
+                  color: AppColors.yellow,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -107,8 +109,25 @@ class _LoginScreenState extends State<LoginScreen> {
               CustomButton(
                 text: 'Sign In',
                 onPressed: () {
+                  LoginViewmodel.goToMainPage(context);
                   debugPrint('Creating account...');
                 },
+              ),
+
+              const SizedBox(height: 15),
+
+              InkWell(
+                onTap: (){
+                  LoginViewmodel.goToResetPassword(context);
+                },
+                child: const Text(
+                  'Forgot Password?',
+                  style: TextStyle(
+                    color: AppColors.yellow,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
 
               const SizedBox(height: 30),
@@ -128,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextSpan(
                         text: 'Sign Up',
                         style: TextStyle(
-                          color: Color(0xFFF59E0B),
+                          color: AppColors.yellow,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../constants/colors.dart';
+
 class HoopStarBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
@@ -9,6 +11,22 @@ class HoopStarBottomNav extends StatelessWidget {
     required this.currentIndex,
     required this.onTap,
   });
+
+  // Define colors for each screen
+  Color _getColorForIndex(int index) {
+    switch (index) {
+      case 0: // Home
+        return AppColors.yellow; // Yellow/Amber
+      case 1: // Battle
+        return const Color(0xFF3B82F6); // Blue
+      case 2: // Strategy
+        return AppColors.yellow; // Yellow/Amber
+      case 3: // Profile
+        return const Color(0xFF8B5CF6); // Purple/Blue-Purple
+      default:
+        return AppColors.yellow;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,10 +38,7 @@ class HoopStarBottomNav extends StatelessWidget {
           color: const Color(0xFF020617),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 12,
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 12),
           ],
         ),
         child: Row(
@@ -33,24 +48,28 @@ class HoopStarBottomNav extends StatelessWidget {
               icon: Icons.home,
               label: 'Home',
               isActive: currentIndex == 0,
+              activeColor: _getColorForIndex(0),
               onTap: () => onTap(0),
             ),
             _NavItem(
               icon: Icons.flash_on,
               label: 'Battle',
               isActive: currentIndex == 1,
+              activeColor: _getColorForIndex(1),
               onTap: () => onTap(1),
             ),
             _NavItem(
               icon: Icons.analytics,
               label: 'Strategy',
               isActive: currentIndex == 2,
+              activeColor: _getColorForIndex(2),
               onTap: () => onTap(2),
             ),
             _NavItem(
               icon: Icons.person,
               label: 'Profile',
               isActive: currentIndex == 3,
+              activeColor: _getColorForIndex(3),
               onTap: () => onTap(3),
             ),
           ],
@@ -64,19 +83,19 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isActive;
+  final Color activeColor;
   final VoidCallback onTap;
 
   const _NavItem({
     required this.icon,
     required this.label,
     required this.isActive,
+    required this.activeColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Color activeColor = const Color(0xFFF59E0B);
-
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -89,10 +108,7 @@ class _NavItem extends StatelessWidget {
               color: isActive ? activeColor : Colors.transparent,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: isActive ? Colors.black : Colors.white54,
-            ),
+            child: Icon(icon, color: isActive ? Colors.black : Colors.white54),
           ),
           const SizedBox(height: 4),
           Text(
@@ -108,4 +124,3 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
-

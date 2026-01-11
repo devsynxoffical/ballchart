@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../constants/colors.dart';
+
 class RankProgressCard extends StatelessWidget {
   const RankProgressCard();
 
@@ -18,7 +20,7 @@ class RankProgressCard extends StatelessWidget {
           CircleAvatar(
             radius: 26,
             backgroundColor: Colors.pinkAccent,
-            child: const Icon(Icons.star, color: Colors.yellow),
+            child: const Icon(Icons.star, color: AppColors.yellow),
           ),
           const SizedBox(width: 14),
           Expanded(
