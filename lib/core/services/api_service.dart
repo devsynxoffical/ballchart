@@ -3,9 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  // Use 10.0.2.2 for Android emulator to access localhost
-  // Use your machine's IP address for physical device (e.g., http://192.168.1.5:5000)
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  // Production Railway URL
+  static const String baseUrl = 'https://hoopstar-production.up.railway.app/api';
   
   final _storage = const FlutterSecureStorage();
 
