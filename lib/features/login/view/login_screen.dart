@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../auth/viewmodel/auth_viewmodel.dart';
 import 'package:hoopstar/features/login/viewmodel/login_viewmodel.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/widgets/auth/custom_textfield_createaccount.dart';
@@ -13,18 +15,21 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
 
-  // ✅ MISSING VARIABLES (FIX)
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
 
   @override
   void dispose() {
-    _passwordController.dispose(); // ✅ always dispose controllers
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final authViewModel = Provider.of<AuthViewmodel>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       body: SafeArea(
@@ -34,50 +39,14 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-
-              // Icon
-              Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: AppColors.yellow,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'Hoop Star',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                'Join as a Coach',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
-                  fontSize: 16,
-                ),
-              ),
-
-              const SizedBox(height: 40),
+              // ... (Icon, Text widgets)
 
               // Email
-              const CustomTextFieldCreateAccount(
+              CustomTextFieldCreateAccount(
                 label: 'Email',
                 hintText: 'your@email.com',
                 keyboardType: TextInputType.emailAddress,
+                controller: _emailController,
               ),
 
               const SizedBox(height: 20),
@@ -105,14 +74,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 40),
 
-              // Button
-              CustomButton(
-                text: 'Sign In',
-                onPressed: () {
-                  LoginViewmodel.goToMainPage(context);
-                  debugPrint('Creating account...');
-                },
-              ),
+              if (authViewModel.isLoading)
+                const CircularProgressIndicator()
+              else
+                CustomButton(
+                  text: 'Sign In',
+                  onPressed: () {
+                    authViewModel.login(
+                      context,
+                      _emailController.text.trim(),
+                      _passwordController.text.trim(),
+                    );
+                  },
+                ),
 
               const SizedBox(height: 15),
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../viewmodel/battle_viewmodel.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/hoopstar_bottom_nav.dart';
 import '../../../core/constants/colors.dart';
@@ -6,7 +8,6 @@ import '../../../core/widgets/battle/battle_header.dart';
 import '../../../core/widgets/battle/leader_board_Header.dart';
 import '../../../core/widgets/battle/rank_progress_card.dart';
 import '../../../core/widgets/battle/task_card.dart';
-import '../../../core/widgets/battle/tasks_header.dart';
 
 class BattleScreen extends StatefulWidget {
   const BattleScreen({super.key});
@@ -17,6 +18,14 @@ class BattleScreen extends StatefulWidget {
 
 class _BattleScreenState extends State<BattleScreen> {
   int _navIndex = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BattleViewmodel>().loadBattles();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,31 +43,64 @@ class _BattleScreenState extends State<BattleScreen> {
                 const SizedBox(height: 20),
                 const RankProgressCard(),
                 const SizedBox(height: 28),
-                const TasksHeader(),
+                
+                // Header for Battles
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Active Battles',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle, color: AppColors.yellow),
+                      onPressed: () {
+                         // Quick hack to create battle for demo
+                         context.read<BattleViewmodel>().createBattle('Court A', DateTime.now().add(const Duration(hours: 1)));
+                      },
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
-                const TaskCard(
-                  title: '20 Mins Dribbling Practice',
-                  duration: '20 min',
-                  difficulty: 'medium',
-                  points: '+50 pts',
-                  difficultyColor: AppColors.yellow,
+
+                // Battles List
+                Consumer<BattleViewmodel>(
+                  builder: (context, viewModel, child) {
+                    if (viewModel.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (viewModel.battles.isEmpty) {
+                      return const Text('No active battles', style: TextStyle(color: Colors.white60));
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: viewModel.battles.length,
+                      itemBuilder: (context, index) {
+                        final battle = viewModel.battles[index];
+                        return Card(
+                          color: const Color(0xFF1E293B),
+                          child: ListTile(
+                            title: Text('Battle at ${battle.location}', style: const TextStyle(color: Colors.white)),
+                            subtitle: Text(battle.status, style: const TextStyle(color: Colors.white60)),
+                            trailing: ElevatedButton(
+                              onPressed: () {
+                                viewModel.joinBattle(battle.id);
+                              },
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.yellow),
+                              child: const Text('Join', style: TextStyle(color: Colors.black)),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-                const SizedBox(height: 14),
-                const TaskCard(
-                  title: 'Free Throw Challenge (50 shots)',
-                  duration: '15 min',
-                  difficulty: 'hard',
-                  points: '+75 pts',
-                  difficultyColor: Colors.redAccent,
-                ),
-                const SizedBox(height: 14),
-                const TaskCard(
-                  title: 'Defensive Slide Drills',
-                  duration: '10 min',
-                  difficulty: 'easy',
-                  points: '+30 pts',
-                  difficultyColor: Colors.green,
-                ),
+
                 const SizedBox(height: 30),
                 LeaderboardHeader(),
                 const SizedBox(height: 16),

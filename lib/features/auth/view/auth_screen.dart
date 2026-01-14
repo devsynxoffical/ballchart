@@ -3,6 +3,7 @@ import 'package:hoopstar/core/widgets/auth/custom_textfield_createaccount.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../viewmodel/auth_viewmodel.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter/gestures.dart';
 
 
@@ -126,12 +127,21 @@ class _AuthScreenState extends State<AuthScreen> {
                   const SizedBox(height: 40),
               
                   // Create Account Button
-                  CustomButton(
-                    text: 'Create Account',
-                    onPressed: () {
-                      // Handle account creation
-                      print('Creating account...');
-                      AuthViewmodel.goToRoleSelecting(context);
+                  Consumer<AuthViewmodel>(
+                    builder: (context, authViewModel, child) {
+                      return authViewModel.isLoading
+                          ? const CircularProgressIndicator()
+                          : CustomButton(
+                              text: 'Create Account',
+                              onPressed: () {
+                                authViewModel.signup(
+                                  context,
+                                  _fullNameController.text.trim(),
+                                  _emailController.text.trim(),
+                                  _passwordController.text.trim(),
+                                );
+                              },
+                            );
                     },
                   ),
               
