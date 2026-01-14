@@ -12,6 +12,8 @@ class CustomTextFieldCreateAccount extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final FormFieldValidator<String>? validator;
   final bool showLabel;
+  final FocusNode? focusNode;
+
 
   const CustomTextFieldCreateAccount({
     Key? key,
@@ -24,6 +26,7 @@ class CustomTextFieldCreateAccount extends StatelessWidget {
     this.onChanged,
     this.validator,
     this.showLabel = true,
+    this.focusNode,
   }) : super(key: key);
 
   @override
@@ -44,6 +47,7 @@ class CustomTextFieldCreateAccount extends StatelessWidget {
         TextFormField(
           controller: controller,
           onChanged: onChanged,
+          focusNode: focusNode,
           validator: validator,
           obscureText: obscureText,
           keyboardType: keyboardType,

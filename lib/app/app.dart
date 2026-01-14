@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
 
       theme: AppTheme.darkTheme,
 
-      initialRoute: RouteNames.onboarding,
+      initialRoute: RouteNames.profilecomplete_coach,
 
       onGenerateRoute: AppRoutes.generate,
     );

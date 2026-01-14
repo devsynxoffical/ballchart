@@ -1,6 +1,7 @@
 // app/app_routes.dart
 import 'package:flutter/material.dart';
 import 'package:hoopstar/features/AppNavigator/app_navigator.dart';
+import 'package:hoopstar/features/auth/completeyourprofile/coach/view/profile_coach_screen.dart';
 import 'package:hoopstar/features/auth/forgotpassword/view/enter_OTP_screen.dart';
 import 'package:hoopstar/features/auth/forgotpassword/view/enter_email_screen.dart';
 import 'package:hoopstar/features/auth/forgotpassword/view/enter_new_password_screen.dart';
@@ -46,6 +47,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => EnterNewPasswordScreen());
       case RouteNames.coachHome:
         return MaterialPageRoute(builder: (_) => CoachHomeScreen());
+      case RouteNames.profilecomplete_coach:
+        return MaterialPageRoute(builder: (_) => CompleteProfileScreenCoach());
 
       default:
         return MaterialPageRoute(

@@ -5,11 +5,14 @@ import '../../../core/widgets/custom_button.dart';
 import '../viewmodel/auth_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/gestures.dart';
+import 'package:hoopstar/core/widgets/auth/password_rules_widget.dart';
+
 
 
 class AuthScreen extends StatefulWidget {
   final String role;
   const AuthScreen({super.key, required this.role});
+
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -21,7 +24,21 @@ class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  final FocusNode _passwordFocusNode = FocusNode();
+  bool _showPasswordRules = false;
+
   bool _isPasswordVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordFocusNode.addListener(() {
+      setState(() {
+        _showPasswordRules = _passwordFocusNode.hasFocus;
+      });
+    });
+  }
+
 
   @override
   void dispose() {
@@ -29,6 +46,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -104,17 +122,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
               
                   const SizedBox(height: 20),
-              
+
                   CustomTextFieldCreateAccount(
                     label: 'Password',
                     hintText: 'Create a strong password',
                     obscureText: !_isPasswordVisible,
                     controller: _passwordController,
+                    focusNode: _passwordFocusNode,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _isPasswordVisible
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                        _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
                         color: Colors.white.withOpacity(0.6),
                       ),
                       onPressed: () {
@@ -124,7 +141,14 @@ class _AuthScreenState extends State<AuthScreen> {
                       },
                     ),
                   ),
-              
+
+                  if (_showPasswordRules) ...[
+                    const SizedBox(height: 12),
+                    const PasswordRulesWidget(),
+                  ],
+
+
+
                   const SizedBox(height: 40),
               
                   // Create Account Button
