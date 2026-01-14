@@ -47,11 +47,30 @@ class ApiService {
 
   dynamic _processResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+      if (response.body.isEmpty) return {};
+      try {
+        return jsonDecode(response.body);
+      } catch (e) {
+        throw Exception('Failed to parse response: ${response.body}');
+      }
     } else {
-      // Simple error handling
-      final body = jsonDecode(response.body);
-      throw Exception(body['message'] ?? 'Something went wrong');
+      // Error handling
+      try {
+        final body = jsonDecode(response.body);
+        throw Exception(body['message'] ?? 'Something went wrong');
+      } catch (e) {
+        // Fallback for non-JSON errors (like HTML)
+        final body = response.body;
+        if (body.contains('<html')) {
+             // Try to extract title or pre tag for cleaner error
+             final titleMatch = RegExp(r'<title>(.*?)</title>').firstMatch(body);
+             final preMatch = RegExp(r'<pre>(.*?)</pre>').firstMatch(body);
+             if (preMatch != null) throw Exception('Server Error: ${preMatch.group(1)}');
+             if (titleMatch != null) throw Exception('Server Error: ${titleMatch.group(1)}');
+             throw Exception('Server returned HTML Error Page (${response.statusCode})');
+        }
+        throw Exception('Server Error (${response.statusCode}): $body');
+      }
     }
   }
 
