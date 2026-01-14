@@ -6,8 +6,28 @@ import '../../../core/widgets/home/invite_players_card.dart';
 import '../../../core/widgets/home/stats_row.dart';
 import '../../../core/widgets/home/team_card.dart';
 
-class HomeScreen extends StatelessWidget {
+import 'package:provider/provider.dart';
+import '../../../features/profile/viewmodel/profile_viewmodel.dart';
+import '../../../core/models/user_model.dart';
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profileViewModel = context.read<ProfileViewmodel>();
+      if (profileViewModel.user == null) {
+        profileViewModel.loadProfile();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,14 +39,19 @@ class HomeScreen extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: SingleChildScrollView(
             child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Header(),
-              
-                  const SizedBox(height: 20),
-              
-                  StatsRow(),
+              child: Consumer<ProfileViewmodel>(
+                builder: (context, viewModel, child) {
+                  final user = viewModel.user;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Header(),
+                  
+                      const SizedBox(height: 20),
+                  
+                      user != null 
+                          ? StatsRow(user: user)
+                          : const Center(child: CircularProgressIndicator()),
               
                   const SizedBox(height: 24),
               
@@ -64,8 +89,12 @@ class HomeScreen extends StatelessWidget {
               
                   const SizedBox(height: 20),
               
+                  const SizedBox(height: 20),
+              
                   InvitePlayersCard(),
                 ],
+                  );    
+                },
               ),
             ),
           ),

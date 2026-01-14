@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../constants/colors.dart';
 
+import '../../models/user_model.dart';
+
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader();
+  final UserModel user;
+  const ProfileHeader({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -22,14 +25,17 @@ class ProfileHeader extends StatelessWidget {
           CircleAvatar(
             radius: 32,
             backgroundColor: Colors.pinkAccent,
-            child: const Icon(Icons.star, color: AppColors.yellow, size: 30),
+            child: Text(
+              user.username.isNotEmpty ? user.username[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.yellow),
+            ),
           ),
           const SizedBox(width: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
-                'Alex Johnson',
+                user.username,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -38,8 +44,8 @@ class ProfileHeader extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                '@alexj_hoops',
-                style: TextStyle(color: Colors.white60),
+                user.email,
+                style: const TextStyle(color: Colors.white60),
               ),
             ],
           ),

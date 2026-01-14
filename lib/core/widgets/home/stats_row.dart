@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import '../../models/user_model.dart';
+
 class StatsRow extends StatelessWidget {
+  final UserModel user;
+  const StatsRow({super.key, required this.user});
+
   @override
   Widget build(BuildContext context) {
+    final stats = user.stats;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: const [
-        _StatCard(value: '3', label: 'Teams', color: Colors.amber),
-        _StatCard(value: '35', label: 'Players', color: Colors.blue),
-        _StatCard(value: '24', label: 'Active', color: Colors.green),
+      children: [
+        _StatCard(value: stats['matchesPlayed'].toString(), label: 'Matches', color: Colors.amber),
+        _StatCard(value: stats['wins'].toString(), label: 'Wins', color: Colors.blue),
+        _StatCard(value: stats['points'].toString(), label: 'Points', color: Colors.green),
       ],
     );
   }

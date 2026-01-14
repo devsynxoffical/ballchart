@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'features/auth/viewmodel/auth_viewmodel.dart';
 import 'features/battle/viewmodel/battle_viewmodel.dart';
+import 'features/profile/viewmodel/profile_viewmodel.dart';
 import 'app/app.dart';
 
 void main() {
@@ -10,6 +11,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthViewmodel()),
         ChangeNotifierProvider(create: (_) => BattleViewmodel()),
+        ChangeNotifierProvider(create: (_) => ProfileViewmodel()),
       ],
       child: const MyApp(),
     ),

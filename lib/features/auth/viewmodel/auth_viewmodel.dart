@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/custom_dialog.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../routes/routes_names.dart';
 
@@ -23,14 +24,18 @@ class AuthViewmodel extends ChangeNotifier {
     try {
       final user = await _authRepository.login(email, password);
       _setLoading(false);
-      // Navigate to Home/MainApp on success
       Navigator.pushReplacementNamed(context, RouteNames.mainApp);
     } catch (e) {
       _setLoading(false);
       _errorMessage = e.toString();
       notifyListeners();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login Failed: ${e.toString()}')),
+      showDialog(
+        context: context,
+        builder: (context) => CustomDialog(
+          title: 'Login Failed',
+          message: e.toString().replaceAll('Exception: ', ''),
+          isSuccess: false,
+        ),
       );
     }
   }
@@ -40,16 +45,33 @@ class AuthViewmodel extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      final user = await _authRepository.signup(username, email, password, 'player');
+      await _authRepository.signup(username, email, password, 'player');
       _setLoading(false);
-      // Navigate to Home/MainApp on success
-      Navigator.pushReplacementNamed(context, RouteNames.mainApp);
+      
+      // Success Dialog and Navigate to Login
+      showDialog(
+        context: context,
+        builder: (context) => CustomDialog(
+          title: 'Success!',
+          message: 'Account created successfully. Please log in.',
+          isSuccess: true,
+          onOk: () {
+             Navigator.pushReplacementNamed(context, RouteNames.login);
+          },
+        ),
+      );
+
     } catch (e) {
       _setLoading(false);
       _errorMessage = e.toString();
       notifyListeners();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Signup Failed: ${e.toString()}')),
+      showDialog(
+        context: context,
+        builder: (context) => CustomDialog(
+          title: 'Signup Failed',
+          message: e.toString().replaceAll('Exception: ', ''),
+          isSuccess: false,
+        ),
       );
     }
   }

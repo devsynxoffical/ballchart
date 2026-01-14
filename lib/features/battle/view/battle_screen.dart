@@ -9,6 +9,8 @@ import '../../../core/widgets/battle/leader_board_Header.dart';
 import '../../../core/widgets/battle/rank_progress_card.dart';
 import '../../../core/widgets/battle/task_card.dart';
 
+import '../../profile/viewmodel/profile_viewmodel.dart';
+
 class BattleScreen extends StatefulWidget {
   const BattleScreen({super.key});
 
@@ -24,6 +26,11 @@ class _BattleScreenState extends State<BattleScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BattleViewmodel>().loadBattles();
+      // Ensure profile is loaded for rank card
+      final profileViewModel = context.read<ProfileViewmodel>();
+      if (profileViewModel.user == null) {
+        profileViewModel.loadProfile();
+      }
     });
   }
 
@@ -36,12 +43,17 @@ class _BattleScreenState extends State<BattleScreen> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: SingleChildScrollView(
-            child: Column(
+            child: Consumer<ProfileViewmodel>(
+              builder: (context, profileViewModel, child) {
+                 final user = profileViewModel.user;
+                 return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const BattleHeader(),
                 const SizedBox(height: 20),
-                const RankProgressCard(),
+                user != null 
+                    ? RankProgressCard(user: user)
+                    : const SizedBox(height: 100, child: Center(child: CircularProgressIndicator())),
                 const SizedBox(height: 28),
                 
                 // Header for Battles
@@ -149,11 +161,21 @@ class _BattleScreenState extends State<BattleScreen> {
                   progress: 0.35,
                   color: Colors.grey,
                 ),
+                const LeaderboardItem(
+                  rank: 5,
+                  name: 'Emma Davis',
+                  role: 'Rookie',
+                  points: 195,
+                  progress: 0.35,
+                  color: Colors.grey,
+                ),
               ],
-            ),
-          ),
+            );
+          },
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }

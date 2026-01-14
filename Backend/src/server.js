@@ -23,8 +23,13 @@ app.use(cors());
 // Connect to Database
 connectDB();
 
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/battles', require('./routes/battleRoutes'));
+
+app.use(notFound);
+app.use(errorHandler);
 
 // Routes Placeholder
 app.get('/', (req, res) => {
