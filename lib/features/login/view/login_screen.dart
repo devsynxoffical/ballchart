@@ -7,7 +7,8 @@ import '../../../core/widgets/auth/custom_textfield_createaccount.dart';
 import '../../../core/widgets/custom_button.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String role;
+  const LoginScreen({super.key, required this.role});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -39,7 +40,30 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ... (Icon, Text widgets)
+              // Title Section
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.yellow,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${widget.role == 'coach' ? 'Coach' : 'Player'} Sign In',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 30),
 
               // Email
               CustomTextFieldCreateAccount(
@@ -108,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               GestureDetector(
                 onTap: () {
-                  debugPrint('Navigate to Sign In');
+                   Navigator.pushNamed(context, '/auth', arguments: widget.role);
                 },
                 child: RichText(
                   text: TextSpan(

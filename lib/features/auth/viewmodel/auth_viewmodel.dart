@@ -24,7 +24,12 @@ class AuthViewmodel extends ChangeNotifier {
     try {
       final user = await _authRepository.login(email, password);
       _setLoading(false);
-      Navigator.pushReplacementNamed(context, RouteNames.mainApp);
+      
+      if (user.role == 'coach') {
+        Navigator.pushReplacementNamed(context, RouteNames.coachHome);
+      } else {
+        Navigator.pushReplacementNamed(context, RouteNames.mainApp);
+      }
     } catch (e) {
       _setLoading(false);
       _errorMessage = e.toString();
@@ -40,12 +45,12 @@ class AuthViewmodel extends ChangeNotifier {
     }
   }
 
-  Future<void> signup(BuildContext context, String username, String email, String password) async {
+  Future<void> signup(BuildContext context, String username, String email, String password, String role) async {
     _setLoading(true);
     _errorMessage = null;
 
     try {
-      await _authRepository.signup(username, email, password, 'player');
+      await _authRepository.signup(username, email, password, role);
       _setLoading(false);
       
       // Success Dialog and Navigate to Login

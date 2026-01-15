@@ -109,8 +109,7 @@ class _RoleSelectingScreenState extends State<RoleSelectingScreen> {
                 onPressed: canContinue ? () {
                   // Handle navigation
                   print('Selected role: ${selectedRole.name}');
-                  // Navigator.push(...) or other navigation logic
-                  RoleselectingViewmodel.goToAuth(context);
+                  RoleselectingViewmodel.goToAuth(context, selectedRole.name.toLowerCase());
                 } : () {},
               ),
 

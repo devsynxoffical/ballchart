@@ -4,8 +4,9 @@ import '../services/api_service.dart';
 class AuthRepository {
   final ApiService _apiService = ApiService();
 
-  Future<UserModel> login(String email, String password) async {
-    final response = await _apiService.post('/auth/login', {
+  Future<UserModel> login(String email, String password, String role) async {
+    final endpoint = role == 'coach' ? '/auth/coach/login' : '/auth/player/login';
+    final response = await _apiService.post(endpoint, {
       'email': email,
       'password': password,
     });
@@ -18,11 +19,12 @@ class AuthRepository {
   }
 
   Future<UserModel> signup(String username, String email, String password, String role) async {
-    final response = await _apiService.post('/auth/signup', {
+    final endpoint = role == 'coach' ? '/auth/coach/signup' : '/auth/player/signup';
+    final response = await _apiService.post(endpoint, {
       'username': username,
       'email': email,
       'password': password,
-      'role': role,
+      // 'role': role, // schema defaults handle this, but can send if needed
     });
 
     final user = UserModel.fromJson(response);

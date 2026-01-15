@@ -13,6 +13,7 @@ import 'package:hoopstar/features/profile/view/profile_screen.dart';
 import 'package:hoopstar/features/role_selecting/view/role_selecting_screen.dart';
 import 'package:hoopstar/features/strategy/view/strategy_screen.dart';
 import 'package:hoopstar/routes/routes_names.dart';
+import 'package:hoopstar/features/coach/home/view/coach_home_screen.dart';
 
 class AppRoutes {
   static Route<dynamic> generate(RouteSettings settings) {
@@ -22,13 +23,15 @@ class AppRoutes {
       case RouteNames.roleselecting:
         return MaterialPageRoute(builder: (_) => RoleSelectingScreen());
       case RouteNames.auth:
-        return MaterialPageRoute(builder: (_) => AuthScreen());
+        final role = settings.arguments as String? ?? 'player';
+        return MaterialPageRoute(builder: (_) => AuthScreen(role: role));
       case RouteNames.home:
         return MaterialPageRoute(builder: (_) => HomeScreen());
       case RouteNames.battle:
         return MaterialPageRoute(builder: (_) => BattleScreen());
       case RouteNames.login:
-        return MaterialPageRoute(builder: (_) => LoginScreen());
+        final role = settings.arguments as String? ?? 'player';
+        return MaterialPageRoute(builder: (_) => LoginScreen(role: role));
       case RouteNames.strategy:
         return MaterialPageRoute(builder: (_) => StrategyScreen());
       case RouteNames.profile:
@@ -41,6 +44,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => EnterOtpScreen());
       case RouteNames.forgotpass_enter_new_pass:
         return MaterialPageRoute(builder: (_) => EnterNewPasswordScreen());
+      case RouteNames.coachHome:
+        return MaterialPageRoute(builder: (_) => CoachHomeScreen());
 
       default:
         return MaterialPageRoute(

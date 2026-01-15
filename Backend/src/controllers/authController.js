@@ -1,91 +1,157 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
-const User = require('../models/User');
+const Coach = require('../models/Coach');
+const Player = require('../models/Player');
 
-// @desc    Register new user
-// @route   POST /api/auth/signup
-// @access  Public
-const registerUser = asyncHandler(async (req, res) => {
-    const { username, email, password, role } = req.body;
+// Helper to generate JWT
+const generateToken = (id, role) => {
+    return jwt.sign({ id, role }, process.env.JWT_SECRET, {
+        expiresIn: '30d',
+    });
+};
+
+// @desc    Register new Coach
+// @route   POST /api/auth/coach/signup
+const registerCoach = asyncHandler(async (req, res) => {
+    const { username, email, password } = req.body;
 
     if (!username || !email || !password) {
         res.status(400);
         throw new Error('Please add all fields');
     }
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    // Check if coach exists
+    const coachExists = await Coach.findOne({ email });
+    if (coachExists) {
         res.status(400);
-        throw new Error('User already exists');
+        throw new Error('Coach with this email already exists');
     }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
-    const user = await User.create({
+    // Create coach
+    const coach = await Coach.create({
         username,
         email,
         password: hashedPassword,
-        role: role || 'player',
+        role: 'coach',
     });
 
-    if (user) {
+    if (coach) {
         res.status(201).json({
-            _id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            token: generateToken(user._id),
+            _id: coach.id,
+            username: coach.username,
+            email: coach.email,
+            role: 'coach',
+            token: generateToken(coach._id, 'coach'),
         });
     } else {
         res.status(400);
-        throw new Error('Invalid user data');
+        throw new Error('Invalid coach data');
     }
 });
 
-// @desc    Authenticate a user
-// @route   POST /api/auth/login
-// @access  Public
-const loginUser = asyncHandler(async (req, res) => {
+// @desc    Register new Player
+// @route   POST /api/auth/player/signup
+const registerPlayer = asyncHandler(async (req, res) => {
+    const { username, email, password } = req.body;
+
+    if (!username || !email || !password) {
+        res.status(400);
+        throw new Error('Please add all fields');
+    }
+
+    // Check if player exists
+    const playerExists = await Player.findOne({ email });
+    if (playerExists) {
+        res.status(400);
+        throw new Error('Player with this email already exists');
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create player
+    const player = await Player.create({
+        username,
+        email,
+        password: hashedPassword,
+        role: 'player',
+    });
+
+    if (player) {
+        res.status(201).json({
+            _id: player.id,
+            username: player.username,
+            email: player.email,
+            role: 'player',
+            token: generateToken(player._id, 'player'),
+        });
+    } else {
+        res.status(400);
+        throw new Error('Invalid player data');
+    }
+});
+
+// @desc    Login Coach
+// @route   POST /api/auth/coach/login
+const loginCoach = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
-    // Check for user email
-    const user = await User.findOne({ email });
+    // Check for coach email
+    const coach = await Coach.findOne({ email });
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (coach && (await bcrypt.compare(password, coach.password))) {
         res.json({
-            _id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            token: generateToken(user._id),
+            _id: coach.id,
+            username: coach.username,
+            email: coach.email,
+            role: 'coach',
+            token: generateToken(coach._id, 'coach'),
         });
     } else {
         res.status(400);
-        throw new Error('Invalid credentials');
+        throw new Error('Invalid Coach credentials');
     }
 });
 
-// @desc    Get user data
+// @desc    Login Player
+// @route   POST /api/auth/player/login
+const loginPlayer = asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+
+    // Check for player email
+    const player = await Player.findOne({ email });
+
+    if (player && (await bcrypt.compare(password, player.password))) {
+        res.json({
+            _id: player.id,
+            username: player.username,
+            email: player.email,
+            role: 'player',
+            token: generateToken(player._id, 'player'),
+        });
+    } else {
+        res.status(400);
+        throw new Error('Invalid Player credentials');
+    }
+});
+
+// @desc    Get current user (Generic)
 // @route   GET /api/auth/me
-// @access  Private
 const getMe = asyncHandler(async (req, res) => {
+    // req.user is set by authMiddleware
     res.status(200).json(req.user);
 });
 
-// Generate JWT
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: '30d',
-    });
-};
-
 module.exports = {
-    registerUser,
-    loginUser,
+    registerCoach,
+    registerPlayer,
+    loginCoach,
+    loginPlayer,
     getMe,
 };

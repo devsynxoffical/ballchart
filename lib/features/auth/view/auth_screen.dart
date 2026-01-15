@@ -8,7 +8,8 @@ import 'package:flutter/gestures.dart';
 
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  final String role;
+  const AuthScreen({super.key, required this.role});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -68,7 +69,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Join as a Coach',
+                    'Join as a ${widget.role == 'coach' ? 'Coach' : 'Player'}',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.8),
                       fontSize: 16,
@@ -139,6 +140,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   _fullNameController.text.trim(),
                                   _emailController.text.trim(),
                                   _passwordController.text.trim(),
+                                  widget.role,
                                 );
                               },
                             );
@@ -172,7 +174,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () {
                                   // Navigate to Sign In
-                                  AuthViewmodel.goToLogin(context);
+                                  Navigator.pushNamed(context, '/login', arguments: widget.role);
                                   print('Sign In tapped');
                                 },
                             ),
