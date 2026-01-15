@@ -21,6 +21,13 @@ const registerCoach = asyncHandler(async (req, res) => {
         throw new Error('Please add all fields');
     }
 
+    // Check if email is already used by a Player
+    const playerExists = await Player.findOne({ email });
+    if (playerExists) {
+        res.status(400);
+        throw new Error('Email is already registered as a Player. You cannot register as a Coach.');
+    }
+
     // Check if coach exists
     const coachExists = await Coach.findOne({ email });
     if (coachExists) {
@@ -62,6 +69,13 @@ const registerPlayer = asyncHandler(async (req, res) => {
     if (!username || !email || !password) {
         res.status(400);
         throw new Error('Please add all fields');
+    }
+
+    // Check if email is already used by a Coach
+    const coachExists = await Coach.findOne({ email });
+    if (coachExists) {
+        res.status(400);
+        throw new Error('Email is already registered as a Coach. You cannot register as a Player.');
     }
 
     // Check if player exists

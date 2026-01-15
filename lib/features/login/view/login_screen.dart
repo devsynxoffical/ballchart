@@ -108,6 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       context,
                       _emailController.text.trim(),
                       _passwordController.text.trim(),
+                      widget.role,
                     );
                   },
                 ),

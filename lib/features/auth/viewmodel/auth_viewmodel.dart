@@ -17,12 +17,12 @@ class AuthViewmodel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(BuildContext context, String email, String password) async {
+  Future<void> login(BuildContext context, String email, String password, String role) async {
     _setLoading(true);
     _errorMessage = null;
 
     try {
-      final user = await _authRepository.login(email, password);
+      final user = await _authRepository.login(email, password, role);
       _setLoading(false);
       
       if (user.role == 'coach') {
