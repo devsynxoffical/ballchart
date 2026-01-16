@@ -136,7 +136,9 @@ class _ProfilePlayerScreenState extends State<CompleteProfilePlayerScreen> {
                     ),
                   ),
                   onPressed: () {},
-                  child: const Text('Complete Profile'),
+                  child: const Text('Complete Profile',style: TextStyle(
+                    color: Colors.white
+                  ),),
                 ),
               ),
             ],
