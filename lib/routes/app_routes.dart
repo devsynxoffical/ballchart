@@ -16,6 +16,8 @@ import 'package:hoopstar/features/strategy/view/strategy_screen.dart';
 import 'package:hoopstar/routes/routes_names.dart';
 import 'package:hoopstar/features/coach/home/view/coach_home_screen.dart';
 
+import '../features/auth/completeyourprofile/player/view/profile_player_screen.dart';
+
 class AppRoutes {
   static Route<dynamic> generate(RouteSettings settings) {
     switch (settings.name) {
@@ -49,6 +51,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => CoachHomeScreen());
       case RouteNames.profilecomplete_coach:
         return MaterialPageRoute(builder: (_) => CompleteProfileScreenCoach());
+      case RouteNames.profilecomplete_player:
+        return MaterialPageRoute(builder: (_) => CompleteProfilePlayerScreen());
 
       default:
         return MaterialPageRoute(

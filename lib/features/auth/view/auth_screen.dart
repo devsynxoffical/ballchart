@@ -67,7 +67,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     width: 60,  // circle diameter
                     height: 60,
                     decoration: BoxDecoration(
-                      color: AppColors.yellow, // yellow background
+                      color: widget.role == 'coach' ? AppColors.yellow :AppColors.blue, // yellow background
                       shape: BoxShape.circle,    // makes it a circle
                     ),
                     child: Icon(
@@ -158,6 +158,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ? const CircularProgressIndicator()
                           : CustomButton(
                               text: 'Create Account',
+                              backgroundColor: widget.role == 'coach' ? AppColors.yellow :AppColors.blue,
                               onPressed: () {
                                 authViewModel.signup(
                                   context,
