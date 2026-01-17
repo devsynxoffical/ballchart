@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../core/widgets/dialogues/CreateTeamDialog.dart';
 import '../../../core/widgets/home/header.dart';
 import '../../../core/widgets/hoopstar_bottom_nav.dart';
 import '../../../core/widgets/home/invite_players_card.dart';
@@ -9,6 +10,7 @@ import '../../../core/widgets/home/team_card.dart';
 import 'package:provider/provider.dart';
 import '../../../features/profile/viewmodel/profile_viewmodel.dart';
 import '../../../core/models/user_model.dart';
+import '../viewmodel/home_viewmodel.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -81,13 +83,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
               
                   const SizedBox(height: 24),
-              
-                  CustomButton(
-                    text: '+ Create New Team',
-                    onPressed: () {},
-                  ),
-              
-                  const SizedBox(height: 20),
+
+                      CustomButton(
+                        text: '+ Create New Team',
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: true,
+                            builder: (_) => const CreateTeamDialog(),
+                          );
+                        },
+                      ),
+
+
+                      const SizedBox(height: 20),
               
                   const SizedBox(height: 20),
               

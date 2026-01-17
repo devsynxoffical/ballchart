@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hoopstar/core/widgets/resetPassword/reset_header.dart';
 import 'package:hoopstar/features/auth/forgotpassword/viewmodel/email_viewmodel.dart';
+import '../../../../core/constants/colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 
 
 class EnterEmailScreen extends StatelessWidget {
-  const EnterEmailScreen({super.key});
+  final String role;
+  const EnterEmailScreen({super.key,required this.role});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +19,8 @@ class EnterEmailScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const ResetHeader(
+              ResetHeader(
+                bgColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
                 title: 'Reset Password',
                 subtitle: 'Enter your registered email',
               ),
@@ -26,8 +29,10 @@ class EnterEmailScreen extends StatelessWidget {
               const SizedBox(height: 24),
               CustomButton(
                 text: 'Send Verification Code',
+                textColor: role == 'coach' ? AppColors.black :AppColors.white,
+                backgroundColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
                 onPressed: () {
-                  EmailViewmodel.goToEnterOTP(context);
+                  EmailViewmodel.goToEnterOTP(context,role);
                 },
               ),
               const SizedBox(height: 14),

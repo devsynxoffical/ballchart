@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hoopstar/core/widgets/resetPassword/reset_header.dart';
 import 'package:hoopstar/features/auth/forgotpassword/viewmodel/otp_viewmodel.dart';
+import '../../../../core/constants/colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/resetPassword/otp_input.dart';
 
 class EnterOtpScreen extends StatelessWidget {
-  const EnterOtpScreen({super.key});
+  final String role;
+  const EnterOtpScreen({super.key,required this.role});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +19,8 @@ class EnterOtpScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const ResetHeader(
+              ResetHeader(
+                bgColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
                 title: 'Reset Password',
                 subtitle: 'Enter verification code',
               ),
@@ -30,13 +33,16 @@ class EnterOtpScreen extends StatelessWidget {
               const OtpInput(),
               const SizedBox(height: 30),
               CustomButton(
+                backgroundColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
                 text: 'Verify Code',
+                textColor: role == 'coach' ? AppColors.black :AppColors.white,
                 onPressed: () {
-                  OTPViewmodel.goToEnterNewPass(context);
+                  OTPViewmodel.goToEnterNewPass(context,role);
                 },
               ),
               const SizedBox(height: 14),
               CustomButton(
+
                 text: 'Back',
                 backgroundColor: Colors.white10,
                 textColor: Colors.white,

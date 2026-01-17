@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:hoopstar/features/auth/forgotpassword/viewmodel/new_password_viewmodel.dart';
+import '../../../../core/constants/colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/resetPassword/password_rules.dart';
 import '../../../../core/widgets/resetPassword/reset_header.dart';
 
 
 class EnterNewPasswordScreen extends StatelessWidget {
-  const EnterNewPasswordScreen({super.key});
+  final String role;
+  const EnterNewPasswordScreen({super.key,required this.role});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +29,8 @@ class EnterNewPasswordScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const ResetHeader(
+                      ResetHeader(
+                        bgColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
                         title: 'Reset Password',
                         subtitle: 'Create new password',
                       ),
@@ -40,8 +43,10 @@ class EnterNewPasswordScreen extends StatelessWidget {
                       const SizedBox(height: 24),
                       CustomButton(
                         text: 'Submit New Password',
+                        backgroundColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
+                        textColor: role == 'coach' ? AppColors.black :AppColors.white,
                         onPressed: () {
-                          NewPasswordViewmodel.goToLogin(context);
+                          NewPasswordViewmodel.goToLogin(context,role);
                         },
                       ),
                       const SizedBox(height: 14),

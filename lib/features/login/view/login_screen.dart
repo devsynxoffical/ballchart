@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.yellow,
+                  color: widget.role == 'coach' ? AppColors.yellow :AppColors.blue,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -103,6 +103,8 @@ class _LoginScreenState extends State<LoginScreen> {
               else
                 CustomButton(
                   text: 'Sign In',
+                  textColor: widget.role == 'coach' ? AppColors.black :AppColors.white,
+                  backgroundColor: widget.role == 'coach' ? AppColors.yellow :AppColors.blue,
                   onPressed: () {
                     authViewModel.login(
                       context,
@@ -117,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               InkWell(
                 onTap: (){
-                  LoginViewmodel.goToResetPassword(context);
+                  LoginViewmodel.goToResetPassword(context,widget.role);
                 },
                 child: const Text(
                   'Forgot Password?',

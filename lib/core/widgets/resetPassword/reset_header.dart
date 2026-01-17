@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class ResetHeader extends StatelessWidget {
   final String title;
   final String subtitle;
+  final Color bgColor;
 
   const ResetHeader({
     super.key,
     required this.title,
     required this.subtitle,
+    required this.bgColor
   });
 
   @override
@@ -17,8 +19,8 @@ class ResetHeader extends StatelessWidget {
         Container(
           width: 60,
           height: 60,
-          decoration: const BoxDecoration(
-            color: Color(0xFFF59E0B),
+          decoration: BoxDecoration(
+            color: bgColor,
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.person, color: Colors.white, size: 30),
