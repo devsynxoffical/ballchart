@@ -3,6 +3,9 @@ import '../../../core/widgets/custom_dialog.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../routes/routes_names.dart';
 
+import 'package:provider/provider.dart';
+import '../../profile/viewmodel/profile_viewmodel.dart';
+
 class AuthViewmodel extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository();
   
@@ -86,6 +89,14 @@ class AuthViewmodel extends ChangeNotifier {
           isSuccess: false,
         ),
       );
+    }
+  }
+
+  Future<void> logout(BuildContext context) async {
+    await _authRepository.logout();
+    if (context.mounted) {
+      Provider.of<ProfileViewmodel>(context, listen: false).clearProfile();
+      Navigator.pushNamedAndRemoveUntil(context, RouteNames.onboarding, (route) => false);
     }
   }
 

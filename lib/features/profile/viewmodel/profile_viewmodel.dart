@@ -26,6 +26,11 @@ class ProfileViewmodel extends ChangeNotifier {
     }
   }
 
+  void clearProfile() {
+    _user = null;
+    notifyListeners();
+  }
+
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();

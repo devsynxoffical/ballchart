@@ -13,11 +13,12 @@ class CoachHomeScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         title: const Text('Coach Dashboard', style: TextStyle(color: Colors.white)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () {
-              // Simple logout for now, assume generic logout exists or pop
-              Navigator.of(context).pushReplacementNamed('/login'); 
+          Consumer<AuthViewmodel>(
+            builder: (context, authVm, child) {
+              return IconButton(
+                icon: const Icon(Icons.logout, color: Colors.white),
+                onPressed: () => authVm.logout(context),
+              );
             },
           ),
         ],

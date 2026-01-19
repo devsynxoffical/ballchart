@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../features/auth/viewmodel/auth_viewmodel.dart';
 
 class SettingsSection extends StatelessWidget {
-  const SettingsSection();
+  const SettingsSection({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -49,19 +51,26 @@ class _SignOutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.red),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Center(
-        child: Text(
-          'Sign Out',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-        ),
-      ),
+    return Consumer<AuthViewmodel>(
+      builder: (context, authVm, child) {
+        return GestureDetector(
+          onTap: () => authVm.logout(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.red),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Center(
+              child: Text(
+                'Sign Out',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
