@@ -125,6 +125,7 @@ const loginCoach = asyncHandler(async (req, res) => {
             username: coach.username,
             email: coach.email,
             role: 'coach',
+            profileCompleted: coach.profileCompleted,
             token: generateToken(coach._id, 'coach'),
         });
     } else {
@@ -147,6 +148,7 @@ const loginPlayer = asyncHandler(async (req, res) => {
             username: player.username,
             email: player.email,
             role: 'player',
+            profileCompleted: player.profileCompleted,
             token: generateToken(player._id, 'player'),
         });
     } else {
