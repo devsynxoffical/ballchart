@@ -39,7 +39,7 @@ class AppRoutes {
       case RouteNames.profile:
         return MaterialPageRoute(builder: (_) => ProfileScreen());
       case RouteNames.mainApp:
-        return MaterialPageRoute(builder: (_) => AppNavigator());
+        return MaterialPageRoute(builder: (_) => AppNavigator(role: role));
       case RouteNames.forgotpassword_enter_email:
         return MaterialPageRoute(builder: (_) => EnterEmailScreen(role: role,));
       case RouteNames.forgotpass_enter_otp:

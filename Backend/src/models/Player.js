@@ -20,6 +20,26 @@ const playerSchema = mongoose.Schema(
             type: String,
             default: 'player',
         },
+        position: {
+            type: String,
+        },
+        ageRange: {
+            type: String,
+        },
+        experienceLevel: {
+            type: String,
+        },
+        goals: {
+            type: [String],
+            default: [],
+        },
+        additionalGoals: {
+            type: String,
+        },
+        profileCompleted: {
+            type: Boolean,
+            default: false,
+        },
         rank: {
             type: Number,
             default: 0,

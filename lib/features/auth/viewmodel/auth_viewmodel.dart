@@ -25,10 +25,14 @@ class AuthViewmodel extends ChangeNotifier {
       final user = await _authRepository.login(email, password, role);
       _setLoading(false);
       
-      if (user.role == 'coach') {
-        Navigator.pushReplacementNamed(context, RouteNames.coachHome);
+      if (user.profileCompleted) {
+        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: user.role);
       } else {
-        Navigator.pushReplacementNamed(context, RouteNames.mainApp);
+        if (user.role == 'coach') {
+          Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_coach);
+        } else {
+          Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_player);
+        }
       }
     } catch (e) {
       _setLoading(false);
@@ -61,7 +65,11 @@ class AuthViewmodel extends ChangeNotifier {
           message: 'Account created successfully. Please log in.',
           isSuccess: true,
           onOk: () {
-             Navigator.pushReplacementNamed(context, RouteNames.login);
+             if (role == 'coach') {
+               Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_coach);
+             } else {
+               Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_player);
+             }
           },
         ),
       );
@@ -83,7 +91,7 @@ class AuthViewmodel extends ChangeNotifier {
 
   // Navigation helpers
   static void goToRoleSelecting(BuildContext context) {
-    Navigator.pushNamed(context, RouteNames.mainApp);
+    Navigator.pushNamed(context, RouteNames.roleselecting);
   }
 
   static void goToLogin(BuildContext context) {

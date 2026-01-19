@@ -155,11 +155,40 @@ const loginPlayer = asyncHandler(async (req, res) => {
     }
 });
 
-// @desc    Get current user (Generic)
-// @route   GET /api/auth/me
-const getMe = asyncHandler(async (req, res) => {
-    // req.user is set by authMiddleware
-    res.status(200).json(req.user);
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+const updateProfile = asyncHandler(async (req, res) => {
+    const user = req.user; // from protect middleware
+    const { role } = user;
+
+    let updatedUser;
+    if (role === 'coach') {
+        updatedUser = await Coach.findByIdAndUpdate(
+            user._id,
+            { ...req.body, profileCompleted: true },
+            { new: true }
+        );
+    } else if (role === 'player') {
+        updatedUser = await Player.findByIdAndUpdate(
+            user._id,
+            { ...req.body, profileCompleted: true },
+            { new: true }
+        );
+    }
+
+    if (updatedUser) {
+        res.status(200).json({
+            _id: updatedUser.id,
+            username: updatedUser.username,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            profileCompleted: updatedUser.profileCompleted,
+            // include other fields as needed
+        });
+    } else {
+        res.status(404);
+        throw new Error('User not found');
+    }
 });
 
 module.exports = {
@@ -168,4 +197,5 @@ module.exports = {
     loginCoach,
     loginPlayer,
     getMe,
+    updateProfile,
 };

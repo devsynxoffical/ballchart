@@ -19,9 +19,27 @@ const coachSchema = mongoose.Schema(
             type: String,
             default: 'coach',
         },
-        // Coach specific fields can go here
+        // Coach specific fields
+        experienceLevel: {
+            type: String,
+        },
+        sports: {
+            type: [String],
+            default: [],
+        },
+        achievements: {
+            type: [String],
+            default: [],
+        },
+        additionalInfo: {
+            type: String,
+        },
         teamName: {
             type: String,
+        },
+        profileCompleted: {
+            type: Boolean,
+            default: false,
         },
     },
     {

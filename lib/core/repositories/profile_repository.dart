@@ -13,4 +13,8 @@ class ProfileRepository {
     final response = await _apiService.get('/auth/me');
     return UserModel.fromJson(response);
   }
+
+  Future<void> completeProfile(Map<String, dynamic> profileData) async {
+    await _apiService.put('/auth/profile', profileData);
+  }
 }

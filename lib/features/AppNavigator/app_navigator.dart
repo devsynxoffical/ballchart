@@ -5,10 +5,12 @@ import '../battle/view/battle_screen.dart';
 import '../home/view/home_screen.dart';
 import '../profile/view/profile_screen.dart';
 import '../strategy/view/strategy_screen.dart';
+import '../coach/home/view/coach_home_screen.dart';
 
 
 class AppNavigator extends StatefulWidget {
-  const AppNavigator({super.key});
+  final String role;
+  const AppNavigator({super.key, required this.role});
 
   @override
   State<AppNavigator> createState() => _AppNavigatorState();
@@ -17,11 +19,11 @@ class AppNavigator extends StatefulWidget {
 class _AppNavigatorState extends State<AppNavigator> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
+  List<Widget> get _screens => [
+    widget.role == 'coach' ? const CoachHomeScreen() : const HomeScreen(),
     const BattleScreen(),
-    StrategyScreen(),
-    ProfileScreen(),
+    const StrategyScreen(),
+    const ProfileScreen(),
   ];
 
   void _onNavTap(int index) {
