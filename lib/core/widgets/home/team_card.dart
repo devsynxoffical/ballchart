@@ -30,23 +30,27 @@ class TeamCard extends StatelessWidget {
             child: Icon(icon, color: iconBg),
           ),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                members,
-                style: const TextStyle(color: Colors.white60),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  members,
+                  style: const TextStyle(color: Colors.white60),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
           const Spacer(),
           const Icon(Icons.chevron_right, color: Colors.white38),

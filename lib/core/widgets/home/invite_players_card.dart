@@ -34,11 +34,14 @@ class InvitePlayersCard extends StatelessWidget {
           CustomButton(
             text: 'Share via WhatsApp',
             backgroundColor: Colors.green,
-            textColor: Colors.white, onPressed: () { showDialog(
-            context: context,
-            barrierDismissible: true,
-            builder: (_) => const InvitePlayerDialog(),
-          );},
+            textColor: Colors.white,
+            onPressed: () {
+              showDialog(
+                context: context,
+                barrierDismissible: true,
+                builder: (_) => const InvitePlayerDialog(),
+              );
+            },
           ),
         ],
       ),

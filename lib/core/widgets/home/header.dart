@@ -4,23 +4,26 @@ class Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'My Teams',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'My Teams',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Manage your basketball squads',
-              style: TextStyle(color: Colors.white60),
-            ),
-          ],
+              SizedBox(height: 4),
+              Text(
+                'Manage your basketball squads',
+                style: TextStyle(color: Colors.white60),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
         const Spacer(),
         CircleAvatar(
