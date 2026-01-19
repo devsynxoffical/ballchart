@@ -155,6 +155,13 @@ const loginPlayer = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Get current user (Generic)
+// @route   GET /api/auth/me
+const getMe = asyncHandler(async (req, res) => {
+    // req.user is set by authMiddleware
+    res.status(200).json(req.user);
+});
+
 // @desc    Update user profile
 // @route   PUT /api/auth/profile
 const updateProfile = asyncHandler(async (req, res) => {
