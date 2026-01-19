@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/custom_dialog.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../routes/routes_names.dart';
+import '../../../core/services/api_service.dart';
 
 import 'package:provider/provider.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
@@ -14,6 +15,13 @@ class AuthViewmodel extends ChangeNotifier {
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+
+  final ApiService _apiService = ApiService();
+
+  Future<bool> checkSession() async {
+    final token = await _apiService.getToken();
+    return token != null;
+  }
 
   void _setLoading(bool loading) {
     _isLoading = loading;

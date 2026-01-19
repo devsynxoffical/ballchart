@@ -78,6 +78,10 @@ class ApiService {
     await _storage.write(key: 'jwt_token', value: token);
   }
 
+  Future<String?> getToken() async {
+    return await _storage.read(key: 'jwt_token');
+  }
+
   Future<void> clearToken() async {
     await _storage.delete(key: 'jwt_token');
   }

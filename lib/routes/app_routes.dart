@@ -15,6 +15,7 @@ import 'package:hoopstar/features/role_selecting/view/role_selecting_screen.dart
 import 'package:hoopstar/features/strategy/view/strategy_screen.dart';
 import 'package:hoopstar/routes/routes_names.dart';
 import 'package:hoopstar/features/coach/home/view/coach_home_screen.dart';
+import 'package:hoopstar/features/splash/view/splash_screen.dart';
 
 import '../features/auth/completeyourprofile/player/view/profile_player_screen.dart';
 
@@ -52,6 +53,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => CompleteProfileScreenCoach());
       case RouteNames.profilecomplete_player:
         return MaterialPageRoute(builder: (_) => CompleteProfilePlayerScreen());
+      case RouteNames.splash:
+        return MaterialPageRoute(builder: (_) => const SplashScreen());
 
       default:
         return MaterialPageRoute(

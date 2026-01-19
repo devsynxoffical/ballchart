@@ -15,4 +15,5 @@ class RouteNames {
   static const forgotpass_enter_otp = '/forgotpass_enter_otp';
   static const forgotpass_enter_new_pass = '/forgotpass_enter_new_pass';
   static const coachHome = '/coachHome';
+  static const splash = '/splash';
 }
