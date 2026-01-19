@@ -47,7 +47,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Header(),
+                        Header(),
                         Consumer<AuthViewmodel>(
                           builder: (context, authVm, child) {
                             return IconButton(
