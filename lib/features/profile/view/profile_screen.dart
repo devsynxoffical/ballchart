@@ -8,6 +8,7 @@ import '../../../core/widgets/profile/AchievementsSection/achievements_section.d
 import '../../../core/widgets/profile/MyTeamsSection/my_teams_section.dart';
 import '../../../core/widgets/profile/SettingsSection/settings_section.dart';
 import '../../../core/widgets/profile/profile_header.dart';
+import '../../../core/widgets/profile/profile_info_section.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -51,6 +52,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 20),
                    StatsRow(user: user),
                   const SizedBox(height: 20),
+                  ProfileInfoSection(user: user),
+                  const SizedBox(height: 24),
                   RankProgressCard(user: user),
                   const SizedBox(height: 24),
                   const AchievementsSection(),
