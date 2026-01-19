@@ -9,11 +9,12 @@ class StatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final stats = user.stats;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _StatCard(value: stats['matchesPlayed'].toString(), label: 'Matches', color: Colors.amber),
-        _StatCard(value: stats['wins'].toString(), label: 'Wins', color: Colors.blue),
-        _StatCard(value: stats['points'].toString(), label: 'Points', color: Colors.green),
+        Expanded(child: _StatCard(value: stats['matchesPlayed'].toString(), label: 'Matches', color: Colors.amber)),
+        const SizedBox(width: 12),
+        Expanded(child: _StatCard(value: stats['wins'].toString(), label: 'Wins', color: Colors.blue)),
+        const SizedBox(width: 12),
+        Expanded(child: _StatCard(value: stats['points'].toString(), label: 'Points', color: Colors.green)),
       ],
     );
   }
@@ -33,7 +34,6 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF020617),

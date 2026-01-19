@@ -33,9 +33,23 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          Consumer<AuthViewmodel>(
+            builder: (context, authVm, child) {
+              return IconButton(
+                icon: const Icon(Icons.logout, color: Colors.white),
+                onPressed: () => authVm.logout(context),
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: SingleChildScrollView(
             child: Consumer<ProfileViewmodel>(
               builder: (context, viewModel, child) {
@@ -43,21 +57,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header with Logout
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Header(),
-                        Consumer<AuthViewmodel>(
-                          builder: (context, authVm, child) {
-                            return IconButton(
-                              icon: const Icon(Icons.logout, color: Colors.white),
-                              onPressed: () => authVm.logout(context),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                    Header(),
 
                     const SizedBox(height: 20),
 
