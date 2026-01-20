@@ -25,7 +25,6 @@ class Header extends StatelessWidget {
             ],
           ),
         ),
-        const Spacer(),
         CircleAvatar(
           backgroundColor: Colors.white10,
           child: Icon(Icons.notifications, color: Colors.amber),

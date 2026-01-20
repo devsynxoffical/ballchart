@@ -31,25 +31,28 @@ class ProfileHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                user.username,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.username,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                user.email,
-                style: const TextStyle(color: Colors.white60),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  user.email,
+                  style: const TextStyle(color: Colors.white60),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.yellow,

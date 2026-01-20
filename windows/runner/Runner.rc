@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.devsynx" "\0"
-            VALUE "FileDescription", "hoopstar" "\0"
+            VALUE "FileDescription", "CourtIQ" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "hoopstar" "\0"
+            VALUE "InternalName", "courtiq" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.devsynx. All rights reserved." "\0"
-            VALUE "OriginalFilename", "hoopstar.exe" "\0"
-            VALUE "ProductName", "hoopstar" "\0"
+            VALUE "OriginalFilename", "courtiq.exe" "\0"
+            VALUE "ProductName", "CourtIQ" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

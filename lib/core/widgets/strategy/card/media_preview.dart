@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/strategy/card/strategy_card.dart';
+import 'package:courtiq/core/widgets/strategy/card/strategy_card.dart';
 
 class MediaPreview extends StatelessWidget {
   final StrategyMedia type;

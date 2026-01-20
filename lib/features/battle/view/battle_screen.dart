@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/battle_viewmodel.dart';
 import '../../../../core/widgets/custom_button.dart';
-import '../../../../core/widgets/hoopstar_bottom_nav.dart';
+
 import '../../../core/constants/colors.dart';
 import '../../../core/widgets/battle/battle_header.dart';
 import '../../../core/widgets/battle/leader_board_Header.dart';

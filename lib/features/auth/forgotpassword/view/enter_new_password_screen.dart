@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/features/auth/forgotpassword/viewmodel/new_password_viewmodel.dart';
+import 'package:courtiq/features/auth/forgotpassword/viewmodel/new_password_viewmodel.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/resetPassword/password_rules.dart';

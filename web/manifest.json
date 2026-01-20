@@ -1,6 +1,6 @@
 {
-    "name": "hoopstar",
-    "short_name": "hoopstar",
+    "name": "CourtIQ",
+    "short_name": "CourtIQ",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

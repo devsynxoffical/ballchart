@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/repositories/profile_repository.dart';
+import 'package:courtiq/core/repositories/profile_repository.dart';
 import '../../../../routes/routes_names.dart';
 import 'package:provider/provider.dart';
 import '../../../../features/profile/viewmodel/profile_viewmodel.dart';

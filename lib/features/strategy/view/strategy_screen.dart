@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../core/widgets/hoopstar_bottom_nav.dart';
+
 import '../../../core/widgets/strategy/card/strategy_card.dart';
 import '../../../core/widgets/strategy/strategy_header.dart';
 import '../../../core/widgets/strategy/strategy_tabs.dart';

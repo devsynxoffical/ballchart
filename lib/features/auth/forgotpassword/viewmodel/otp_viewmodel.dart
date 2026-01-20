@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/routes/routes_names.dart';
+import 'package:courtiq/routes/routes_names.dart';
 
 class OTPViewmodel {
   // Function to navigate to RoleSelecting screen

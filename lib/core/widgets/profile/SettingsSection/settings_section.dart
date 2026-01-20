@@ -37,8 +37,13 @@ class _SettingsTile extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.white70),
           const SizedBox(width: 12),
-          Text(title, style: const TextStyle(color: Colors.white)),
-          const Spacer(),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(color: Colors.white),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const Icon(Icons.chevron_right, color: Colors.white38),
         ],
       ),

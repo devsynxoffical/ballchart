@@ -33,7 +33,7 @@ app.use(errorHandler);
 
 // Routes Placeholder
 app.get('/', (req, res) => {
-    res.send('HoopStar Backend is running!');
+    res.send('CourtIQ Backend is running!');
 });
 
 // Socket.io Connection

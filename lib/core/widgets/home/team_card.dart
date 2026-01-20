@@ -52,7 +52,6 @@ class TeamCard extends StatelessWidget {
               ],
             ),
           ),
-          const Spacer(),
           const Icon(Icons.chevron_right, color: Colors.white38),
         ],
       ),

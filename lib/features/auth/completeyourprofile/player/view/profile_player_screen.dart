@@ -51,7 +51,7 @@ class _ProfilePlayerScreenState extends State<CompleteProfilePlayerScreen> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Help us personalize your HoopStar experience',
+                          'Help us personalize your CourtIQ experience',
                           style: TextStyle(color: Colors.white60),
                         ),
                       ],

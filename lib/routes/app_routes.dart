@@ -1,21 +1,21 @@
 // app/app_routes.dart
 import 'package:flutter/material.dart';
-import 'package:hoopstar/features/AppNavigator/app_navigator.dart';
-import 'package:hoopstar/features/auth/completeyourprofile/coach/view/profile_coach_screen.dart';
-import 'package:hoopstar/features/auth/forgotpassword/view/enter_OTP_screen.dart';
-import 'package:hoopstar/features/auth/forgotpassword/view/enter_email_screen.dart';
-import 'package:hoopstar/features/auth/forgotpassword/view/enter_new_password_screen.dart';
-import 'package:hoopstar/features/auth/view/auth_screen.dart';
-import 'package:hoopstar/features/battle/view/battle_screen.dart';
-import 'package:hoopstar/features/home/view/home_screen.dart';
-import 'package:hoopstar/features/login/view/login_screen.dart';
-import 'package:hoopstar/features/onboarding/view/onboarding_screen.dart';
-import 'package:hoopstar/features/profile/view/profile_screen.dart';
-import 'package:hoopstar/features/role_selecting/view/role_selecting_screen.dart';
-import 'package:hoopstar/features/strategy/view/strategy_screen.dart';
-import 'package:hoopstar/routes/routes_names.dart';
-import 'package:hoopstar/features/coach/home/view/coach_home_screen.dart';
-import 'package:hoopstar/features/splash/view/splash_screen.dart';
+import 'package:courtiq/features/AppNavigator/app_navigator.dart';
+import 'package:courtiq/features/auth/completeyourprofile/coach/view/profile_coach_screen.dart';
+import 'package:courtiq/features/auth/forgotpassword/view/enter_OTP_screen.dart';
+import 'package:courtiq/features/auth/forgotpassword/view/enter_email_screen.dart';
+import 'package:courtiq/features/auth/forgotpassword/view/enter_new_password_screen.dart';
+import 'package:courtiq/features/auth/view/auth_screen.dart';
+import 'package:courtiq/features/battle/view/battle_screen.dart';
+import 'package:courtiq/features/home/view/home_screen.dart';
+import 'package:courtiq/features/login/view/login_screen.dart';
+import 'package:courtiq/features/onboarding/view/onboarding_screen.dart';
+import 'package:courtiq/features/profile/view/profile_screen.dart';
+import 'package:courtiq/features/role_selecting/view/role_selecting_screen.dart';
+import 'package:courtiq/features/strategy/view/strategy_screen.dart';
+import 'package:courtiq/routes/routes_names.dart';
+import 'package:courtiq/features/coach/home/view/coach_home_screen.dart';
+import 'package:courtiq/features/splash/view/splash_screen.dart';
 
 import '../features/auth/completeyourprofile/player/view/profile_player_screen.dart';
 

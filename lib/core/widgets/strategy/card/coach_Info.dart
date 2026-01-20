@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/strategy/card/role_Badge.dart';
+import 'package:courtiq/core/widgets/strategy/card/role_Badge.dart';
 
 import '../../../constants/colors.dart';
 

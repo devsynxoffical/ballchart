@@ -135,7 +135,7 @@ class _InvitePlayerDialogState extends State<InvitePlayerDialog> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Text(
-                'https://hoopstar.app/join/1',
+                'https://courtiq.app/join/1',
                 style: TextStyle(color: Colors.white70),
               ),
             ),

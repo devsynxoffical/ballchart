@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../core/widgets/hoopstar_bottom_nav.dart';
+import '../../core/widgets/courtiq_bottom_nav.dart';
 import '../battle/view/battle_screen.dart';
 import '../home/view/home_screen.dart';
 import '../profile/view/profile_screen.dart';
@@ -32,16 +33,54 @@ class _AppNavigatorState extends State<AppNavigator> {
     });
   }
 
+  Future<bool?> _showExitDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        title: const Text('Exit App', style: TextStyle(color: Colors.white)),
+        content: const Text('Do you want to exit the application?', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No', style: TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes', style: TextStyle(color: Colors.amber)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: HoopStarBottomNav(
-        currentIndex: _currentIndex,
-        onTap: _onNavTap,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = 0;
+          });
+        } else {
+          final shouldExit = await _showExitDialog(context);
+          if (shouldExit == true) {
+            SystemNavigator.pop();
+          }
+        }
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: CourtIQBottomNav(
+          currentIndex: _currentIndex,
+          onTap: _onNavTap,
+        ),
       ),
     );
   }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/routes/routes_names.dart';
+import 'package:courtiq/routes/routes_names.dart';
 
 class EmailViewmodel {
   // Function to navigate to RoleSelecting screen

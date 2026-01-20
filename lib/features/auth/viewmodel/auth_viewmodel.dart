@@ -37,12 +37,12 @@ class AuthViewmodel extends ChangeNotifier {
       _setLoading(false);
       
       if (user.profileCompleted) {
-        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: user.role);
+        Navigator.pushNamedAndRemoveUntil(context, RouteNames.mainApp, (route) => false, arguments: user.role);
       } else {
         if (user.role == 'coach') {
-          Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_coach);
+          Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_coach, (route) => false);
         } else {
-          Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_player);
+          Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_player, (route) => false);
         }
       }
     } catch (e) {
@@ -77,9 +77,9 @@ class AuthViewmodel extends ChangeNotifier {
           isSuccess: true,
           onOk: () {
              if (role == 'coach') {
-               Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_coach);
+               Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_coach, (route) => false);
              } else {
-               Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_player);
+               Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_player, (route) => false);
              }
           },
         ),

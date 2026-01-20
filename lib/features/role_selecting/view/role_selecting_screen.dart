@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/roleSelect/feature_card_selectingrole.dart';
-import 'package:hoopstar/features/role_selecting/viewmodel/roleselecting_viewmodel.dart';
+import 'package:courtiq/core/widgets/roleSelect/feature_card_selectingrole.dart';
+import 'package:courtiq/features/role_selecting/viewmodel/roleselecting_viewmodel.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/widgets/custom_button.dart';
@@ -57,7 +57,7 @@ class _RoleSelectingScreenState extends State<RoleSelectingScreen> {
 
               // Subtitle
               const Text(
-                'Select how you want to use HoopStar',
+                'Select how you want to use CourtIQ',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,

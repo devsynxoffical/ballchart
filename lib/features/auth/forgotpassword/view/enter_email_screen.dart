@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/resetPassword/reset_header.dart';
-import 'package:hoopstar/features/auth/forgotpassword/viewmodel/email_viewmodel.dart';
+import 'package:courtiq/core/widgets/resetPassword/reset_header.dart';
+import 'package:courtiq/features/auth/forgotpassword/viewmodel/email_viewmodel.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/widgets/custom_button.dart';
 

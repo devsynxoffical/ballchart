@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/custom_button.dart';
+import 'package:courtiq/core/widgets/custom_button.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/widgets/onboarding/feature_card.dart';
@@ -41,7 +41,7 @@ class OnboardingScreen extends StatelessWidget {
 
               // App Name
               const Text(
-                'HoopStar',
+                'CourtIQ',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,

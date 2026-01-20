@@ -1,4 +1,4 @@
-package com.devsynx.hoopstar
+package com.devsynx.courtiq
 
 import io.flutter.embedding.android.FlutterActivity
 

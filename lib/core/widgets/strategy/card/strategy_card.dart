@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/core/widgets/strategy/card/voice_explanation.dart';
+import 'package:courtiq/core/widgets/strategy/card/voice_explanation.dart';
 
 import 'card_footer.dart';
 import 'coach_Info.dart';

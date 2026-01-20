@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoopstar/app/theme.dart';
+import 'package:courtiq/app/theme.dart';
 
 import '../routes/app_routes.dart';
 import '../routes/routes_names.dart';
@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'HoopStar',
+      title: 'CourtIQ',
       debugShowCheckedModeBanner: false,
 
       theme: AppTheme.darkTheme,

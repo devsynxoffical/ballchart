@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../constants/colors.dart';
 
-class HoopStarBottomNav extends StatelessWidget {
+class CourtIQBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
 
-  const HoopStarBottomNav({
+  const CourtIQBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
