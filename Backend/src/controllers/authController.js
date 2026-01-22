@@ -2,7 +2,9 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
 const Coach = require('../models/Coach');
+
 const Player = require('../models/Player');
+const Admin = require('../models/Admin');
 
 // Helper to generate JWT
 const generateToken = (id, role) => {
@@ -200,6 +202,78 @@ const updateProfile = asyncHandler(async (req, res) => {
     }
 });
 
+
+
+// @desc    Register new Admin
+// @route   POST /api/auth/admin/signup
+const registerAdmin = asyncHandler(async (req, res) => {
+    const { username, email, password } = req.body;
+
+    if (!username || !email || !password) {
+        res.status(400);
+        throw new Error('Please add all fields');
+    }
+
+    // Check if admin exists
+    const adminExists = await Admin.findOne({ email });
+    if (adminExists) {
+        res.status(400);
+        throw new Error('Admin with this email already exists');
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create admin
+    const admin = await Admin.create({
+        username,
+        email,
+        password: hashedPassword,
+        role: 'admin',
+    });
+
+    if (admin) {
+        res.status(201).json({
+            _id: admin.id,
+            username: admin.username,
+            email: admin.email,
+            role: 'admin',
+            token: generateToken(admin._id, 'admin'),
+        });
+    } else {
+        res.status(400);
+        throw new Error('Invalid admin data');
+    }
+});
+
+// @desc    Login Admin
+// @route   POST /api/auth/admin/login
+const loginAdmin = asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        res.status(400);
+        throw new Error('Please include all fields');
+    }
+
+    // Check for admin email
+    const admin = await Admin.findOne({ email });
+
+    if (admin && (await bcrypt.compare(password, admin.password))) {
+        res.json({
+            _id: admin.id,
+            username: admin.username,
+            email: admin.email,
+            role: 'admin',
+            token: generateToken(admin._id, 'admin'),
+        });
+    } else {
+        res.status(400);
+        throw new Error('Invalid Admin credentials');
+    }
+});
+
 module.exports = {
     registerCoach,
     registerPlayer,
@@ -207,4 +281,6 @@ module.exports = {
     loginPlayer,
     getMe,
     updateProfile,
+    registerAdmin,
+    loginAdmin,
 };

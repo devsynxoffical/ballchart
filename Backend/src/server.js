@@ -26,6 +26,7 @@ connectDB();
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/battles', require('./routes/battleRoutes'));
 
 app.use(notFound);
