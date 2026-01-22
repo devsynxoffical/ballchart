@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
+const Coach = require('../models/Coach');
+const Player = require('../models/Player');
+const Admin = require('../models/Admin');
 
 const protect = asyncHandler(async (req, res, next) => {
     let token;
@@ -16,20 +19,18 @@ const protect = asyncHandler(async (req, res, next) => {
             // Verify token
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-            // Try finding in Coach, then in Player
-            // Note: In a real app we might encode the role in the token to know which DB to query directly.
-            // which we did in generateToken(id, role).
-
-            if (decoded.role === 'coach') {
-                req.user = await require('../models/Coach').findById(decoded.id).select('-password');
-            } else {
-                req.user = await require('../models/Player').findById(decoded.id).select('-password');
+            // Use role encoded in token to fetch from the right collection
+            if (decoded.role === 'admin') {
+                req.user = await Admin.findById(decoded.id).select('-password');
+            } else if (decoded.role === 'coach') {
+                req.user = await Coach.findById(decoded.id).select('-password');
+            } else if (decoded.role === 'player') {
+                req.user = await Player.findById(decoded.id).select('-password');
             }
 
-            // Fallback for old tokens or mismatch
             if (!req.user) {
-                // try the other one just in case
-                req.user = await require('../models/Player').findById(decoded.id).select('-password');
+                res.status(401);
+                throw new Error('Not authorized');
             }
 
             next();
