@@ -14,7 +14,7 @@ class CustomDialog extends StatelessWidget {
     required this.isSuccess,
     this.onOk,
   });
-
+     
   @override
   Widget build(BuildContext context) {
     return Dialog(

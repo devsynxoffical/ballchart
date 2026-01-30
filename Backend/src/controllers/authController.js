@@ -257,8 +257,11 @@ const loginAdmin = asyncHandler(async (req, res) => {
         throw new Error('Please include all fields');
     }
 
+    // Normalize email
+    const cleanEmail = email.toLowerCase().trim();
+
     // Check for admin email
-    const admin = await Admin.findOne({ email });
+    const admin = await Admin.findOne({ email: cleanEmail });
 
     if (admin && (await bcrypt.compare(password, admin.password))) {
         res.json({

@@ -1,5 +1,7 @@
 require('dotenv').config();
 
+const bcrypt = require('bcryptjs'); // Import bcryptjs
+
 const connectDB = require('./src/config/db');
 const Coach = require('./src/models/Coach');
 const Player = require('./src/models/Player');
@@ -12,11 +14,15 @@ async function seedDummyUsers() {
         await Coach.deleteMany({});
         await Player.deleteMany({});
 
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash('password123', salt);
+
         const coaches = [
             {
                 username: 'coach_jordan',
                 email: 'coach.jordan@example.com',
-                password: 'password123',
+                password: hashedPassword, // Use hashed password
                 role: 'coach',
                 experienceLevel: 'Expert',
                 sports: ['Basketball'],
@@ -29,7 +35,7 @@ async function seedDummyUsers() {
             {
                 username: 'coach_lee',
                 email: 'coach.lee@example.com',
-                password: 'password123',
+                password: hashedPassword, // Use hashed password
                 role: 'coach',
                 experienceLevel: 'Intermediate',
                 sports: ['Basketball', 'Fitness'],
@@ -45,7 +51,7 @@ async function seedDummyUsers() {
             {
                 username: 'player_ace',
                 email: 'player.ace@example.com',
-                password: 'password123',
+                password: hashedPassword,
                 role: 'player',
                 position: 'Point Guard',
                 ageRange: '18-24',
@@ -64,7 +70,7 @@ async function seedDummyUsers() {
             {
                 username: 'player_rookie',
                 email: 'player.rookie@example.com',
-                password: 'password123',
+                password: hashedPassword,
                 role: 'player',
                 position: 'Small Forward',
                 ageRange: '16-18',

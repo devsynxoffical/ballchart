@@ -4,8 +4,8 @@ async function seedAdmin() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                username: 'admin',
-                email: 'admin@hoopstar.com',
+                username: 'admin_ballchart',
+                email: 'admin@ballchart.com',
                 password: 'admin123'
             })
         });
