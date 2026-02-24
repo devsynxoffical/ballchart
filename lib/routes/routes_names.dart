@@ -16,4 +16,7 @@ class RouteNames {
   static const forgotpass_enter_new_pass = '/forgotpass_enter_new_pass';
   static const coachHome = '/coachHome';
   static const splash = '/splash';
+  static const academyDashboard = '/academyDashboard';
+  static const staffDashboard = '/staffDashboard';
+  static const playerDashboard = '/playerDashboard';
 }

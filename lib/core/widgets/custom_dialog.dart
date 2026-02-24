@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/colors.dart';
+import 'package:courtiq/core/constants/colors.dart';
 
 class CustomDialog extends StatelessWidget {
   final String title;

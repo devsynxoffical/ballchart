@@ -5,31 +5,41 @@ import '../constants/colors.dart';
 class CourtIQBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
+  final String role;
 
   const CourtIQBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    required this.role,
   });
 
-  // Define colors for each screen
+  // Define colors based on role and tab index
   Color _getColorForIndex(int index) {
-    switch (index) {
-      case 0: // Home
-        return AppColors.yellow; // Yellow/Amber
-      case 1: // Battle
-        return const Color(0xFF3B82F6); // Blue
-      case 2: // Strategy
-        return AppColors.yellow; // Yellow/Amber
-      case 3: // Profile
-        return const Color(0xFF8B5CF6); // Purple/Blue-Purple
-      default:
-        return AppColors.yellow;
+    if (role == 'head_coach') {
+      switch (index) {
+        case 0: return AppColors.yellow; // Home
+        case 1: return Colors.blueAccent; // Manage
+        case 2: return const Color(0xFF3B82F6); // Battle
+        case 3: return AppColors.yellow; // Strategy
+        case 4: return const Color(0xFF8B5CF6); // Profile
+        default: return AppColors.yellow;
+      }
+    } else {
+      switch (index) {
+        case 0: return AppColors.yellow; 
+        case 1: return const Color(0xFF3B82F6);
+        case 2: return AppColors.yellow; 
+        case 3: return const Color(0xFF8B5CF6);
+        default: return AppColors.yellow;
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isHC = role == 'head_coach';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Container(
@@ -51,26 +61,34 @@ class CourtIQBottomNav extends StatelessWidget {
               activeColor: _getColorForIndex(0),
               onTap: () => onTap(0),
             ),
+            if (isHC)
+              _NavItem(
+                icon: Icons.admin_panel_settings_rounded,
+                label: 'Manage',
+                isActive: currentIndex == 1,
+                activeColor: _getColorForIndex(1),
+                onTap: () => onTap(1),
+              ),
             _NavItem(
               icon: Icons.flash_on,
               label: 'Battle',
-              isActive: currentIndex == 1,
-              activeColor: _getColorForIndex(1),
-              onTap: () => onTap(1),
+              isActive: isHC ? currentIndex == 2 : currentIndex == 1,
+              activeColor: isHC ? _getColorForIndex(2) : _getColorForIndex(1),
+              onTap: () => onTap(isHC ? 2 : 1),
             ),
             _NavItem(
               icon: Icons.analytics,
               label: 'Strategy',
-              isActive: currentIndex == 2,
-              activeColor: _getColorForIndex(2),
-              onTap: () => onTap(2),
+              isActive: isHC ? currentIndex == 3 : currentIndex == 2,
+              activeColor: isHC ? _getColorForIndex(3) : _getColorForIndex(2),
+              onTap: () => onTap(isHC ? 3 : 2),
             ),
             _NavItem(
               icon: Icons.person,
               label: 'Profile',
-              isActive: currentIndex == 3,
-              activeColor: _getColorForIndex(3),
-              onTap: () => onTap(3),
+              isActive: isHC ? currentIndex == 4 : currentIndex == 3,
+              activeColor: isHC ? _getColorForIndex(4) : _getColorForIndex(3),
+              onTap: () => onTap(isHC ? 4 : 3),
             ),
           ],
         ),

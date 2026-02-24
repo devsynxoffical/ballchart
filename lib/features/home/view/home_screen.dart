@@ -1,92 +1,381 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/widgets/home/stats_row.dart';
+import '../../../core/constants/colors.dart';
 import '../../../core/widgets/home/header.dart';
-import '../../../features/auth/viewmodel/auth_viewmodel.dart';
+import '../../../core/widgets/home/stats_row.dart';
 import '../../../features/profile/viewmodel/profile_viewmodel.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final profileViewModel = context.read<ProfileViewmodel>();
-      if (profileViewModel.user == null) {
-        profileViewModel.loadProfile();
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF020617),
         elevation: 0,
-        actions: [
-          Consumer<AuthViewmodel>(
-            builder: (context, authVm, child) {
-              return IconButton(
-                icon: const Icon(Icons.logout, color: Colors.white),
-                onPressed: () => authVm.logout(context),
+        title: const Header(),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Consumer<ProfileViewmodel>(
+            builder: (context, viewModel, child) {
+              final user = viewModel.user;
+              if (user == null) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 100),
+                  child: Center(child: CircularProgressIndicator(color: AppColors.yellow)),
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  StatsRow(user: user),
+                  const SizedBox(height: 24),
+
+                  // My Team Card
+                  if (user.teamName != null && user.teamName!.isNotEmpty)
+                    _MyTeamCard(teamName: user.teamName!),
+
+                  const SizedBox(height: 24),
+                  _SectionHeader(title: 'Coaching Staff', icon: Icons.badge_rounded),
+                  const SizedBox(height: 12),
+                  const _CoachingStaffList(),
+
+                  const SizedBox(height: 24),
+                  _SectionHeader(title: 'Teammates', icon: Icons.groups_rounded),
+                  const SizedBox(height: 12),
+                  const _TeammatesList(),
+
+                  const SizedBox(height: 24),
+                  _SectionHeader(title: 'Upcoming', icon: Icons.calendar_today_rounded),
+                  const SizedBox(height: 12),
+                  const _UpcomingSchedule(),
+
+                  const SizedBox(height: 100),
+                ],
               );
             },
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: SingleChildScrollView(
-            child: Consumer<ProfileViewmodel>(
-              builder: (context, viewModel, child) {
-                final user = viewModel.user;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Header(),
-
-                    const SizedBox(height: 20),
-
-                    user != null 
-                        ? StatsRow(user: user)
-                        : const Center(child: CircularProgressIndicator()),
-            
-                    const SizedBox(height: 40),
-
-                    // Placeholder for player specific features
-                    Center(
-                      child: Column(
-                        children: [
-                          Icon(Icons.sports_basketball, size: 80, color: Colors.amber.withOpacity(0.5)),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Player Dashboard',
-                            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Your stats and matches will appear here.',
-                            style: TextStyle(color: Colors.white60),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
         ),
       ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  const _SectionHeader({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white54, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MyTeamCard extends StatelessWidget {
+  final String teamName;
+  const _MyTeamCard({required this.teamName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.yellow.withValues(alpha: 0.15),
+            const Color(0xFF1E293B),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.yellow.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.shield_rounded, color: AppColors.yellow, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'MY TEAM',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  teamName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    _teamInfoChip(Icons.people_outline, '12 Players'),
+                    const SizedBox(width: 12),
+                    _teamInfoChip(Icons.emoji_events_outlined, '8W - 2L'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _teamInfoChip(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white38, size: 13),
+        const SizedBox(width: 4),
+        Text(text, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _CoachingStaffList extends StatelessWidget {
+  const _CoachingStaffList();
+
+  @override
+  Widget build(BuildContext context) {
+    final staff = [
+      {'name': 'Coach Carter', 'role': 'Head Coach', 'color': AppColors.yellow},
+      {'name': 'Coach Smith', 'role': 'Assistant Coach', 'color': const Color(0xFF8B5CF6)},
+    ];
+
+    return Column(
+      children: staff.map((s) {
+        final color = s['color'] as Color;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      (s['name'] as String)[0],
+                      style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s['name'] as String,
+                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          s['role'] as String,
+                          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chat_bubble_outline_rounded, color: Colors.white.withValues(alpha: 0.2), size: 20),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _TeammatesList extends StatelessWidget {
+  const _TeammatesList();
+
+  @override
+  Widget build(BuildContext context) {
+    final teammates = [
+      {'name': 'Alex Johnson', 'position': 'Shooting Guard', 'number': '#7'},
+      {'name': 'Sarah Williams', 'position': 'Small Forward', 'number': '#11'},
+      {'name': 'Mike Chen', 'position': 'Center', 'number': '#34'},
+      {'name': 'Emma Davis', 'position': 'Power Forward', 'number': '#22'},
+      {'name': 'James Wilson', 'position': 'Point Guard', 'number': '#3'},
+    ];
+
+    return SizedBox(
+      height: 110,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: teammates.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final mate = teammates[index];
+          final colors = [
+            Colors.orangeAccent,
+            Colors.lightBlueAccent,
+            Colors.greenAccent,
+            Colors.pinkAccent,
+            Colors.cyanAccent,
+          ];
+          final color = colors[index % colors.length];
+          return Container(
+            width: 90,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      mate['number']!,
+                      style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  mate['name']!.split(' ').first,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  mate['position']!.split(' ').first,
+                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _UpcomingSchedule extends StatelessWidget {
+  const _UpcomingSchedule();
+
+  @override
+  Widget build(BuildContext context) {
+    final events = [
+      {'title': 'Team Practice', 'time': 'Today, 4:00 PM', 'icon': Icons.fitness_center, 'color': AppColors.green},
+      {'title': 'Match vs Rising Stars', 'time': 'Wed, 6:00 PM', 'icon': Icons.sports_basketball, 'color': AppColors.yellow},
+      {'title': 'Strategy Review', 'time': 'Fri, 3:00 PM', 'icon': Icons.analytics_outlined, 'color': const Color(0xFF3B82F6)},
+    ];
+
+    return Column(
+      children: events.map((e) {
+        final color = e['color'] as Color;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(e['icon'] as IconData, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e['title'] as String,
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        e['time'] as String,
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.15), size: 14),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

@@ -57,7 +57,7 @@ class _RoleSelectingScreenState extends State<RoleSelectingScreen> {
 
               // Subtitle
               const Text(
-                'Select how you want to use CourtIQ',
+                'Select how you want to use BallChart',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -107,10 +107,8 @@ class _RoleSelectingScreenState extends State<RoleSelectingScreen> {
                 (selectedRole == UserRole.coach ? Colors.black : Colors.white) :
                 Colors.black,
                 onPressed: canContinue ? () {
-                  // Handle navigation
-                  print('Selected role: ${selectedRole.name}');
                   RoleselectingViewmodel.goToAuth(context, selectedRole.name.toLowerCase());
-                } : () {},
+                } : null,
               ),
 
               const SizedBox(height: 20),

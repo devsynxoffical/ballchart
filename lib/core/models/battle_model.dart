@@ -23,11 +23,11 @@ class BattleModel {
 
   factory BattleModel.fromJson(Map<String, dynamic> json) {
     return BattleModel(
-      id: json['_id'],
-      host: json['host'] is Map ? UserModel.fromJson(Map<String, dynamic>.from(json['host'])) : null, // Handle populated vs unpopulated
-      location: json['location'],
-      dateTime: DateTime.parse(json['dateTime']),
-      status: json['status'],
+      id: json['_id'] ?? '',
+      host: json['host'] is Map ? UserModel.fromJson(Map<String, dynamic>.from(json['host'])) : null,
+      location: json['location'] ?? '',
+      dateTime: DateTime.tryParse(json['dateTime'] ?? '') ?? DateTime.now(),
+      status: json['status'] ?? 'pending',
       participants: (json['participants'] as List)
           .map((e) => e is Map ? UserModel.fromJson(Map<String, dynamic>.from(e)) : UserModel(id: e.toString(), username: '', email: '', role: '')) // Handle populated vs IDs
           .toList(),

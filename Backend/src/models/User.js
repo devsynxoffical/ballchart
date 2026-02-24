@@ -18,8 +18,11 @@ const userSchema = mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['player', 'coach', 'fan'],
+            enum: ['player', 'coach', 'head_coach', 'assistant_coach', 'fan'],
             default: 'player',
+        },
+        teamName: {
+            type: String,
         },
         rank: {
             type: Number,
@@ -29,6 +32,10 @@ const userSchema = mongoose.Schema(
             matchesPlayed: { type: Number, default: 0 },
             wins: { type: Number, default: 0 },
             points: { type: Number, default: 0 },
+        },
+        managedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
         },
     },
     {

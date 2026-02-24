@@ -41,7 +41,7 @@ class OnboardingScreen extends StatelessWidget {
 
               // App Name
               const Text(
-                'CourtIQ',
+                'BallChart',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,

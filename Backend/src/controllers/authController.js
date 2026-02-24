@@ -54,8 +54,8 @@ const registerCoach = asyncHandler(async (req, res) => {
             _id: coach.id,
             username: coach.username,
             email: coach.email,
-            role: 'coach',
-            token: generateToken(coach._id, 'coach'),
+            role: coach.role,
+            token: generateToken(coach._id, coach.role),
         });
     } else {
         res.status(400);
@@ -104,8 +104,8 @@ const registerPlayer = asyncHandler(async (req, res) => {
             _id: player.id,
             username: player.username,
             email: player.email,
-            role: 'player',
-            token: generateToken(player._id, 'player'),
+            role: player.role,
+            token: generateToken(player._id, player.role),
         });
     } else {
         res.status(400);
@@ -126,9 +126,9 @@ const loginCoach = asyncHandler(async (req, res) => {
             _id: coach.id,
             username: coach.username,
             email: coach.email,
-            role: 'coach',
+            role: coach.role,
             profileCompleted: coach.profileCompleted,
-            token: generateToken(coach._id, 'coach'),
+            token: generateToken(coach._id, coach.role),
         });
     } else {
         res.status(400);
@@ -149,9 +149,9 @@ const loginPlayer = asyncHandler(async (req, res) => {
             _id: player.id,
             username: player.username,
             email: player.email,
-            role: 'player',
+            role: player.role,
             profileCompleted: player.profileCompleted,
-            token: generateToken(player._id, 'player'),
+            token: generateToken(player._id, player.role),
         });
     } else {
         res.status(400);
@@ -173,7 +173,7 @@ const updateProfile = asyncHandler(async (req, res) => {
     const { role } = user;
 
     let updatedUser;
-    if (role === 'coach') {
+    if (['coach', 'head_coach', 'assistant_coach'].includes(role)) {
         updatedUser = await Coach.findByIdAndUpdate(
             user._id,
             { ...req.body, profileCompleted: true },
@@ -277,6 +277,98 @@ const loginAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Create staff by Head Coach
+// @route   POST /api/auth/staff/create
+// @access  Private (Head Coach)
+const createStaff = asyncHandler(async (req, res) => {
+    const { username, email, password, role } = req.body;
+
+    if (req.user.role !== 'head_coach') {
+        res.status(403);
+        throw new Error('Only Head Coaches can create staff');
+    }
+
+    if (!['coach', 'assistant_coach'].includes(role)) {
+        res.status(400);
+        throw new Error('Invalid staff role');
+    }
+
+    // Check if user exists
+    const userExists = await Coach.findOne({ email });
+    if (userExists) {
+        res.status(400);
+        throw new Error('User already exists');
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const staff = await Coach.create({
+        username,
+        email,
+        password: hashedPassword,
+        role,
+        managedBy: req.user._id,
+        profileCompleted: true, // Auto-complete for managed staff
+    });
+
+    res.status(201).json({
+        _id: staff.id,
+        username: staff.username,
+        email: staff.email,
+        role: staff.role,
+    });
+});
+
+// @desc    Create player account by Coach/Asst Coach
+// @route   POST /api/auth/player/create
+// @access  Private (Coach/Asst Coach/Head Coach)
+const createPlayerByCoach = asyncHandler(async (req, res) => {
+    const { username, email, password } = req.body;
+
+    // Check if player exists
+    const playerExists = await Player.findOne({ email });
+    if (playerExists) {
+        res.status(400);
+        throw new Error('Player already exists');
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const player = await Player.create({
+        username,
+        email,
+        password: hashedPassword,
+        role: 'player',
+        managedBy: req.user._id,
+        profileCompleted: true,
+        isVerified: true,
+    });
+
+    res.status(201).json({
+        _id: player.id,
+        username: player.username,
+        email: player.email,
+        role: player.role,
+    });
+});
+
+// @desc    Get staff credentials for Head Coach
+// @route   GET /api/auth/staff/credentials
+// @access  Private (Head Coach)
+const getStaffCredentials = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'head_coach') {
+        res.status(403);
+        throw new Error('Only Head Coaches can access staff credentials');
+    }
+
+    const staff = await Coach.find({ managedBy: req.user._id }).select('-password');
+    res.status(200).json(staff);
+});
+
 module.exports = {
     registerCoach,
     registerPlayer,
@@ -286,4 +378,7 @@ module.exports = {
     updateProfile,
     registerAdmin,
     loginAdmin,
+    createStaff,
+    createPlayerByCoach,
+    getStaffCredentials,
 };

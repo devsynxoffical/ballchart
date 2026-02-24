@@ -37,6 +37,10 @@ const coachSchema = mongoose.Schema(
         teamName: {
             type: String,
         },
+        assignedTeams: {
+            type: [String], // Array of team names or IDs
+            default: [],
+        },
         profileCompleted: {
             type: Boolean,
             default: false,

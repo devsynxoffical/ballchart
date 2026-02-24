@@ -161,14 +161,6 @@ class _BattleScreenState extends State<BattleScreen> {
                   progress: 0.35,
                   color: Colors.grey,
                 ),
-                const LeaderboardItem(
-                  rank: 5,
-                  name: 'Emma Davis',
-                  role: 'Rookie',
-                  points: 195,
-                  progress: 0.35,
-                  color: Colors.grey,
-                ),
               ],
             );
           },

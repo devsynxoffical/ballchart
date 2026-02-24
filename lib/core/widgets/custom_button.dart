@@ -4,8 +4,8 @@ import '../constants/colors.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
-  final Color? backgroundColor ;
+  final VoidCallback? onPressed;
+  final Color? backgroundColor;
   final Color? textColor;
 
   const CustomButton({
@@ -25,6 +25,7 @@ class CustomButton extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: backgroundColor ?? AppColors.yellow,
+          disabledBackgroundColor: Colors.grey, // Optional: Style for disabled state
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),

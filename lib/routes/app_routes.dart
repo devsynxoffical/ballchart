@@ -13,6 +13,9 @@ import 'package:courtiq/features/onboarding/view/onboarding_screen.dart';
 import 'package:courtiq/features/profile/view/profile_screen.dart';
 import 'package:courtiq/features/role_selecting/view/role_selecting_screen.dart';
 import 'package:courtiq/features/strategy/view/strategy_screen.dart';
+import 'package:courtiq/features/management/view/academy_dashboard_screen.dart';
+import 'package:courtiq/features/staff/view/staff_dashboard_screen.dart';
+import 'package:courtiq/features/player/view/player_dashboard_screen.dart';
 import 'package:courtiq/routes/routes_names.dart';
 import 'package:courtiq/features/coach/home/view/coach_home_screen.dart';
 import 'package:courtiq/features/splash/view/splash_screen.dart';
@@ -21,20 +24,20 @@ import '../features/auth/completeyourprofile/player/view/profile_player_screen.d
 
 class AppRoutes {
   static Route<dynamic> generate(RouteSettings settings) {
-    final role = settings.arguments as String? ?? 'player';
+    final role = settings.arguments is String ? settings.arguments as String : 'coach';
     switch (settings.name) {
       case RouteNames.onboarding:
         return MaterialPageRoute(builder: (_) => OnboardingScreen());
-      case RouteNames.roleselecting:
+      case RouteNames.roleselecting: // Deprecated but kept for safety
         return MaterialPageRoute(builder: (_) => RoleSelectingScreen());
       case RouteNames.auth:
-        return MaterialPageRoute(builder: (_) => AuthScreen(role: role));
+        return MaterialPageRoute(builder: (_) => AuthScreen(initialRole: role)); // Generic
       case RouteNames.home:
         return MaterialPageRoute(builder: (_) => HomeScreen());
       case RouteNames.battle:
         return MaterialPageRoute(builder: (_) => BattleScreen());
       case RouteNames.login:
-        return MaterialPageRoute(builder: (_) => LoginScreen(role: role));
+        return MaterialPageRoute(builder: (_) => LoginScreen(role: role)); // Generic
       case RouteNames.strategy:
         return MaterialPageRoute(builder: (_) => StrategyScreen());
       case RouteNames.profile:
@@ -55,6 +58,12 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => CompleteProfilePlayerScreen());
       case RouteNames.splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
+      case RouteNames.academyDashboard:
+        return MaterialPageRoute(builder: (_) => const AcademyDashboardScreen());
+      case RouteNames.staffDashboard:
+        return MaterialPageRoute(builder: (_) => const StaffDashboardScreen());
+      case RouteNames.playerDashboard:
+        return MaterialPageRoute(builder: (_) => const PlayerDashboardScreen());
 
       default:
         return MaterialPageRoute(

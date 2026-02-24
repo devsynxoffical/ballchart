@@ -30,9 +30,8 @@ class BattleViewmodel extends ChangeNotifier {
     _setLoading(true);
     try {
       final battle = await _battleRepository.createBattle(location, dateTime);
-      _battles.insert(0, battle); // Add to top
+      _battles.insert(0, battle);
       _setLoading(false);
-      notifyListeners();
     } catch (e) {
       _setLoading(false);
       _errorMessage = e.toString();

@@ -49,8 +49,8 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     }
 
-    // Default fallback
-    Navigator.pushReplacementNamed(context, RouteNames.onboarding);
+    // Default fallback: start directly at login flow
+    Navigator.pushReplacementNamed(context, RouteNames.login, arguments: 'coach');
   }
 
   @override
@@ -76,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 24),
             const Text(
-              'COURTIQ',
+              'BALLCHART',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 32,

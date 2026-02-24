@@ -22,7 +22,7 @@ const protect = asyncHandler(async (req, res, next) => {
             // Use role encoded in token to fetch from the right collection
             if (decoded.role === 'admin') {
                 req.user = await Admin.findById(decoded.id).select('-password');
-            } else if (decoded.role === 'coach') {
+            } else if (['coach', 'head_coach', 'assistant_coach'].includes(decoded.role)) {
                 req.user = await Coach.findById(decoded.id).select('-password');
             } else if (decoded.role === 'player') {
                 req.user = await Player.findById(decoded.id).select('-password');

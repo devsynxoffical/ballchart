@@ -3,13 +3,21 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
+  // CONFIGURATION: Set your server IP here for physical devices
+  // For Android Emulator: use '10.0.2.2'
+  // For Web/iOS Simulator: use 'localhost'
+  // For Physical Device: use your computer's LAN IP (e.g., '192.168.1.5')
+  
+  static const String _localIP = '10.0.2.2'; // Changed to 10.0.2.2 for common emulator fix
+  static const String baseUrl = 'http://$_localIP:5000/api';
+  
   // Production Railway URL
-  static const String baseUrl = 'https://hoopstar-production.up.railway.app/api';
+  // static const String baseUrl = 'https://hoopstar-production.up.railway.app/api';
   
   final _storage = const FlutterSecureStorage();
 
   Future<Map<String, String>> _getHeaders() async {
-    String?token = await _storage.read(key: 'jwt_token');
+    String? token = await _storage.read(key: 'jwt_token');
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -22,7 +30,7 @@ class ApiService {
       Uri.parse('$baseUrl$endpoint'),
       headers: headers,
       body: jsonEncode(body),
-    );
+    ).timeout(const Duration(seconds: 15));
     return _processResponse(response);
   }
 
@@ -31,7 +39,7 @@ class ApiService {
     final response = await http.get(
       Uri.parse('$baseUrl$endpoint'),
       headers: headers,
-    );
+    ).timeout(const Duration(seconds: 15));
     return _processResponse(response);
   }
 
@@ -41,7 +49,7 @@ class ApiService {
       Uri.parse('$baseUrl$endpoint'),
       headers: headers,
       body: jsonEncode(body),
-    );
+    ).timeout(const Duration(seconds: 10));
     return _processResponse(response);
   }
 
@@ -54,20 +62,20 @@ class ApiService {
         throw Exception('Failed to parse response: ${response.body}');
       }
     } else {
-      // Error handling
+      final body = response.body;
+
+      // Try JSON error first
       try {
-        final body = jsonDecode(response.body);
-        throw Exception(body['message'] ?? 'Something went wrong');
-      } catch (e) {
-        // Fallback for non-JSON errors (like HTML)
-        final body = response.body;
+        final decoded = jsonDecode(body);
+        throw Exception(decoded['message'] ?? 'Something went wrong');
+      } on FormatException {
+        // Non-JSON response (e.g. HTML error pages)
         if (body.contains('<html')) {
-             // Try to extract title or pre tag for cleaner error
-             final titleMatch = RegExp(r'<title>(.*?)</title>').firstMatch(body);
-             final preMatch = RegExp(r'<pre>(.*?)</pre>').firstMatch(body);
-             if (preMatch != null) throw Exception('Server Error: ${preMatch.group(1)}');
-             if (titleMatch != null) throw Exception('Server Error: ${titleMatch.group(1)}');
-             throw Exception('Server returned HTML Error Page (${response.statusCode})');
+          final preMatch = RegExp(r'<pre>(.*?)</pre>').firstMatch(body);
+          final titleMatch = RegExp(r'<title>(.*?)</title>').firstMatch(body);
+          if (preMatch != null) throw Exception('Server Error: ${preMatch.group(1)}');
+          if (titleMatch != null) throw Exception('Server Error: ${titleMatch.group(1)}');
+          throw Exception('Server returned HTML Error Page (${response.statusCode})');
         }
         throw Exception('Server Error (${response.statusCode}): $body');
       }

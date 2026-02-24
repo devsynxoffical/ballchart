@@ -15,19 +15,27 @@ class ProfileViewmodel extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  Future<void> loadProfile() async {
+  Future<void> loadProfile({bool forceRefresh = false}) async {
+    if (_isLoading) return;
+    if (_user != null && !forceRefresh) return;
+    
     _setLoading(true);
     try {
       _user = await _profileRepository.getUserProfile();
-      _setLoading(false);
     } catch (e) {
-      _setLoading(false);
       debugPrint('Error loading profile: $e');
+    } finally {
+      _setLoading(false);
     }
   }
 
   void clearProfile() {
     _user = null;
+    notifyListeners();
+  }
+
+  void setUser(UserModel user) {
+    _user = user;
     notifyListeners();
   }
 

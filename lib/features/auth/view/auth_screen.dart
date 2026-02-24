@@ -4,7 +4,6 @@ import '../../../core/constants/colors.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../viewmodel/auth_viewmodel.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/gestures.dart';
 import 'package:courtiq/core/widgets/auth/password_rules_widget.dart';
 import 'package:courtiq/routes/routes_names.dart';
 import 'package:flutter/services.dart';
@@ -12,9 +11,8 @@ import 'package:flutter/services.dart';
 
 
 class AuthScreen extends StatefulWidget {
-  final String role;
-  const AuthScreen({super.key, required this.role});
-
+  final String initialRole;
+  const AuthScreen({super.key, this.initialRole = 'coach'});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -22,18 +20,25 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _academyNameController = TextEditingController(); // NEW
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   final FocusNode _passwordFocusNode = FocusNode();
   bool _showPasswordRules = false;
-
   bool _isPasswordVisible = false;
+  late String _selectedRole;
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialRole == 'player' || widget.initialRole == 'admin') {
+      _selectedRole = widget.initialRole;
+    } else {
+      // Coach-family registrations use coach signup endpoint
+      _selectedRole = 'coach';
+    }
     _passwordFocusNode.addListener(() {
       setState(() {
         _showPasswordRules = _passwordFocusNode.hasFocus;
@@ -41,10 +46,10 @@ class _AuthScreenState extends State<AuthScreen> {
     });
   }
 
-
   @override
   void dispose() {
     _fullNameController.dispose();
+    _academyNameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -75,6 +80,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isCoachRegistration = _selectedRole == 'coach';
+    final bool isAdminRegistration = _selectedRole == 'admin';
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -99,27 +106,30 @@ class _AuthScreenState extends State<AuthScreen> {
                       width: 60,  // circle diameter
                       height: 60,
                       decoration: BoxDecoration(
-                        color: widget.role == 'coach' ? AppColors.yellow :AppColors.blue, // yellow background
+                        color: AppColors.yellow, // yellow background
                         shape: BoxShape.circle,    // makes it a circle
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.person,
                         color: Colors.white,       // icon color
                         size: 30,                  // icon size
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'Create Account',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                          'BallChart',
+                          style: TextStyle(
+                            color: AppColors.yellow,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                     const SizedBox(height: 8),
                     Text(
-                      'Join as a ${widget.role == 'coach' ? 'Coach' : 'Player'}',
+                      isCoachRegistration
+                          ? 'Register Academy'
+                          : (isAdminRegistration ? 'Register Admin' : 'Register Player'),
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
                         fontSize: 16,
@@ -137,6 +147,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 
                     const SizedBox(height: 20),
                 
+                    if (isCoachRegistration) ...[
+                      CustomTextFieldCreateAccount(
+                        label: 'Academy/Organization Name',
+                        hintText: 'Enter academy name',
+                        controller: _academyNameController,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
                     CustomTextFieldCreateAccount(
                       label: 'Phone Number',
                       hintText: '+1555000-0000',
@@ -190,14 +209,17 @@ class _AuthScreenState extends State<AuthScreen> {
                             ? const CircularProgressIndicator()
                             : CustomButton(
                                 text: 'Create Account',
-                                backgroundColor: widget.role == 'coach' ? AppColors.yellow :AppColors.blue,
+                                backgroundColor: AppColors.yellow,
                                 onPressed: () {
                                   authViewModel.signup(
                                     context,
                                     _fullNameController.text.trim(),
                                     _emailController.text.trim(),
                                     _passwordController.text.trim(),
-                                    widget.role,
+                                    _selectedRole,
+                                    academyName: isCoachRegistration
+                                        ? _academyNameController.text.trim()
+                                        : null,
                                   );
                                 },
                               );
@@ -210,9 +232,11 @@ class _AuthScreenState extends State<AuthScreen> {
                     Center(
                       child: GestureDetector(
                         onTap: () {
-                          // Navigate to sign in screen
-                          print('Navigate to Sign In');
-  
+                          Navigator.pushReplacementNamed(
+                            context,
+                            RouteNames.login,
+                            arguments: _selectedRole,
+                          );
                         },
                         child: Text.rich(
                           TextSpan(
@@ -221,23 +245,17 @@ class _AuthScreenState extends State<AuthScreen> {
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 14,
                             ),
-                            children: [
+                            children: const [
                               TextSpan(
                                 text: 'Sign In',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.yellow,
                                   fontWeight: FontWeight.w600,
                                 ),
-                                recognizer: TapGestureRecognizer()
-                                  ..onTap = () {
-                                    // Navigate to Sign In
-                                    Navigator.pushReplacementNamed(context, RouteNames.login, arguments: widget.role);
-                                    print('Sign In tapped');
-                                  },
                               ),
                             ],
                           ),
-                        )
+                        ),
                       ),
                     ),
               

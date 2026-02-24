@@ -53,6 +53,10 @@ const playerSchema = mongoose.Schema(
             wins: { type: Number, default: 0 },
             points: { type: Number, default: 0 },
         },
+        managedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Coach',
+        },
     },
     {
         timestamps: true,

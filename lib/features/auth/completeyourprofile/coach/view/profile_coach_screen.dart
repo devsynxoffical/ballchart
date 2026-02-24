@@ -53,7 +53,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreenCoach> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Help us personalize your CourtIQ experience',
+                          'Help us personalize your BallChart experience',
                           style: TextStyle(color: Colors.white60),
                         ),
                       ],

@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import 'package:courtiq/features/login/viewmodel/login_viewmodel.dart';
 import '../../../core/constants/colors.dart';
+import '../../../core/models/user_model.dart';
 import '../../../routes/routes_names.dart';
 import '../../../core/widgets/auth/custom_textfield_createaccount.dart';
 import '../../../core/widgets/custom_button.dart';
+import '../../management/viewmodel/academy_provider.dart';
+import '../../profile/viewmodel/profile_viewmodel.dart';
 
 class LoginScreen extends StatefulWidget {
   final String role;
@@ -21,6 +24,74 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  late String _currentRole;
+
+  static const List<String> _roles = ['head_coach', 'coach', 'assistant_coach', 'player'];
+
+  String _roleLabel(String role) {
+    switch (role) {
+      case 'head_coach':
+        return 'Admin';
+      case 'assistant_coach':
+        return 'Assistant Coach';
+      case 'player':
+        return 'Player';
+      default:
+        return 'Coach';
+    }
+  }
+
+  Color _roleColor(String role) {
+    switch (role) {
+      case 'head_coach':
+        return const Color(0xFFF97316);
+      case 'assistant_coach':
+        return const Color(0xFF8B5CF6);
+      case 'player':
+        return AppColors.blue;
+      default:
+        return AppColors.yellow;
+    }
+  }
+
+  void _goToRoleRoute(BuildContext context, String role) {
+    final academyProvider = context.read<AcademyProvider>();
+    final profileVm = context.read<ProfileViewmodel>();
+
+    UserModel buildLocalUser(String roleValue, String defaultName) {
+      return UserModel(
+        id: 'local_${roleValue}_${DateTime.now().millisecondsSinceEpoch}',
+        username: defaultName,
+        email: '${roleValue}@ballchart.local',
+        role: roleValue,
+        profileCompleted: true,
+        teamName: roleValue == 'head_coach' ? academyProvider.academy.name : null,
+        assignedTeams: academyProvider.academy.teams.map((t) => t.name).toList(),
+      );
+    }
+
+    if (role == 'head_coach') {
+      academyProvider.loginByRole('academy_owner');
+      profileVm.setUser(buildLocalUser('head_coach', 'Academy Owner'));
+      Navigator.pushNamed(context, RouteNames.academyDashboard);
+      return;
+    }
+    if (role == 'player') {
+      academyProvider.loginByRole('player');
+      profileVm.setUser(buildLocalUser('player', academyProvider.currentUser?.name ?? 'Player'));
+      Navigator.pushNamed(context, RouteNames.mainApp, arguments: 'player');
+      return;
+    }
+    academyProvider.loginByRole('coach');
+    profileVm.setUser(buildLocalUser(role, role == 'assistant_coach' ? 'Assistant Coach' : 'Coach'));
+    Navigator.pushNamed(context, RouteNames.mainApp, arguments: role);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _currentRole = _roles.contains(widget.role) ? widget.role : 'coach';
+  }
 
   @override
   void dispose() {
@@ -77,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: 60,
                     height: 60,
                     decoration: BoxDecoration(
-                      color: widget.role == 'coach' ? AppColors.yellow :AppColors.blue,
+                      color: _roleColor(_currentRole),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -88,12 +159,46 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${widget.role == 'coach' ? 'Coach' : 'Player'} Sign In',
+                    '${_roleLabel(_currentRole)} Sign In',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Quick Role Routes',
+                    style: TextStyle(color: Colors.white60, fontSize: 13),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: _roles.map((role) {
+                      final bool isSelected = _currentRole == role;
+                      final Color color = _roleColor(role);
+                      return ElevatedButton(
+                        onPressed: () {
+                          setState(() => _currentRole = role);
+                          _goToRoleRoute(context, role);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              isSelected ? color : color.withValues(alpha: 0.16),
+                          foregroundColor: isSelected ? Colors.black : Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          _roleLabel(role),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 30),
 
@@ -135,14 +240,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   else
                     CustomButton(
                       text: 'Sign In',
-                      textColor: widget.role == 'coach' ? AppColors.black :AppColors.white,
-                      backgroundColor: widget.role == 'coach' ? AppColors.yellow :AppColors.blue,
+                      textColor: _currentRole == 'coach'
+                          ? AppColors.black
+                          : AppColors.white,
+                      backgroundColor: _roleColor(_currentRole),
                       onPressed: () {
                         authViewModel.login(
                           context,
                           _emailController.text.trim(),
                           _passwordController.text.trim(),
-                          widget.role,
+                          _currentRole,
                         );
                       },
                     ),
@@ -151,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   InkWell(
                     onTap: (){
-                      LoginViewmodel.goToResetPassword(context,widget.role);
+                      LoginViewmodel.goToResetPassword(context, _currentRole);
                     },
                     child: const Text(
                       'Forgot Password?',
@@ -167,7 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   GestureDetector(
                     onTap: () {
-                       Navigator.pushReplacementNamed(context, RouteNames.auth, arguments: widget.role);
+                       Navigator.pushReplacementNamed(context, RouteNames.auth, arguments: _currentRole);
                     },
                     child: RichText(
                       text: TextSpan(

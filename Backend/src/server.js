@@ -34,7 +34,7 @@ app.use(errorHandler);
 
 // Routes Placeholder
 app.get('/', (req, res) => {
-    res.send('CourtIQ Backend is running!');
+    res.send('BallChart Backend is running!');
 });
 
 // Socket.io Connection

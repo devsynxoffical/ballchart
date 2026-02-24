@@ -1,22 +1,27 @@
 import 'package:flutter/material.dart';
 
 class MyTeamsSection extends StatelessWidget {
-  const MyTeamsSection();
+  final List<String>? teams;
+  const MyTeamsSection({super.key, this.teams});
 
   @override
   Widget build(BuildContext context) {
+    if (teams == null || teams!.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text('My Teams',
+      children: [
+        const Text('My Teams',
             style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold)),
-        SizedBox(height: 12),
-        _TeamTile(name: 'Thunder Squad', members: '12 members'),
-        SizedBox(height: 10),
-        _TeamTile(name: 'Rising Stars', members: '8 members'),
+        const SizedBox(height: 12),
+        ...teams!.map((team) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _TeamTile(name: team, members: 'Active Squad'),
+        )),
       ],
     );
   }

@@ -12,7 +12,7 @@ class ProfileInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (user.role == 'coach') ...[
+        if (user.role == 'coach' || user.role == 'head_coach' || user.role == 'assistant_coach') ...[
           _buildInfoItem('Experience Level', user.experienceLevel ?? 'Not set'),
           const SizedBox(height: 16),
           _buildChipSection('Sports Coaching', user.sports ?? []),
