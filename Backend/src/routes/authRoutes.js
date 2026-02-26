@@ -11,7 +11,12 @@ const {
     loginAdmin,
     createStaff,
     createPlayerByCoach,
-    getStaffCredentials
+    getStaffCredentials,
+    updateStaff,
+    deleteStaff,
+    createTeamByAdmin,
+    assignTeamLeadsByAdmin,
+    getAdminOverview,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -27,6 +32,11 @@ router.put('/profile', protect, updateProfile);
 // Management Routes
 router.post('/staff/create', protect, createStaff);
 router.get('/staff/credentials', protect, getStaffCredentials);
+router.put('/staff/:id', protect, updateStaff);
+router.delete('/staff/:id', protect, deleteStaff);
 router.post('/player/create', protect, createPlayerByCoach);
+router.post('/team/create', protect, createTeamByAdmin);
+router.put('/team/:id/leads', protect, assignTeamLeadsByAdmin);
+router.get('/admin/overview', protect, getAdminOverview);
 
 module.exports = router;

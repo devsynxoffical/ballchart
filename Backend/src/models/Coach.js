@@ -41,6 +41,25 @@ const coachSchema = mongoose.Schema(
             type: [String], // Array of team names or IDs
             default: [],
         },
+        assignedTeamIds: {
+            type: [String],
+            default: [],
+        },
+        customRoleName: {
+            type: String,
+        },
+        permissions: {
+            createPlayer: { type: Boolean, default: false },
+            readPlayer: { type: Boolean, default: true },
+            updatePlayer: { type: Boolean, default: false },
+            deletePlayer: { type: Boolean, default: false },
+            createTeam: { type: Boolean, default: false },
+            manageStaff: { type: Boolean, default: false },
+        },
+        managedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Admin',
+        },
         profileCompleted: {
             type: Boolean,
             default: false,

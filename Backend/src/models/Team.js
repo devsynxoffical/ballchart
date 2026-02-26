@@ -23,6 +23,29 @@ const teamSchema = mongoose.Schema(
         description: {
             type: String,
         },
+        ageGroup: {
+            type: String,
+            default: 'Open',
+        },
+        colorValue: {
+            type: Number,
+            default: 0xFFF59E0B,
+        },
+        logoPath: {
+            type: String,
+        },
+        coachStaffId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Coach',
+        },
+        assistantCoachStaffId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Coach',
+        },
+        managedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Admin',
+        },
     },
     {
         timestamps: true,

@@ -5,12 +5,20 @@ const Coach = require('../models/Coach');
 
 const Player = require('../models/Player');
 const Admin = require('../models/Admin');
+const Team = require('../models/Team');
 
 // Helper to generate JWT
 const generateToken = (id, role) => {
     return jwt.sign({ id, role }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
+};
+
+const ensureAdmin = (req, res) => {
+    if (!['head_coach', 'admin'].includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Only academy admin can perform this action');
+    }
 };
 
 // @desc    Register new Coach
@@ -211,20 +219,32 @@ const loginAdmin = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/staff/create
 // @access  Private (Head Coach)
 const createStaff = asyncHandler(async (req, res) => {
-    const { username, email, password, role } = req.body;
+    const {
+        username,
+        email,
+        password,
+        role,
+        assignedTeamIds = [],
+        permissions = {},
+        customRoleName,
+    } = req.body;
 
-    if (!['head_coach', 'admin'].includes(req.user.role)) {
-        res.status(403);
-        throw new Error('Only academy admin can create staff');
-    }
+    ensureAdmin(req, res);
 
     if (!['coach', 'assistant_coach'].includes(role)) {
         res.status(400);
         throw new Error('Invalid staff role');
     }
 
+    if (!username || !email || !password) {
+        res.status(400);
+        throw new Error('Please include username, email and password');
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
     // Check if user exists
-    const userExists = await Coach.findOne({ email });
+    const userExists = await Coach.findOne({ email: cleanEmail });
     if (userExists) {
         res.status(400);
         throw new Error('User already exists');
@@ -236,11 +256,22 @@ const createStaff = asyncHandler(async (req, res) => {
 
     const staff = await Coach.create({
         username,
-        email,
+        email: cleanEmail,
         password: hashedPassword,
         role,
         managedBy: req.user._id,
         profileCompleted: true, // Auto-complete for managed staff
+        assignedTeamIds,
+        assignedTeams: assignedTeamIds,
+        customRoleName,
+        permissions: {
+            createPlayer: !!permissions.createPlayer,
+            readPlayer: permissions.readPlayer ?? true,
+            updatePlayer: !!permissions.updatePlayer,
+            deletePlayer: !!permissions.deletePlayer,
+            createTeam: !!permissions.createTeam,
+            manageStaff: !!permissions.manageStaff,
+        },
     });
 
     res.status(201).json({
@@ -248,6 +279,9 @@ const createStaff = asyncHandler(async (req, res) => {
         username: staff.username,
         email: staff.email,
         role: staff.role,
+        assignedTeamIds: staff.assignedTeamIds,
+        customRoleName: staff.customRoleName,
+        permissions: staff.permissions,
     });
 });
 
@@ -255,15 +289,22 @@ const createStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/player/create
 // @access  Private (Coach/Asst Coach/Head Coach)
 const createPlayerByCoach = asyncHandler(async (req, res) => {
-    const { username, email, password } = req.body;
+    const { username, email, password, teamId, position, ageRange } = req.body;
 
     if (!['head_coach', 'coach', 'assistant_coach', 'admin'].includes(req.user.role)) {
         res.status(403);
         throw new Error('Not authorized to create players');
     }
 
+    if (!username || !email || !password) {
+        res.status(400);
+        throw new Error('Please include username, email and password');
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
     // Check if player exists
-    const playerExists = await Player.findOne({ email });
+    const playerExists = await Player.findOne({ email: cleanEmail });
     if (playerExists) {
         res.status(400);
         throw new Error('Player already exists');
@@ -275,19 +316,33 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
 
     const player = await Player.create({
         username,
-        email,
+        email: cleanEmail,
         password: hashedPassword,
         role: 'player',
         managedBy: req.user._id,
         profileCompleted: true,
         isVerified: true,
+        position,
+        ageRange,
     });
+
+    if (teamId) {
+        const team = await Team.findById(teamId);
+        if (team) {
+            if (!team.players.some((id) => id.toString() === player._id.toString())) {
+                team.players.push(player._id);
+            }
+            await team.save();
+        }
+    }
 
     res.status(201).json({
         _id: player.id,
         username: player.username,
         email: player.email,
         role: player.role,
+        position: player.position,
+        ageRange: player.ageRange,
     });
 });
 
@@ -295,13 +350,200 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/staff/credentials
 // @access  Private (Head Coach)
 const getStaffCredentials = asyncHandler(async (req, res) => {
-    if (!['head_coach', 'admin'].includes(req.user.role)) {
-        res.status(403);
-        throw new Error('Only academy admin can access staff credentials');
-    }
+    ensureAdmin(req, res);
 
     const staff = await Coach.find({ managedBy: req.user._id }).select('-password');
     res.status(200).json(staff);
+});
+
+// @desc    Update staff account by admin
+// @route   PUT /api/auth/staff/:id
+// @access  Private (Admin)
+const updateStaff = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const staff = await Coach.findOne({ _id: req.params.id, managedBy: req.user._id });
+    if (!staff) {
+        res.status(404);
+        throw new Error('Staff not found');
+    }
+
+    const {
+        username,
+        email,
+        password,
+        role,
+        assignedTeamIds,
+        permissions,
+        customRoleName,
+    } = req.body;
+
+    if (username) staff.username = username;
+    if (email) staff.email = email.toLowerCase().trim();
+    if (role && ['coach', 'assistant_coach'].includes(role)) staff.role = role;
+    if (customRoleName !== undefined) staff.customRoleName = customRoleName;
+    if (Array.isArray(assignedTeamIds)) {
+        staff.assignedTeamIds = assignedTeamIds;
+        staff.assignedTeams = assignedTeamIds;
+    }
+    if (permissions) {
+        staff.permissions = {
+            createPlayer: !!permissions.createPlayer,
+            readPlayer: permissions.readPlayer ?? true,
+            updatePlayer: !!permissions.updatePlayer,
+            deletePlayer: !!permissions.deletePlayer,
+            createTeam: !!permissions.createTeam,
+            manageStaff: !!permissions.manageStaff,
+        };
+    }
+    if (password && password.trim()) {
+        const salt = await bcrypt.genSalt(10);
+        staff.password = await bcrypt.hash(password.trim(), salt);
+    }
+
+    const updated = await staff.save();
+    res.status(200).json({
+        _id: updated._id,
+        username: updated.username,
+        email: updated.email,
+        role: updated.role,
+        assignedTeamIds: updated.assignedTeamIds || [],
+        permissions: updated.permissions,
+        customRoleName: updated.customRoleName || null,
+    });
+});
+
+// @desc    Delete staff account by admin
+// @route   DELETE /api/auth/staff/:id
+// @access  Private (Admin)
+const deleteStaff = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const staff = await Coach.findOne({ _id: req.params.id, managedBy: req.user._id });
+    if (!staff) {
+        res.status(404);
+        throw new Error('Staff not found');
+    }
+
+    await Team.updateMany(
+        { managedBy: req.user._id },
+        { $pull: { coachingStaff: staff._id } }
+    );
+    await Team.updateMany(
+        { managedBy: req.user._id, coachStaffId: staff._id },
+        { $set: { coachStaffId: null } }
+    );
+    await Team.updateMany(
+        { managedBy: req.user._id, assistantCoachStaffId: staff._id },
+        { $set: { assistantCoachStaffId: null } }
+    );
+
+    await staff.deleteOne();
+    res.status(200).json({ message: 'Staff deleted successfully' });
+});
+
+// @desc    Create team by admin
+// @route   POST /api/auth/team/create
+// @access  Private (Admin)
+const createTeamByAdmin = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+    const { name, ageGroup, colorValue, logoPath, description } = req.body;
+
+    if (!name || !name.trim()) {
+        res.status(400);
+        throw new Error('Please add a team name');
+    }
+
+    const exists = await Team.findOne({ name: name.trim(), managedBy: req.user._id });
+    if (exists) {
+        res.status(400);
+        throw new Error('Team already exists');
+    }
+
+    const team = await Team.create({
+        name: name.trim(),
+        ageGroup: ageGroup || 'Open',
+        colorValue: typeof colorValue === 'number' ? colorValue : 0xFFF59E0B,
+        logoPath: logoPath || null,
+        description,
+        headCoach: req.user._id,
+        managedBy: req.user._id,
+        coachingStaff: [],
+        players: [],
+    });
+
+    res.status(201).json(team);
+});
+
+// @desc    Assign team leads by admin
+// @route   PUT /api/auth/team/:id/leads
+// @access  Private (Admin)
+const assignTeamLeadsByAdmin = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const { coachStaffId = null, assistantCoachStaffId = null } = req.body;
+    const team = await Team.findOne({ _id: req.params.id, managedBy: req.user._id });
+    if (!team) {
+        res.status(404);
+        throw new Error('Team not found');
+    }
+
+    if (coachStaffId) {
+        const coach = await Coach.findOne({ _id: coachStaffId, managedBy: req.user._id });
+        if (!coach) {
+            res.status(400);
+            throw new Error('Coach not found');
+        }
+        team.coachStaffId = coach._id;
+    } else {
+        team.coachStaffId = null;
+    }
+
+    if (assistantCoachStaffId) {
+        const assistant = await Coach.findOne({ _id: assistantCoachStaffId, managedBy: req.user._id });
+        if (!assistant) {
+            res.status(400);
+            throw new Error('Assistant coach not found');
+        }
+        team.assistantCoachStaffId = assistant._id;
+    } else {
+        team.assistantCoachStaffId = null;
+    }
+
+    const staffIds = [team.coachStaffId, team.assistantCoachStaffId].filter(Boolean);
+    team.coachingStaff = staffIds;
+    await team.save();
+
+    res.status(200).json(team);
+});
+
+// @desc    Get admin overview data
+// @route   GET /api/auth/admin/overview
+// @access  Private (Admin)
+const getAdminOverview = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const admin = await Admin.findById(req.user._id).select('-password');
+    if (!admin) {
+        res.status(404);
+        throw new Error('Admin not found');
+    }
+
+    const [staff, teams] = await Promise.all([
+        Coach.find({ managedBy: req.user._id }).select('-password'),
+        Team.find({ managedBy: req.user._id }).populate('players', 'username position ageRange'),
+    ]);
+
+    res.status(200).json({
+        admin: {
+            _id: admin._id,
+            username: admin.username,
+            email: admin.email,
+            academyName: admin.academyName,
+        },
+        staff,
+        teams,
+    });
 });
 
 module.exports = {
@@ -316,4 +558,9 @@ module.exports = {
     createStaff,
     createPlayerByCoach,
     getStaffCredentials,
+    updateStaff,
+    deleteStaff,
+    createTeamByAdmin,
+    assignTeamLeadsByAdmin,
+    getAdminOverview,
 };
