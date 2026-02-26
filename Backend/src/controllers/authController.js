@@ -21,6 +21,32 @@ const ensureAdmin = (req, res) => {
     }
 };
 
+const normalizeUserResponse = (doc) => {
+    if (!doc) return null;
+    return {
+        _id: doc._id,
+        username: doc.username,
+        email: doc.email,
+        role: doc.role,
+        profileCompleted: !!doc.profileCompleted,
+        experienceLevel: doc.experienceLevel,
+        sports: doc.sports || [],
+        achievements: doc.achievements || [],
+        additionalInfo: doc.additionalInfo,
+        teamName: doc.teamName || doc.academyName,
+        assignedTeams: doc.assignedTeams || [],
+        assignedTeamIds: doc.assignedTeamIds || [],
+        position: doc.position,
+        ageRange: doc.ageRange,
+        goals: doc.goals || [],
+        additionalGoals: doc.additionalGoals,
+        stats: doc.stats || { matchesPlayed: 0, wins: 0, points: 0 },
+        rank: doc.rank || 0,
+        permissions: doc.permissions || null,
+        managedBy: doc.managedBy || null,
+    };
+};
+
 // @desc    Register new Coach
 // @route   POST /api/auth/coach/signup
 const registerCoach = asyncHandler(async (req, res) => {
@@ -88,6 +114,13 @@ const getMe = asyncHandler(async (req, res) => {
     res.status(200).json(req.user);
 });
 
+// @desc    Get normalized role profile
+// @route   GET /api/auth/profile
+// @access  Private
+const getProfile = asyncHandler(async (req, res) => {
+    res.status(200).json(normalizeUserResponse(req.user));
+});
+
 // @desc    Update user profile
 // @route   PUT /api/auth/profile
 const updateProfile = asyncHandler(async (req, res) => {
@@ -96,28 +129,68 @@ const updateProfile = asyncHandler(async (req, res) => {
 
     let updatedUser;
     if (['coach', 'head_coach', 'assistant_coach'].includes(role)) {
+        const payload = {};
+        const allowedFields = [
+            'experienceLevel',
+            'sports',
+            'achievements',
+            'additionalInfo',
+            'teamName',
+            'assignedTeams',
+            'assignedTeamIds',
+            'position',
+            'ageRange',
+        ];
+        for (const key of allowedFields) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                payload[key] = req.body[key];
+            }
+        }
+        payload.profileCompleted = true;
         updatedUser = await Coach.findByIdAndUpdate(
             user._id,
-            { ...req.body, profileCompleted: true },
+            payload,
             { new: true }
         );
     } else if (role === 'player') {
+        const payload = {};
+        const allowedFields = [
+            'position',
+            'ageRange',
+            'experienceLevel',
+            'goals',
+            'additionalGoals',
+            'teamName',
+        ];
+        for (const key of allowedFields) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                payload[key] = req.body[key];
+            }
+        }
+        payload.profileCompleted = true;
         updatedUser = await Player.findByIdAndUpdate(
             user._id,
-            { ...req.body, profileCompleted: true },
+            payload,
+            { new: true }
+        );
+    } else if (role === 'admin') {
+        const payload = {};
+        const allowedFields = ['username', 'academyName', 'logoUrl'];
+        for (const key of allowedFields) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                payload[key] = req.body[key];
+            }
+        }
+        payload.profileCompleted = true;
+        updatedUser = await Admin.findByIdAndUpdate(
+            user._id,
+            payload,
             { new: true }
         );
     }
 
     if (updatedUser) {
-        res.status(200).json({
-            _id: updatedUser.id,
-            username: updatedUser.username,
-            email: updatedUser.email,
-            role: updatedUser.role,
-            profileCompleted: updatedUser.profileCompleted,
-            // include other fields as needed
-        });
+        res.status(200).json(normalizeUserResponse(updatedUser));
     } else {
         res.status(404);
         throw new Error('User not found');
@@ -584,6 +657,81 @@ const getAdminOverview = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Coach/assistant dashboard data
+// @route   GET /api/auth/dashboard/coach
+// @access  Private (Coach-family + Admin)
+const getCoachDashboard = asyncHandler(async (req, res) => {
+    const allowed = ['coach', 'assistant_coach', 'head_coach', 'admin'];
+    if (!allowed.includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Not authorized to access coach dashboard');
+    }
+
+    const coachDoc = req.user.role === 'admin'
+        ? null
+        : await Coach.findById(req.user._id).select('-password');
+
+    const teamQuery = req.user.role === 'admin'
+        ? { managedBy: req.user._id }
+        : {
+            $or: [
+                { coachStaffId: req.user._id },
+                { assistantCoachStaffId: req.user._id },
+                { coachingStaff: req.user._id },
+                { managedBy: req.user.managedBy || null },
+            ],
+        };
+
+    const teams = await Team.find(teamQuery)
+        .populate('players', 'username position ageRange stats')
+        .populate('coachStaffId', 'username email role')
+        .populate('assistantCoachStaffId', 'username email role');
+
+    let staff = [];
+    if (req.user.role === 'admin') {
+        staff = await Coach.find({ managedBy: req.user._id }).select('-password');
+    } else if (req.user.managedBy) {
+        staff = await Coach.find({ managedBy: req.user.managedBy }).select('-password');
+    }
+
+    res.status(200).json({
+        profile: normalizeUserResponse(coachDoc || req.user),
+        teams,
+        staff: staff.map((s) => normalizeUserResponse(s)),
+    });
+});
+
+// @desc    Player dashboard data
+// @route   GET /api/auth/dashboard/player
+// @access  Private (Player)
+const getPlayerDashboard = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'player') {
+        res.status(403);
+        throw new Error('Not authorized to access player dashboard');
+    }
+
+    const player = await Player.findById(req.user._id).select('-password');
+    if (!player) {
+        res.status(404);
+        throw new Error('Player not found');
+    }
+
+    const team = await Team.findOne({ players: player._id })
+        .populate('coachStaffId', 'username email role')
+        .populate('assistantCoachStaffId', 'username email role')
+        .populate('players', 'username position ageRange stats');
+
+    const teammates = (team?.players || [])
+        .filter((p) => p._id.toString() !== player._id.toString());
+
+    res.status(200).json({
+        profile: normalizeUserResponse(player),
+        team,
+        coachingStaff: [team?.coachStaffId, team?.assistantCoachStaffId].filter(Boolean),
+        teammates,
+    });
+});
+
 module.exports = {
     registerCoach,
     registerPlayer,
@@ -602,4 +750,7 @@ module.exports = {
     assignTeamLeadsByAdmin,
     updateAdminProfile,
     getAdminOverview,
+    getProfile,
+    getCoachDashboard,
+    getPlayerDashboard,
 };

@@ -6,6 +6,7 @@ const {
     loginCoach,
     loginPlayer,
     getMe,
+    getProfile,
     updateProfile,
     registerAdmin,
     loginAdmin,
@@ -18,6 +19,8 @@ const {
     assignTeamLeadsByAdmin,
     updateAdminProfile,
     getAdminOverview,
+    getCoachDashboard,
+    getPlayerDashboard,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -28,6 +31,7 @@ router.post('/player/login', loginPlayer);
 router.post('/admin/signup', registerAdmin);
 router.post('/admin/login', loginAdmin);
 router.get('/me', protect, getMe);
+router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
 
 // Management Routes
@@ -40,5 +44,7 @@ router.post('/team/create', protect, createTeamByAdmin);
 router.put('/team/:id/leads', protect, assignTeamLeadsByAdmin);
 router.put('/admin/profile', protect, updateAdminProfile);
 router.get('/admin/overview', protect, getAdminOverview);
+router.get('/dashboard/coach', protect, getCoachDashboard);
+router.get('/dashboard/player', protect, getPlayerDashboard);
 
 module.exports = router;
