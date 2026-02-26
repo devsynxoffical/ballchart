@@ -16,6 +16,7 @@ const {
     deleteStaff,
     createTeamByAdmin,
     assignTeamLeadsByAdmin,
+    updateAdminProfile,
     getAdminOverview,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
@@ -37,6 +38,7 @@ router.delete('/staff/:id', protect, deleteStaff);
 router.post('/player/create', protect, createPlayerByCoach);
 router.post('/team/create', protect, createTeamByAdmin);
 router.put('/team/:id/leads', protect, assignTeamLeadsByAdmin);
+router.put('/admin/profile', protect, updateAdminProfile);
 router.get('/admin/overview', protect, getAdminOverview);
 
 module.exports = router;

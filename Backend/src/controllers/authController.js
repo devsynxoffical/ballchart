@@ -206,6 +206,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
             email: admin.email,
             role: 'admin',
             academyName: admin.academyName,
+            logoUrl: admin.logoUrl || null,
             profileCompleted: true,
             token: generateToken(admin._id, 'admin'),
         });
@@ -213,6 +214,42 @@ const loginAdmin = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Invalid Admin credentials');
     }
+});
+
+// @desc    Update admin academy profile
+// @route   PUT /api/auth/admin/profile
+// @access  Private (Admin)
+const updateAdminProfile = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const admin = await Admin.findById(req.user._id);
+    if (!admin) {
+        res.status(404);
+        throw new Error('Admin not found');
+    }
+
+    const { academyName, logoUrl, ownerName, ownerEmail, newPassword } = req.body;
+
+    if (academyName && academyName.trim()) admin.academyName = academyName.trim();
+    if (ownerName && ownerName.trim()) admin.username = ownerName.trim();
+    if (ownerEmail && ownerEmail.trim()) admin.email = ownerEmail.toLowerCase().trim();
+    if (logoUrl !== undefined) admin.logoUrl = logoUrl || null;
+
+    if (newPassword && newPassword.trim()) {
+        const salt = await bcrypt.genSalt(10);
+        admin.password = await bcrypt.hash(newPassword.trim(), salt);
+    }
+
+    const updated = await admin.save();
+
+    res.status(200).json({
+        _id: updated._id,
+        username: updated.username,
+        email: updated.email,
+        academyName: updated.academyName,
+        logoUrl: updated.logoUrl || null,
+        role: 'admin',
+    });
 });
 
 // @desc    Create staff by Head Coach
@@ -540,6 +577,7 @@ const getAdminOverview = asyncHandler(async (req, res) => {
             username: admin.username,
             email: admin.email,
             academyName: admin.academyName,
+            logoUrl: admin.logoUrl || null,
         },
         staff,
         teams,
@@ -562,5 +600,6 @@ module.exports = {
     deleteStaff,
     createTeamByAdmin,
     assignTeamLeadsByAdmin,
+    updateAdminProfile,
     getAdminOverview,
 };

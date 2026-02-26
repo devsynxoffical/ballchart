@@ -24,6 +24,9 @@ const adminSchema = mongoose.Schema(
             type: String,
             required: [true, 'Please add academy name'],
         },
+        logoUrl: {
+            type: String,
+        },
         profileCompleted: {
             type: Boolean,
             default: true,
