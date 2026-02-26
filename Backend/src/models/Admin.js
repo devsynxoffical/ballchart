@@ -20,6 +20,14 @@ const adminSchema = mongoose.Schema(
             type: String,
             default: 'admin',
         },
+        academyName: {
+            type: String,
+            required: [true, 'Please add academy name'],
+        },
+        profileCompleted: {
+            type: Boolean,
+            default: true,
+        },
     },
     {
         timestamps: true,

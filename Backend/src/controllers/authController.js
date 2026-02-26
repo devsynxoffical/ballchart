@@ -16,101 +16,15 @@ const generateToken = (id, role) => {
 // @desc    Register new Coach
 // @route   POST /api/auth/coach/signup
 const registerCoach = asyncHandler(async (req, res) => {
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
-        res.status(400);
-        throw new Error('Please add all fields');
-    }
-
-    // Check if email is already used by a Player
-    const playerExists = await Player.findOne({ email });
-    if (playerExists) {
-        res.status(400);
-        throw new Error('Email is already registered as a Player. You cannot register as a Coach.');
-    }
-
-    // Check if coach exists
-    const coachExists = await Coach.findOne({ email });
-    if (coachExists) {
-        res.status(400);
-        throw new Error('Coach with this email already exists');
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create coach
-    const coach = await Coach.create({
-        username,
-        email,
-        password: hashedPassword,
-        role: 'coach',
-    });
-
-    if (coach) {
-        res.status(201).json({
-            _id: coach.id,
-            username: coach.username,
-            email: coach.email,
-            role: coach.role,
-            token: generateToken(coach._id, coach.role),
-        });
-    } else {
-        res.status(400);
-        throw new Error('Invalid coach data');
-    }
+    res.status(403);
+    throw new Error('Public coach registration is disabled. Ask academy admin to create your account.');
 });
 
 // @desc    Register new Player
 // @route   POST /api/auth/player/signup
 const registerPlayer = asyncHandler(async (req, res) => {
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
-        res.status(400);
-        throw new Error('Please add all fields');
-    }
-
-    // Check if email is already used by a Coach
-    const coachExists = await Coach.findOne({ email });
-    if (coachExists) {
-        res.status(400);
-        throw new Error('Email is already registered as a Coach. You cannot register as a Player.');
-    }
-
-    // Check if player exists
-    const playerExists = await Player.findOne({ email });
-    if (playerExists) {
-        res.status(400);
-        throw new Error('Player with this email already exists');
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create player
-    const player = await Player.create({
-        username,
-        email,
-        password: hashedPassword,
-        role: 'player',
-    });
-
-    if (player) {
-        res.status(201).json({
-            _id: player.id,
-            username: player.username,
-            email: player.email,
-            role: player.role,
-            token: generateToken(player._id, player.role),
-        });
-    } else {
-        res.status(400);
-        throw new Error('Invalid player data');
-    }
+    res.status(403);
+    throw new Error('Public player registration is disabled. Ask academy admin to create your account.');
 });
 
 // @desc    Login Coach
@@ -207,18 +121,28 @@ const updateProfile = asyncHandler(async (req, res) => {
 // @desc    Register new Admin
 // @route   POST /api/auth/admin/signup
 const registerAdmin = asyncHandler(async (req, res) => {
-    const { username, email, password } = req.body;
+    const { username, email, password, academyName } = req.body;
 
-    if (!username || !email || !password) {
+    if (!username || !email || !password || !academyName) {
         res.status(400);
         throw new Error('Please add all fields');
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+
     // Check if admin exists
-    const adminExists = await Admin.findOne({ email });
+    const adminExists = await Admin.findOne({ email: cleanEmail });
     if (adminExists) {
         res.status(400);
         throw new Error('Admin with this email already exists');
+    }
+
+    // Prevent email overlap with other user types
+    const coachExists = await Coach.findOne({ email: cleanEmail });
+    const playerExists = await Player.findOne({ email: cleanEmail });
+    if (coachExists || playerExists) {
+        res.status(400);
+        throw new Error('Email already exists in another account type');
     }
 
     // Hash password
@@ -228,9 +152,11 @@ const registerAdmin = asyncHandler(async (req, res) => {
     // Create admin
     const admin = await Admin.create({
         username,
-        email,
+        email: cleanEmail,
         password: hashedPassword,
         role: 'admin',
+        academyName,
+        profileCompleted: true,
     });
 
     if (admin) {
@@ -239,6 +165,8 @@ const registerAdmin = asyncHandler(async (req, res) => {
             username: admin.username,
             email: admin.email,
             role: 'admin',
+            academyName: admin.academyName,
+            profileCompleted: true,
             token: generateToken(admin._id, 'admin'),
         });
     } else {
@@ -269,6 +197,8 @@ const loginAdmin = asyncHandler(async (req, res) => {
             username: admin.username,
             email: admin.email,
             role: 'admin',
+            academyName: admin.academyName,
+            profileCompleted: true,
             token: generateToken(admin._id, 'admin'),
         });
     } else {
@@ -283,9 +213,9 @@ const loginAdmin = asyncHandler(async (req, res) => {
 const createStaff = asyncHandler(async (req, res) => {
     const { username, email, password, role } = req.body;
 
-    if (req.user.role !== 'head_coach') {
+    if (!['head_coach', 'admin'].includes(req.user.role)) {
         res.status(403);
-        throw new Error('Only Head Coaches can create staff');
+        throw new Error('Only academy admin can create staff');
     }
 
     if (!['coach', 'assistant_coach'].includes(role)) {
@@ -327,6 +257,11 @@ const createStaff = asyncHandler(async (req, res) => {
 const createPlayerByCoach = asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
 
+    if (!['head_coach', 'coach', 'assistant_coach', 'admin'].includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Not authorized to create players');
+    }
+
     // Check if player exists
     const playerExists = await Player.findOne({ email });
     if (playerExists) {
@@ -360,9 +295,9 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/staff/credentials
 // @access  Private (Head Coach)
 const getStaffCredentials = asyncHandler(async (req, res) => {
-    if (req.user.role !== 'head_coach') {
+    if (!['head_coach', 'admin'].includes(req.user.role)) {
         res.status(403);
-        throw new Error('Only Head Coaches can access staff credentials');
+        throw new Error('Only academy admin can access staff credentials');
     }
 
     const staff = await Coach.find({ managedBy: req.user._id }).select('-password');
