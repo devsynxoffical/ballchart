@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:courtiq/features/management/viewmodel/academy_provider.dart';
+import 'package:courtiq/features/profile/viewmodel/profile_viewmodel.dart';
+import 'package:courtiq/core/repositories/dashboard_repository.dart';
 
 class StaffDashboardScreen extends StatelessWidget {
   const StaffDashboardScreen({super.key});
@@ -13,17 +14,17 @@ class StaffDashboardScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF020617),
         title: const Text('Staff Dashboard'),
       ),
-      body: Consumer<AcademyProvider>(
-        builder: (context, provider, _) {
-          final staff = provider.currentStaff;
-          if (staff == null) {
-            return const Center(
-              child: Text(
-                'No coach profile found in dummy data.',
-                style: TextStyle(color: Colors.white70),
-              ),
-            );
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: DashboardRepository().getCoachDashboard(),
+        builder: (context, snapshot) {
+          final user = context.watch<ProfileViewmodel>().user;
+          if (!snapshot.hasData || user == null) {
+            return const Center(child: CircularProgressIndicator());
           }
+
+          final data = snapshot.data!;
+          final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
+          final permissions = (profile['permissions'] as Map?)?.cast<String, dynamic>() ?? {};
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -31,12 +32,12 @@ class StaffDashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Welcome, ${staff.name}',
+                  'Welcome, ${user.username}',
                   style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Role: ${staff.role == 'custom' ? (staff.customRoleName ?? 'Custom') : staff.role}',
+                  'Role: ${user.role}',
                   style: const TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 18),
@@ -45,18 +46,13 @@ class StaffDashboardScreen extends StatelessWidget {
                   style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-                if (staff.permissions.createPlayer) _actionTile('Create Player', Icons.person_add_alt_1),
-                if (staff.permissions.readPlayer) _actionTile('Read Player', Icons.visibility_outlined),
-                if (staff.permissions.updatePlayer) _actionTile('Update Player', Icons.edit_outlined),
-                if (staff.permissions.deletePlayer) _actionTile('Delete Player', Icons.delete_outline),
-                if (staff.permissions.createTeam) _actionTile('Create Team', Icons.group_add),
-                if (staff.permissions.manageStaff) _actionTile('Manage Staff', Icons.manage_accounts_outlined),
-                if (!staff.permissions.createPlayer &&
-                    !staff.permissions.readPlayer &&
-                    !staff.permissions.updatePlayer &&
-                    !staff.permissions.deletePlayer &&
-                    !staff.permissions.createTeam &&
-                    !staff.permissions.manageStaff)
+                if (permissions['createPlayer'] == true) _actionTile('Create Player', Icons.person_add_alt_1),
+                if (permissions['readPlayer'] == true) _actionTile('Read Player', Icons.visibility_outlined),
+                if (permissions['updatePlayer'] == true) _actionTile('Update Player', Icons.edit_outlined),
+                if (permissions['deletePlayer'] == true) _actionTile('Delete Player', Icons.delete_outline),
+                if (permissions['createTeam'] == true) _actionTile('Create Team', Icons.group_add),
+                if (permissions['manageStaff'] == true) _actionTile('Manage Staff', Icons.manage_accounts_outlined),
+                if (permissions.isEmpty)
                   const Text(
                     'No extra permissions assigned.',
                     style: TextStyle(color: Colors.white54),

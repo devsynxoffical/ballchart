@@ -7,6 +7,7 @@ import '../../../core/models/user_model.dart';
 
 import 'package:provider/provider.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
+import '../../management/viewmodel/academy_provider.dart';
 
 class AuthViewmodel extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository();
@@ -29,66 +30,28 @@ class AuthViewmodel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(BuildContext context, String email, String password, String role) async {
-    // Demo Login Bypass
-    if (email.startsWith('demo_') && password == 'demo123') {
-      _setLoading(true);
-      await Future.delayed(const Duration(seconds: 1)); // Simulate network
-      
-      String demoRole = 'coach';
-      String teamName = 'Elite Dunkers';
-      List<String> assignedTeams = ['Elite Dunkers'];
-      
-      String demoId = 'demo_c_1';
-
-      if (email.contains('head')) {
-        demoRole = 'head_coach';
-        demoId = 'demo_hc_1';
-        teamName = 'Organization HQ';
-        assignedTeams = ['Thunder Squad', 'Rising Stars', 'Elite Dunkers'];
-      } else if (email.contains('asst')) {
-        demoRole = 'assistant_coach';
-        demoId = 'demo_ac_1';
-        teamName = 'Rising Stars';
-        assignedTeams = ['Rising Stars'];
-      } else if (email.contains('player')) {
-        demoRole = 'player';
-        demoId = 'demo_p_1';
-        teamName = 'Thunder Squad';
-        assignedTeams = ['Thunder Squad'];
-      }
-
-      final demoUser = UserModel(
-        id: demoId,
-        username: email.replaceFirst('demo_', '').split('@')[0].replaceAll('_', ' ').toUpperCase(),
-        email: email,
-        role: demoRole,
-        teamName: teamName,
-        assignedTeams: assignedTeams,
-        profileCompleted: true,
-        token: 'demo_token',
-        position: demoRole == 'player' ? 'Point Guard' : null,
-        stats: demoRole == 'player'
-            ? {'matchesPlayed': 24, 'wins': 18, 'points': 485}
-            : const {'matchesPlayed': 0, 'wins': 0, 'points': 0},
-        rank: demoRole == 'player' ? 3 : 0,
-      );
-
-      Provider.of<ProfileViewmodel>(context, listen: false).setUser(demoUser);
-      _setLoading(false);
-      Navigator.pushNamedAndRemoveUntil(context, RouteNames.mainApp, (route) => false, arguments: demoUser.role);
-      return;
-    }
-
+  Future<void> login(BuildContext context, String email, String password) async {
     _setLoading(true);
     _errorMessage = null;
 
     try {
-      final user = await _authRepository.login(email, password, role);
+      final user = await _authRepository.login(email, password);
       Provider.of<ProfileViewmodel>(context, listen: false).setUser(user);
       _setLoading(false);
-      
-      if (user.profileCompleted) {
+
+      if (user.role == 'admin') {
+        final academyProvider = Provider.of<AcademyProvider>(context, listen: false);
+        academyProvider.loginByRole('academy_owner');
+        if (user.teamName != null && user.teamName!.isNotEmpty) {
+          academyProvider.updateAcademyProfile(
+            academyName: user.teamName!,
+            logoUrl: academyProvider.academy.logoUrl,
+            ownerName: user.username,
+            ownerEmail: user.email,
+          );
+        }
+        Navigator.pushNamedAndRemoveUntil(context, RouteNames.academyDashboard, (route) => false);
+      } else if (user.profileCompleted) {
         Navigator.pushNamedAndRemoveUntil(context, RouteNames.mainApp, (route) => false, arguments: user.role);
       } else {
         if (user.role == 'coach' || user.role == 'head_coach' || user.role == 'assistant_coach') {
@@ -128,7 +91,9 @@ class AuthViewmodel extends ChangeNotifier {
           message: 'Account created successfully. Please log in.',
           isSuccess: true,
           onOk: () {
-             if (role == 'coach' || role == 'head_coach') {
+             if (role == 'admin') {
+               Navigator.pushNamedAndRemoveUntil(context, RouteNames.login, (route) => false, arguments: 'admin');
+             } else if (role == 'coach' || role == 'head_coach') {
                Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_coach, (route) => false);
              } else {
                Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_player, (route) => false);

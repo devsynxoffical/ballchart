@@ -57,8 +57,10 @@ class ProfileSetupViewmodel extends ChangeNotifier {
       _setLoading(false);
       // Refresh profile data in global state
       if (context.mounted) {
-        Provider.of<ProfileViewmodel>(context, listen: false).loadProfile();
-        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: 'coach');
+        final profileVm = Provider.of<ProfileViewmodel>(context, listen: false);
+        await profileVm.loadProfile(forceRefresh: true);
+        final updatedRole = profileVm.user?.role ?? 'coach';
+        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: updatedRole);
       }
     } catch (e) {
       _setLoading(false);
@@ -100,8 +102,10 @@ class ProfileSetupViewmodel extends ChangeNotifier {
       _setLoading(false);
       // Refresh profile data in global state
       if (context.mounted) {
-        Provider.of<ProfileViewmodel>(context, listen: false).loadProfile();
-        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: 'player');
+        final profileVm = Provider.of<ProfileViewmodel>(context, listen: false);
+        await profileVm.loadProfile(forceRefresh: true);
+        final updatedRole = profileVm.user?.role ?? 'player';
+        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: updatedRole);
       }
     } catch (e) {
       _setLoading(false);

@@ -4,6 +4,7 @@ import '../../../core/constants/colors.dart';
 import '../../../core/widgets/home/header.dart';
 import '../../../core/widgets/home/stats_row.dart';
 import '../../../features/profile/viewmodel/profile_viewmodel.dart';
+import '../../../core/repositories/dashboard_repository.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -30,34 +31,44 @@ class HomeScreen extends StatelessWidget {
                 );
               }
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  StatsRow(user: user),
-                  const SizedBox(height: 24),
+              return FutureBuilder<Map<String, dynamic>>(
+                future: DashboardRepository().getPlayerDashboard(),
+                builder: (context, snapshot) {
+                  final dashboard = snapshot.data ?? {};
+                  final team = (dashboard['team'] as Map?)?.cast<String, dynamic>();
+                  final staff = (dashboard['coachingStaff'] as List? ?? [])
+                      .cast<Map>()
+                      .map((e) => e.cast<String, dynamic>())
+                      .toList();
+                  final teammates = (dashboard['teammates'] as List? ?? [])
+                      .cast<Map>()
+                      .map((e) => e.cast<String, dynamic>())
+                      .toList();
 
-                  // My Team Card
-                  if (user.teamName != null && user.teamName!.isNotEmpty)
-                    _MyTeamCard(teamName: user.teamName!),
-
-                  const SizedBox(height: 24),
-                  _SectionHeader(title: 'Coaching Staff', icon: Icons.badge_rounded),
-                  const SizedBox(height: 12),
-                  const _CoachingStaffList(),
-
-                  const SizedBox(height: 24),
-                  _SectionHeader(title: 'Teammates', icon: Icons.groups_rounded),
-                  const SizedBox(height: 12),
-                  const _TeammatesList(),
-
-                  const SizedBox(height: 24),
-                  _SectionHeader(title: 'Upcoming', icon: Icons.calendar_today_rounded),
-                  const SizedBox(height: 12),
-                  const _UpcomingSchedule(),
-
-                  const SizedBox(height: 100),
-                ],
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      StatsRow(user: user),
+                      const SizedBox(height: 24),
+                      if (team?['name'] != null || (user.teamName?.isNotEmpty ?? false))
+                        _MyTeamCard(teamName: team?['name']?.toString() ?? user.teamName!),
+                      const SizedBox(height: 24),
+                      _SectionHeader(title: 'Coaching Staff', icon: Icons.badge_rounded),
+                      const SizedBox(height: 12),
+                      _CoachingStaffList(staff: staff),
+                      const SizedBox(height: 24),
+                      _SectionHeader(title: 'Teammates', icon: Icons.groups_rounded),
+                      const SizedBox(height: 12),
+                      _TeammatesList(teammates: teammates),
+                      const SizedBox(height: 24),
+                      _SectionHeader(title: 'Upcoming', icon: Icons.calendar_today_rounded),
+                      const SizedBox(height: 12),
+                      const _UpcomingSchedule(),
+                      const SizedBox(height: 100),
+                    ],
+                  );
+                },
               );
             },
           ),
@@ -176,17 +187,26 @@ class _MyTeamCard extends StatelessWidget {
 }
 
 class _CoachingStaffList extends StatelessWidget {
-  const _CoachingStaffList();
+  final List<Map<String, dynamic>> staff;
+  const _CoachingStaffList({required this.staff});
 
   @override
   Widget build(BuildContext context) {
-    final staff = [
-      {'name': 'Coach Carter', 'role': 'Head Coach', 'color': AppColors.yellow},
-      {'name': 'Coach Smith', 'role': 'Assistant Coach', 'color': const Color(0xFF8B5CF6)},
-    ];
+    final normalized = staff.map((s) {
+      final role = (s['role'] ?? '').toString();
+      return {
+        'name': s['username'] ?? 'Staff',
+        'role': role.replaceAll('_', ' '),
+        'color': role == 'assistant_coach' ? const Color(0xFF8B5CF6) : AppColors.yellow,
+      };
+    }).toList();
+
+    if (normalized.isEmpty) {
+      return const Text('No staff assigned.', style: TextStyle(color: Colors.white38));
+    }
 
     return Column(
-      children: staff.map((s) {
+      children: normalized.map((s) {
         final color = s['color'] as Color;
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -247,17 +267,14 @@ class _CoachingStaffList extends StatelessWidget {
 }
 
 class _TeammatesList extends StatelessWidget {
-  const _TeammatesList();
+  final List<Map<String, dynamic>> teammates;
+  const _TeammatesList({required this.teammates});
 
   @override
   Widget build(BuildContext context) {
-    final teammates = [
-      {'name': 'Alex Johnson', 'position': 'Shooting Guard', 'number': '#7'},
-      {'name': 'Sarah Williams', 'position': 'Small Forward', 'number': '#11'},
-      {'name': 'Mike Chen', 'position': 'Center', 'number': '#34'},
-      {'name': 'Emma Davis', 'position': 'Power Forward', 'number': '#22'},
-      {'name': 'James Wilson', 'position': 'Point Guard', 'number': '#3'},
-    ];
+    if (teammates.isEmpty) {
+      return const Text('No teammates found.', style: TextStyle(color: Colors.white38));
+    }
 
     return SizedBox(
       height: 110,
@@ -294,20 +311,20 @@ class _TeammatesList extends StatelessWidget {
                   ),
                   child: Center(
                     child: Text(
-                      mate['number']!,
+                      '#',
                       style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  mate['name']!.split(' ').first,
+                  (mate['username']?.toString() ?? 'Player').split(' ').first,
                   style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  mate['position']!.split(' ').first,
+                  (mate['position']?.toString() ?? '-').split(' ').first,
                   style: const TextStyle(color: Colors.white38, fontSize: 10),
                   overflow: TextOverflow.ellipsis,
                 ),

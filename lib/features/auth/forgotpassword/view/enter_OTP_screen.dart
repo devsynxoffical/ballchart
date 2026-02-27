@@ -20,10 +20,20 @@ class EnterOtpScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               ResetHeader(
-                bgColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
-                title: 'Reset Password',
-                subtitle: 'Enter verification code',
+                bgColor: AppColors.yellow,
+                title: 'BallChart',
+                subtitle: 'Password Recovery',
               ),
+              const SizedBox(height: 16),
+              const Text(
+                'Reset Password',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
               const SizedBox(height: 30),
               const Text(
                 'Enter 6-digit code sent to your email',
@@ -33,9 +43,9 @@ class EnterOtpScreen extends StatelessWidget {
               const OtpInput(),
               const SizedBox(height: 30),
               CustomButton(
-                backgroundColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
+                backgroundColor: AppColors.yellow,
                 text: 'Verify Code',
-                textColor: role == 'coach' ? AppColors.black :AppColors.white,
+                textColor: AppColors.black,
                 onPressed: () {
                   OTPViewmodel.goToEnterNewPass(context,role);
                 },

@@ -51,7 +51,7 @@ class StaffService {
 
   Future<List<dynamic>> getStaffCredentials() async {
     try {
-      final response = await _apiService.get('/staff/credentials');
+      final response = await _apiService.get('/auth/staff/credentials');
       return response as List<dynamic>;
     } catch (e) {
       rethrow;

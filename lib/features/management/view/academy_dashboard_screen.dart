@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:courtiq/core/models/local_academy_models.dart';
 import 'package:courtiq/core/constants/colors.dart';
 import 'package:courtiq/core/widgets/dialogues/CreateTeamDialog.dart';
+import 'package:courtiq/features/auth/viewmodel/auth_viewmodel.dart';
 import 'package:courtiq/features/coach/team_details/view/team_detail_screen.dart';
 import 'package:courtiq/features/management/viewmodel/academy_provider.dart';
 
@@ -20,40 +21,189 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   bool _playerAutoAssignEnabled = true;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AcademyProvider>().loadAdminOverview();
+    });
+  }
+
+  void _showInfo(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1220),
+        title: const Text('Log out', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Do you want to log out of admin dashboard?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && mounted) {
+      await context.read<AuthViewmodel>().logout(context);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       appBar: AppBar(
         backgroundColor: const Color(0xFF020617),
         elevation: 0,
-        title: Text(
-          _titleForTab(_currentTab),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        centerTitle: false,
+        titleSpacing: 4,
+        toolbarHeight: 62,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.yellow, AppColors.yellow.withValues(alpha: 0.6)],
+                ),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFF0B1220)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _titleForTab(_currentTab),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 33 / 2,
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => _showInfo('Search will be available soon'),
             icon: const Icon(Icons.search_rounded, color: Colors.white70),
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: () => _showInfo('No new notifications'),
             icon: const Icon(Icons.notifications_none_rounded, color: Colors.white70),
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: _confirmLogout,
+            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
           ),
         ],
       ),
-      body: Consumer<AcademyProvider>(
-        builder: (context, provider, _) {
-          switch (_currentTab) {
-            case 1:
-              return _buildTeamsSection(provider);
-            case 2:
-              return _buildStaffSection(provider);
-            case 3:
-              return _buildAdminProfileSection(provider);
-            default:
-              return _buildDashboardSection(provider);
-          }
-        },
+      body: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            right: -80,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.2, end: 0.35),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeInOut,
+              builder: (_, opacity, __) => Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.yellow.withValues(alpha: opacity),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -140,
+            left: -100,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.15, end: 0.28),
+              duration: const Duration(milliseconds: 1100),
+              curve: Curves.easeInOut,
+              builder: (_, opacity, __) => Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF38BDF8).withValues(alpha: opacity),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 110,
+            left: -18,
+            child: Icon(
+              Icons.sports_basketball_rounded,
+              size: 72,
+              color: Colors.white.withValues(alpha: 0.06),
+            ),
+          ),
+          Positioned(
+            bottom: 180,
+            right: -12,
+            child: Icon(
+              Icons.sports_basketball_rounded,
+              size: 84,
+              color: Colors.white.withValues(alpha: 0.05),
+            ),
+          ),
+          Consumer<AcademyProvider>(
+            builder: (context, provider, _) {
+              Widget currentPage;
+              switch (_currentTab) {
+                case 1:
+                  currentPage = _buildTeamsSection(provider);
+                  break;
+                case 2:
+                  currentPage = _buildStaffSection(provider);
+                  break;
+                case 3:
+                  currentPage = _buildAdminProfileSection(provider);
+                  break;
+                default:
+                  currentPage = _buildDashboardSection(provider);
+              }
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: KeyedSubtree(
+                  key: ValueKey(_currentTab),
+                  child: currentPage,
+                ),
+              );
+            },
+          ),
+        ],
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
@@ -171,30 +321,52 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColors.yellow.withValues(alpha: 0.3)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              const Text(
-                'ACADEMY OWNER PANEL',
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontSize: 11,
-                  letterSpacing: 1.2,
+              Positioned(
+                right: -12,
+                top: -10,
+                child: Icon(
+                  Icons.sports_basketball_rounded,
+                  size: 96,
+                  color: Colors.white.withValues(alpha: 0.08),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                provider.academy.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+              Positioned(
+                right: 44,
+                bottom: -2,
+                child: Icon(
+                  Icons.emoji_events_rounded,
+                  size: 52,
+                  color: Colors.white.withValues(alpha: 0.08),
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Manage teams, records, staff access and academy operations',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ACADEMY OWNER PANEL',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    provider.academy.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Manage teams, records, staff access and academy operations',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
               ),
             ],
           ),
@@ -236,33 +408,53 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
           style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        Row(
           children: [
-            _actionButton(
-              label: 'Add Team',
-              icon: Icons.group_add_rounded,
-              color: AppColors.yellow,
-              onTap: () => _showCreateTeamDialog(context),
+            Expanded(
+              child: _quickActionTile(
+                label: 'Add Team',
+                subtitle: 'Create roster',
+                icon: Icons.group_add_rounded,
+                color: AppColors.yellow,
+                onTap: () => _showCreateTeamDialog(context),
+              ),
             ),
-            _actionButton(
-              label: 'Add Staff',
-              icon: Icons.person_add_alt_1_rounded,
-              color: const Color(0xFF8B5CF6),
-              onTap: () => _showAddStaffDialog(context),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _quickActionTile(
+                label: 'Add Staff',
+                subtitle: 'Create coach',
+                icon: Icons.person_add_alt_1_rounded,
+                color: const Color(0xFF8B5CF6),
+                onTap: () => _showAddStaffDialog(context),
+              ),
             ),
-            _actionButton(
-              label: 'Add Player',
-              icon: Icons.person_add_rounded,
-              color: AppColors.blue,
-              onTap: () => _showAddPlayerDialog(context),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _quickActionTile(
+                label: 'Add Player',
+                subtitle: 'Create account',
+                icon: Icons.person_add_rounded,
+                color: AppColors.blue,
+                onTap: () => _showAddPlayerDialog(context),
+              ),
             ),
-            _actionButton(
-              label: 'Manage Staff',
-              icon: Icons.manage_accounts_rounded,
-              color: AppColors.green,
-              onTap: () => setState(() => _currentTab = 2),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _quickActionTile(
+                label: 'Manage Staff',
+                subtitle: 'Edit permissions',
+                icon: Icons.manage_accounts_rounded,
+                color: AppColors.green,
+                onTap: () {
+                  context.read<AcademyProvider>().loadAdminOverview(force: true);
+                  setState(() => _currentTab = 2);
+                },
+              ),
             ),
           ],
         ),
@@ -556,70 +748,95 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: AppColors.yellow.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.yellow),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Academy Owner',
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Admin privileges enabled',
-                          style: TextStyle(color: Colors.white60),
-                        ),
-                      ],
-                    ),
-                  ),
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.94, end: 1),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutBack,
+          builder: (_, value, child) => Transform.scale(scale: value, child: child),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.yellow.withValues(alpha: 0.16),
+                  const Color(0xFF1E293B),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(height: 14),
-              Text(
-                provider.academy.name,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${provider.academy.teams.length} teams • ${provider.academy.staff.length} staff • $totalPlayers players',
-                style: const TextStyle(color: Colors.white60),
-              ),
-              const SizedBox(height: 12),
-              if (provider.academy.logoUrl != null && provider.academy.logoUrl!.isNotEmpty)
-                Text(
-                  'Logo: ${provider.academy.logoUrl}',
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.yellow.withValues(alpha: 0.16),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
                 ),
-              const SizedBox(height: 12),
-              _actionButton(
-                label: 'Manage Academy Profile',
-                icon: Icons.edit_rounded,
-                color: AppColors.yellow,
-                onTap: () => _showManageAcademyDialog(context),
-              ),
-            ],
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: AppColors.yellow.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.yellow),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Academy Owner',
+                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Admin privileges enabled',
+                            style: TextStyle(color: Colors.white60),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  provider.academy.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _profileStatPill('${provider.academy.teams.length} Teams'),
+                    _profileStatPill('${provider.academy.staff.length} Staff'),
+                    _profileStatPill('$totalPlayers Players'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (provider.academy.logoUrl != null && provider.academy.logoUrl!.isNotEmpty)
+                  Text(
+                    'Logo: ${provider.academy.logoUrl}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                const SizedBox(height: 12),
+                _actionButton(
+                  label: 'Manage Academy Profile',
+                  icon: Icons.edit_rounded,
+                  color: AppColors.yellow,
+                  onTap: () => _showManageAcademyDialog(context),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 14),
@@ -648,25 +865,53 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     required IconData icon,
     required Color color,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOut,
+      builder: (_, t, child) => Opacity(opacity: t, child: child),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              color.withValues(alpha: 0.17),
+              const Color(0xFF1E293B),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
-        ],
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileStatPill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -722,24 +967,111 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.96, end: 1),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) => Transform.scale(scale: value, child: child),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                color.withValues(alpha: 0.2),
+                const Color(0xFF1E293B),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _quickActionTile({
+    required String label,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
+          gradient: LinearGradient(
+            colors: [
+              color.withValues(alpha: 0.18),
+              const Color(0xFF1E293B),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.45)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.14),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -752,27 +1084,41 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.98, end: 1),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+      builder: (_, value, child) => Transform.scale(scale: value, child: child),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.06),
+              const Color(0xFF1E293B),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
             ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppColors.yellow,
-          ),
-        ],
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: AppColors.yellow,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -815,20 +1161,21 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     }
   }
 
-  InputDecoration _dialogInputDecoration(String label, {String? hint}) {
+  InputDecoration _dialogInputDecoration(String label, {String? hint, IconData? prefixIcon}) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
       labelStyle: const TextStyle(color: Colors.white70),
       hintStyle: const TextStyle(color: Colors.white38),
       filled: true,
-      fillColor: const Color(0xFF111827),
+      fillColor: const Color(0xFF0F172A),
+      prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: Colors.white54, size: 18) : null,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: AppColors.yellow, width: 1.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -868,12 +1215,15 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     required List<Widget> actions,
   }) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF0B1220),
+      backgroundColor: const Color(0xFF091020),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        side: BorderSide(color: AppColors.yellow.withValues(alpha: 0.2)),
       ),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+      contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+      actionsPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
       title: title,
       content: content,
       actions: actions,
@@ -952,13 +1302,18 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () {
-                  provider.assignTeamLeads(
-                    teamId: team.id,
-                    coachStaffId: selectedCoachId,
-                    assistantCoachStaffId: selectedAssistantId,
-                  );
-                  Navigator.pop(context);
+                onPressed: () async {
+                  try {
+                    await provider.assignTeamLeadsInBackend(
+                      teamId: team.id,
+                      coachStaffId: selectedCoachId,
+                      assistantCoachStaffId: selectedAssistantId,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                    _showInfo('Team leads updated');
+                  } catch (e) {
+                    _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+                  }
                 },
                 child: const Text('Save'),
               ),
@@ -1077,7 +1432,6 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                     items: const [
                       DropdownMenuItem(value: 'coach', child: Text('Coach')),
                       DropdownMenuItem(value: 'assistant_coach', child: Text('Assistant Coach')),
-                      DropdownMenuItem(value: 'custom', child: Text('Custom')),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
@@ -1085,14 +1439,6 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                     },
                     decoration: _dialogInputDecoration('Role'),
                   ),
-                  if (role == 'custom') ...[
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: customRoleController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Custom role name'),
-                    ),
-                  ],
                   const SizedBox(height: 14),
                   Container(
                     width: double.infinity,
@@ -1210,19 +1556,31 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  provider.updateStaff(
-                    Staff(
-                      id: staff.id,
-                      name: nameController.text.trim(),
-                      email: emailController.text.trim(),
-                      password: passwordController.text.trim(),
-                      role: role,
-                      customRoleName: role == 'custom' ? customRoleController.text.trim() : null,
-                      assignedTeamIds: selectedTeamIds.toList(),
-                      permissions: permissions,
-                    ),
-                  );
-                  Navigator.pop(context);
+                  provider
+                      .updateStaffInBackend(
+                        Staff(
+                          id: staff.id,
+                          name: nameController.text.trim(),
+                          email: emailController.text.trim(),
+                          password: passwordController.text.trim(),
+                          role: role,
+                          customRoleName: customRoleController.text.trim().isEmpty
+                              ? null
+                              : customRoleController.text.trim(),
+                          assignedTeamIds: selectedTeamIds.toList(),
+                          permissions: permissions,
+                        ),
+                      )
+                      .then((_) {
+                        if (context.mounted) Navigator.pop(context);
+                        _showInfo('Staff updated');
+                      })
+                      .catchError((e) {
+                        _showInfo(
+                          e.toString().replaceAll('Exception: ', ''),
+                          isError: true,
+                        );
+                      });
                 },
                 child: const Text('Save Changes'),
               ),
@@ -1253,9 +1611,14 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              context.read<AcademyProvider>().deleteStaff(staff.id);
-              Navigator.pop(context);
+            onPressed: () async {
+              try {
+                await context.read<AcademyProvider>().deleteStaffInBackend(staff.id);
+                if (context.mounted) Navigator.pop(context);
+                _showInfo('Staff deleted');
+              } catch (e) {
+                _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
@@ -1285,34 +1648,69 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.yellow.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.yellow.withValues(alpha: 0.3)),
+                ),
+                child: const Text(
+                  'Academy Branding',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: academyNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Academy Name'),
+                decoration: _dialogInputDecoration('Academy Name', prefixIcon: Icons.apartment_rounded),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: logoController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Academy Logo URL', hint: 'https://...'),
+                decoration: _dialogInputDecoration(
+                  'Academy Logo URL',
+                  hint: 'https://...',
+                  prefixIcon: Icons.image_rounded,
+                ),
               ),
               const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Owner Credentials',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(
                 controller: ownerNameController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Admin Name'),
+                decoration: _dialogInputDecoration('Admin Name', prefixIcon: Icons.person_rounded),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: ownerEmailController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Admin Email'),
+                decoration: _dialogInputDecoration('Admin Email', prefixIcon: Icons.email_rounded),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: passwordController,
+                obscureText: true,
                 style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('New Password (optional)'),
+                decoration: _dialogInputDecoration(
+                  'New Password (optional)',
+                  prefixIcon: Icons.lock_rounded,
+                ),
               ),
             ],
           ),
@@ -1323,15 +1721,20 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              provider.updateAcademyProfile(
-                academyName: academyNameController.text.trim(),
-                logoUrl: logoController.text.trim().isEmpty ? null : logoController.text.trim(),
-                ownerName: ownerNameController.text.trim(),
-                ownerEmail: ownerEmailController.text.trim(),
-                newPassword: passwordController.text.trim(),
-              );
-              Navigator.pop(context);
+            onPressed: () async {
+              try {
+                await provider.updateAcademyProfileInBackend(
+                  academyName: academyNameController.text.trim(),
+                  logoUrl: logoController.text.trim().isEmpty ? null : logoController.text.trim(),
+                  ownerName: ownerNameController.text.trim(),
+                  ownerEmail: ownerEmailController.text.trim(),
+                  newPassword: passwordController.text.trim(),
+                );
+                if (context.mounted) Navigator.pop(context);
+                _showInfo('Admin profile updated');
+              } catch (e) {
+                _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+              }
             },
             child: const Text('Save'),
           ),
@@ -1347,15 +1750,20 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       builder: (_) => CreateTeamDialog(
         onTeamCreated: (name, ageGroup, color) {
           final provider = context.read<AcademyProvider>();
-          provider.addTeam(
-            Team(
-              id: provider.nextId('t'),
-              name: name,
-              ageGroup: ageGroup,
-              colorValue: color.value,
-              players: [],
-            ),
-          );
+          provider
+              .addTeamToBackend(
+                Team(
+                  id: provider.nextId('t'),
+                  name: name,
+                  ageGroup: ageGroup,
+                  colorValue: color.value,
+                  players: const [],
+                ),
+              )
+              .then((_) => _showInfo('Team created successfully'))
+              .catchError((e) {
+                _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+              });
         },
       ),
     );
@@ -1363,6 +1771,8 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
 
   void _showAddPlayerDialog(BuildContext context, {String? initialTeamId}) {
     final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
     final positionController = TextEditingController();
     final ageController = TextEditingController();
     String? selectedTeamId = initialTeamId;
@@ -1384,6 +1794,20 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.blue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.blue.withValues(alpha: 0.35)),
+                      ),
+                      child: const Text(
+                        'Player Account Details',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       value: selectedTeamId,
                       dropdownColor: const Color(0xFF111827),
@@ -1392,23 +1816,40 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                         return DropdownMenuItem(value: team.id, child: Text(team.name));
                       }).toList(),
                       onChanged: (val) => selectedTeamId = val,
-                      decoration: _dialogInputDecoration('Team'),
+                      decoration: _dialogInputDecoration('Team', prefixIcon: Icons.groups_rounded),
                     ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: nameController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Name'),
+                      decoration: _dialogInputDecoration('Name', prefixIcon: Icons.person_rounded),
                     ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _dialogInputDecoration('Login Email', prefixIcon: Icons.email_rounded),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _dialogInputDecoration('Password', prefixIcon: Icons.lock_rounded),
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: positionController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Position'),
+                      decoration: _dialogInputDecoration('Position', prefixIcon: Icons.sports_rounded),
                     ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: ageController,
                       keyboardType: TextInputType.number,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Age'),
+                      decoration: _dialogInputDecoration('Age', prefixIcon: Icons.cake_rounded),
                     ),
                   ],
                 ),
@@ -1416,21 +1857,32 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (selectedTeamId == null || nameController.text.trim().isEmpty) return;
+                    if (emailController.text.trim().isEmpty || passwordController.text.trim().isEmpty) {
+                      _showInfo('Email and password are required', isError: true);
+                      return;
+                    }
                     final age = int.tryParse(ageController.text.trim()) ?? 16;
-                    provider.addPlayer(
-                      selectedTeamId!,
-                      Player(
-                        id: provider.nextId('p'),
-                        name: nameController.text.trim(),
-                        position: positionController.text.trim().isEmpty
-                            ? 'Guard'
-                            : positionController.text.trim(),
-                        age: age,
-                      ),
-                    );
-                    Navigator.pop(context);
+                    try {
+                      await provider.addPlayerToBackend(
+                        selectedTeamId!,
+                        Player(
+                          id: provider.nextId('p'),
+                          name: nameController.text.trim(),
+                          position: positionController.text.trim().isEmpty
+                              ? 'Guard'
+                              : positionController.text.trim(),
+                          age: age,
+                        ),
+                        email: emailController.text.trim(),
+                        password: passwordController.text.trim(),
+                      );
+                      if (context.mounted) Navigator.pop(context);
+                      _showInfo('Player account created');
+                    } catch (e) {
+                      _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+                    }
                   },
                   child: const Text('Save'),
                 ),
@@ -1467,23 +1919,38 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.35)),
+                      ),
+                      child: const Text(
+                        'Staff Credentials',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: nameController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Name'),
+                      decoration: _dialogInputDecoration('Name', prefixIcon: Icons.person_rounded),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Login Email'),
+                      decoration: _dialogInputDecoration('Login Email', prefixIcon: Icons.email_rounded),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: passwordController,
+                      obscureText: true,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _dialogInputDecoration('Password'),
+                      decoration: _dialogInputDecoration('Password', prefixIcon: Icons.lock_rounded),
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
@@ -1496,31 +1963,35 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                           value: 'assistant_coach',
                           child: Text('Assistant Coach'),
                         ),
-                        DropdownMenuItem(value: 'custom', child: Text('Custom')),
                       ],
                       onChanged: (value) {
                         if (value == null) return;
                         setState(() => role = value);
                       },
-                      decoration: _dialogInputDecoration('Role'),
+                      decoration: _dialogInputDecoration('Role', prefixIcon: Icons.badge_rounded),
                     ),
-                    if (role == 'custom')
-                      TextField(
-                        controller: customRoleController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: _dialogInputDecoration('Custom role name'),
-                      ),
                     const SizedBox(height: 8),
                     Consumer<AcademyProvider>(
                       builder: (context, provider, __) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Team Access',
-                                style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.groups_rounded, color: Colors.white70, size: 17),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Team Access',
+                                    style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -1546,11 +2017,22 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                       },
                     ),
                     const SizedBox(height: 8),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Permissions',
-                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.verified_user_rounded, color: Colors.white70, size: 17),
+                          SizedBox(width: 8),
+                          Text(
+                            'Permissions',
+                            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
                     ),
                     CheckboxListTile(
@@ -1595,36 +2077,39 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (nameController.text.trim().isEmpty) return;
                     if (emailController.text.trim().isEmpty) return;
                     if (passwordController.text.trim().isEmpty) return;
-                    if (role == 'custom' && customRoleController.text.trim().isEmpty) return;
                     final provider = context.read<AcademyProvider>();
                     final createdName = nameController.text.trim();
                     final createdEmail = emailController.text.trim();
                     final createdPassword = passwordController.text.trim();
-                    provider.addStaff(
-                      Staff(
-                        id: provider.nextId('s'),
+                    try {
+                      await provider.addStaffToBackend(
+                        Staff(
+                          id: provider.nextId('s'),
+                          name: createdName,
+                          email: createdEmail,
+                          password: createdPassword,
+                          role: role,
+                          customRoleName: customRoleController.text.trim().isEmpty
+                              ? null
+                              : customRoleController.text.trim(),
+                          assignedTeamIds: selectedTeamIds.toList(),
+                          permissions: permissions,
+                        ),
+                      );
+                      if (context.mounted) Navigator.pop(context);
+                      _showStaffCredentialsDialog(
+                        context,
                         name: createdName,
                         email: createdEmail,
                         password: createdPassword,
-                        role: role,
-                        customRoleName: role == 'custom'
-                            ? customRoleController.text.trim()
-                            : null,
-                        assignedTeamIds: selectedTeamIds.toList(),
-                        permissions: permissions,
-                      ),
-                    );
-                    Navigator.pop(context);
-                    _showStaffCredentialsDialog(
-                      context,
-                      name: createdName,
-                      email: createdEmail,
-                      password: createdPassword,
-                    );
+                      );
+                    } catch (e) {
+                      _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+                    }
                   },
                   child: const Text('Save'),
                 ),

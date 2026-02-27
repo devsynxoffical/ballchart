@@ -8,11 +8,8 @@ class ApiService {
   // For Web/iOS Simulator: use 'localhost'
   // For Physical Device: use your computer's LAN IP (e.g., '192.168.1.5')
   
-  static const String _localIP = '10.0.2.2'; // Changed to 10.0.2.2 for common emulator fix
-  static const String baseUrl = 'http://$_localIP:5000/api';
-  
-  // Production Railway URL
-  // static const String baseUrl = 'https://hoopstar-production.up.railway.app/api';
+  // Live backend (Railway)
+  static const String baseUrl = 'https://ballchart-production.up.railway.app/api';
   
   final _storage = const FlutterSecureStorage();
 
@@ -49,6 +46,15 @@ class ApiService {
       Uri.parse('$baseUrl$endpoint'),
       headers: headers,
       body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  Future<dynamic> delete(String endpoint) async {
+    final headers = await _getHeaders();
+    final response = await http.delete(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: headers,
     ).timeout(const Duration(seconds: 10));
     return _processResponse(response);
   }

@@ -31,20 +31,9 @@ class _StaffTabState extends State<StaffTab> {
       _error = null;
     });
 
-    final user = Provider.of<ProfileViewmodel>(context, listen: false).user;
-    final isDemo = user?.id.startsWith('demo_') ?? false;
-
     try {
-      if (isDemo) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        _staffList = [
-          {'username': 'Coach Carter', 'role': 'coach', 'email': 'carter@ballchart.com'},
-          {'username': 'Coach Smith', 'role': 'assistant_coach', 'email': 'smith@ballchart.com'},
-        ];
-      } else {
-        final data = await _staffService.getStaffCredentials();
-        _staffList = List<Map<String, dynamic>>.from(data);
-      }
+      final data = await _staffService.getStaffCredentials();
+      _staffList = List<Map<String, dynamic>>.from(data);
     } catch (e) {
       _error = e.toString().replaceAll('Exception: ', '');
     } finally {

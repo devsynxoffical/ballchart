@@ -10,7 +10,7 @@ import '../../../core/widgets/profile/profile_header.dart';
 import '../../../core/widgets/profile/profile_info_section.dart';
 import '../../../core/widgets/dialogues/CreatePlayerDialog.dart';
 import '../../../core/constants/colors.dart';
-import '../../management/viewmodel/academy_provider.dart';
+import '../../../core/repositories/dashboard_repository.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -34,40 +34,6 @@ class ProfileScreen extends StatelessWidget {
                 );
               }
               if (viewModel.user == null) {
-                final localUser = context.read<AcademyProvider>().currentUser;
-                if (localUser != null) {
-                  return Column(
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Profile Preview', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                            const SizedBox(height: 8),
-                            Text(localUser.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text(
-                              localUser.role.replaceAll('_', ' ').toUpperCase(),
-                              style: const TextStyle(color: AppColors.yellow, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Login with account credentials to load full server profile data.',
-                              style: TextStyle(color: Colors.white54, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }
                 return const Center(
                   child: Text('Failed to load profile', style: TextStyle(color: Colors.white)),
                 );
@@ -116,12 +82,7 @@ class ProfileScreen extends StatelessWidget {
 
                   // Player: show team membership, coaching staff, teammates
                   if (user.role == 'player') ...[
-                    if (user.teamName != null && user.teamName!.isNotEmpty)
-                      _PlayerTeamCard(teamName: user.teamName!),
-                    const SizedBox(height: 20),
-                    const _PlayerCoachingStaff(),
-                    const SizedBox(height: 20),
-                    const _PlayerTeammates(),
+                    _PlayerDashboardSections(user: user),
                     const SizedBox(height: 24),
                   ],
 
@@ -140,7 +101,15 @@ class ProfileScreen extends StatelessWidget {
 // Team membership card for player profile
 class _PlayerTeamCard extends StatelessWidget {
   final String teamName;
-  const _PlayerTeamCard({required this.teamName});
+  final int playersCount;
+  final String ageGroup;
+  final String recordText;
+  const _PlayerTeamCard({
+    required this.teamName,
+    required this.playersCount,
+    required this.ageGroup,
+    required this.recordText,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -192,11 +161,11 @@ class _PlayerTeamCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _infoTile('Players', '12', Icons.people_outline),
+              _infoTile('Players', '$playersCount', Icons.people_outline),
               const SizedBox(width: 20),
-              _infoTile('Record', '8W - 2L', Icons.emoji_events_outlined),
+              _infoTile('Record', recordText, Icons.emoji_events_outlined),
               const SizedBox(width: 20),
-              _infoTile('Age Group', 'U-19', Icons.cake_outlined),
+              _infoTile('Age Group', ageGroup, Icons.cake_outlined),
             ],
           ),
         ],
@@ -219,183 +188,108 @@ class _PlayerTeamCard extends StatelessWidget {
   }
 }
 
-// Coaching staff section for player profile
-class _PlayerCoachingStaff extends StatelessWidget {
-  const _PlayerCoachingStaff();
+class _PlayerDashboardSections extends StatelessWidget {
+  final user;
+  const _PlayerDashboardSections({required this.user});
 
   @override
   Widget build(BuildContext context) {
-    final staff = [
-      {'name': 'Coach Carter', 'role': 'Head Coach', 'email': 'carter@academy.com', 'color': AppColors.yellow},
-      {'name': 'Coach Smith', 'role': 'Asst. Coach', 'email': 'smith@academy.com', 'color': const Color(0xFF8B5CF6)},
-    ];
+    final repo = DashboardRepository();
+    return FutureBuilder<Map<String, dynamic>>(
+      future: repo.getPlayerDashboard(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: CircularProgressIndicator(color: AppColors.yellow)),
+          );
+        }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
+        final data = snapshot.data!;
+        final team = (data['team'] as Map?)?.cast<String, dynamic>();
+        final teammates = (data['teammates'] as List? ?? [])
+            .cast<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        final coachingStaff = (data['coachingStaff'] as List? ?? [])
+            .cast<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.badge_rounded, color: Colors.white54, size: 18),
-            SizedBox(width: 8),
-            Text('Coaching Staff', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...staff.map((s) {
-          final color = s['color'] as Color;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
+            _PlayerTeamCard(
+              teamName: (team?['name']?.toString().isNotEmpty == true)
+                  ? team!['name'].toString()
+                  : (user.teamName ?? 'Unassigned Team'),
+              playersCount: (team?['players'] as List?)?.length ?? 0,
+              ageGroup: team?['ageGroup']?.toString() ?? 'Open',
+              recordText: '${user.stats['wins'] ?? 0}W',
+            ),
+            const SizedBox(height: 20),
+            const Row(
+              children: [
+                Icon(Icons.badge_rounded, color: Colors.white54, size: 18),
+                SizedBox(width: 8),
+                Text('Coaching Staff', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (coachingStaff.isEmpty)
+              const Text('No coaching staff assigned', style: TextStyle(color: Colors.white38)),
+            ...coachingStaff.map((staff) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Center(
-                      child: Text(
-                        (s['name'] as String)[0],
-                        style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                    child: Text(
+                      '${staff['username'] ?? 'Staff'} • ${staff['role'] ?? ''}',
+                      style: const TextStyle(color: Colors.white70),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                )),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const Icon(Icons.groups_rounded, color: Colors.white54, size: 18),
+                const SizedBox(width: 8),
+                const Text('Teammates', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                Text('${teammates.length} players', style: const TextStyle(color: Colors.white30, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...teammates.map((mate) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
                       children: [
-                        Text(s['name'] as String,
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(s['role'] as String,
-                                  style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(s['email'] as String,
-                                  style: const TextStyle(color: Colors.white30, fontSize: 11),
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                          ],
+                        Expanded(
+                          child: Text(
+                            mate['username']?.toString() ?? 'Teammate',
+                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          mate['position']?.toString() ?? '',
+                          style: const TextStyle(color: Colors.white38, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-}
-
-// Teammates section for player profile
-class _PlayerTeammates extends StatelessWidget {
-  const _PlayerTeammates();
-
-  @override
-  Widget build(BuildContext context) {
-    final teammates = [
-      {'name': 'Alex Johnson', 'position': 'Shooting Guard', 'number': '#7', 'stats': '22 PPG'},
-      {'name': 'Sarah Williams', 'position': 'Small Forward', 'number': '#11', 'stats': '18 PPG'},
-      {'name': 'Mike Chen', 'position': 'Center', 'number': '#34', 'stats': '15 PPG'},
-      {'name': 'Emma Davis', 'position': 'Power Forward', 'number': '#22', 'stats': '12 PPG'},
-      {'name': 'James Wilson', 'position': 'Point Guard', 'number': '#3', 'stats': '20 PPG'},
-    ];
-
-    final colors = [
-      Colors.orangeAccent,
-      Colors.lightBlueAccent,
-      Colors.greenAccent,
-      Colors.pinkAccent,
-      Colors.cyanAccent,
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.groups_rounded, color: Colors.white54, size: 18),
-            const SizedBox(width: 8),
-            const Text('Teammates', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            Text('${teammates.length} players',
-                style: const TextStyle(color: Colors.white30, fontSize: 12)),
+                )),
           ],
-        ),
-        const SizedBox(height: 12),
-        ...List.generate(teammates.length, (i) {
-          final mate = teammates[i];
-          final color = colors[i % colors.length];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(mate['number']!,
-                          style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(mate['name']!,
-                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(mate['position']!,
-                            style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(mate['stats']!,
-                        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
+        );
+      },
     );
   }
 }

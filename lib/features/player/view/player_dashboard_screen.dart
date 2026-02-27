@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:courtiq/features/management/viewmodel/academy_provider.dart';
+import 'package:courtiq/core/repositories/dashboard_repository.dart';
+import 'package:courtiq/features/profile/viewmodel/profile_viewmodel.dart';
 
 class PlayerDashboardScreen extends StatelessWidget {
   const PlayerDashboardScreen({super.key});
@@ -13,14 +14,17 @@ class PlayerDashboardScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF020617),
         title: const Text('Player Dashboard'),
       ),
-      body: Consumer<AcademyProvider>(
-        builder: (context, provider, _) {
-          final user = provider.currentUser;
-          final team = provider.playerTeam;
-          final player = team?.players.firstWhere(
-            (p) => p.name == (user?.name ?? ''),
-            orElse: () => team.players.first,
-          );
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: DashboardRepository().getPlayerDashboard(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final data = snapshot.data!;
+          final user = context.watch<ProfileViewmodel>().user;
+          final team = (data['team'] as Map?)?.cast<String, dynamic>();
+          final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
+          final stats = (profile['stats'] as Map?)?.cast<String, dynamic>() ?? {};
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -28,7 +32,7 @@ class PlayerDashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user?.name ?? 'Player',
+                  user?.username ?? profile['username']?.toString() ?? 'Player',
                   style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -36,33 +40,25 @@ class PlayerDashboardScreen extends StatelessWidget {
                   title: 'Profile',
                   children: [
                     _infoRow('Role', 'player'),
-                    _infoRow('Position', player?.position ?? 'Point Guard'),
-                    _infoRow('Age', '${player?.age ?? 18}'),
+                    _infoRow('Position', profile['position']?.toString() ?? '-'),
+                    _infoRow('Age Range', profile['ageRange']?.toString() ?? '-'),
                   ],
                 ),
                 const SizedBox(height: 12),
                 _infoCard(
                   title: 'Team',
                   children: [
-                    _infoRow('Team Name', team?.name ?? 'Under 18'),
+                    _infoRow('Team Name', team?['name']?.toString() ?? 'Unassigned'),
+                    _infoRow('Age Group', team?['ageGroup']?.toString() ?? 'Open'),
                   ],
                 ),
                 const SizedBox(height: 12),
                 _infoCard(
-                  title: 'Stats (Dummy)',
-                  children: const [
-                    _StaticInfoRow('Matches Played', '24'),
-                    _StaticInfoRow('Wins', '18'),
-                    _StaticInfoRow('Points', '485'),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _infoCard(
-                  title: 'Battle History (Dummy)',
-                  children: const [
-                    _StaticInfoRow('vs Rising Stars', 'Win 82-74'),
-                    _StaticInfoRow('vs City Hawks', 'Loss 68-71'),
-                    _StaticInfoRow('vs Thunder Squad', 'Win 90-88'),
+                  title: 'Stats',
+                  children: [
+                    _StaticInfoRow('Matches Played', '${stats['matchesPlayed'] ?? 0}'),
+                    _StaticInfoRow('Wins', '${stats['wins'] ?? 0}'),
+                    _StaticInfoRow('Points', '${stats['points'] ?? 0}'),
                   ],
                 ),
               ],

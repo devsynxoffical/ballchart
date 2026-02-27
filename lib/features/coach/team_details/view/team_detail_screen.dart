@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'widgets/hierarchy_management_widget.dart';
 import 'package:provider/provider.dart';
 import '../../../profile/viewmodel/profile_viewmodel.dart';
+import '../../../../core/repositories/dashboard_repository.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamName;
@@ -13,24 +14,7 @@ class TeamDetailScreen extends StatefulWidget {
 }
 
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
-  // Mock Roster Data
-  final List<Map<String, String>> _players = [
-    {'name': 'John Doe', 'position': 'Point Guard', 'number': '#4'},
-    {'name': 'Mike Smith', 'position': 'Center', 'number': '#12'},
-    {'name': 'Sarah Cone', 'position': 'Shooting Guard', 'number': '#7'},
-  ];
-
-  void _addPlayer(Map<String, String> player) {
-    setState(() {
-      _players.add(player);
-    });
-  }
-
-  void _removePlayer(int index) {
-    setState(() {
-      _players.removeAt(index);
-    });
-  }
+  final DashboardRepository _dashboardRepository = DashboardRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -55,55 +39,71 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            // Hierarchy Management Section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: HierarchyManagementWidget(
-                onPlayerAdded: _addPlayer,
-                role: role,
-              ),
-            ),
-            
-            const SizedBox(height: 30),
-            
-            // Stats / Roster Placeholder
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E293B),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Team Roster',
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _dashboardRepository.getCoachDashboard(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final data = snapshot.data!;
+          final teams = (data['teams'] as List? ?? [])
+              .cast<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+          final team = teams.firstWhere(
+            (t) => (t['name']?.toString().toLowerCase() ?? '') == widget.teamName.toLowerCase(),
+            orElse: () => {},
+          );
+          final players = (team['players'] as List? ?? [])
+              .cast<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: HierarchyManagementWidget(
+                    onPlayerAdded: (_) {},
+                    role: role,
                   ),
-                  const SizedBox(height: 16),
-                  ..._players.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final p = entry.value;
-                    return _buildRosterItem(
-                      p['name']!, 
-                      p['position']!, 
-                      p['number']!.startsWith('#') ? p['number']! : '#${p['number']}',
-                      canRemove,
-                      () => _removePlayer(index),
-                    );
-                  }),
-                ],
-              ),
+                ),
+                const SizedBox(height: 30),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1E293B),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Team Roster',
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      if (players.isEmpty)
+                        const Text('No players found for this team.', style: TextStyle(color: Colors.white54)),
+                      ...players.map((p) => _buildRosterItem(
+                            p['username']?.toString() ?? 'Player',
+                            p['position']?.toString() ?? '-',
+                            '#',
+                            canRemove,
+                            () {},
+                          )),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

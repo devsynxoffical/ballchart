@@ -20,17 +20,31 @@ class EnterEmailScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               ResetHeader(
-                bgColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
-                title: 'Reset Password',
-                subtitle: 'Enter your registered email',
+                bgColor: AppColors.yellow,
+                title: 'BallChart',
+                subtitle: 'Password Recovery',
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Reset Password',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Enter your registered email',
+                style: TextStyle(color: Colors.white.withOpacity(0.7)),
               ),
               const SizedBox(height: 40),
               _inputField('Email Address', 'your@email.com'),
               const SizedBox(height: 24),
               CustomButton(
                 text: 'Send Verification Code',
-                textColor: role == 'coach' ? AppColors.black :AppColors.white,
-                backgroundColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
+                textColor: AppColors.black,
+                backgroundColor: AppColors.yellow,
                 onPressed: () {
                   EmailViewmodel.goToEnterOTP(context,role);
                 },
@@ -61,7 +75,7 @@ class EnterEmailScreen extends StatelessWidget {
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.white38),
             filled: true,
-            fillColor: Colors.white10,
+            fillColor: const Color(0xFF1E293B),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,

@@ -43,6 +43,9 @@ class AppRoutes {
       case RouteNames.profile:
         return MaterialPageRoute(builder: (_) => ProfileScreen());
       case RouteNames.mainApp:
+        if (role == 'admin') {
+          return MaterialPageRoute(builder: (_) => const AcademyDashboardScreen());
+        }
         return MaterialPageRoute(builder: (_) => AppNavigator(role: role));
       case RouteNames.forgotpassword_enter_email:
         return MaterialPageRoute(builder: (_) => EnterEmailScreen(role: role,));

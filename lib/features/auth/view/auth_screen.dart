@@ -28,17 +28,11 @@ class _AuthScreenState extends State<AuthScreen> {
   final FocusNode _passwordFocusNode = FocusNode();
   bool _showPasswordRules = false;
   bool _isPasswordVisible = false;
-  late String _selectedRole;
+  static const String _selectedRole = 'admin';
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialRole == 'player' || widget.initialRole == 'admin') {
-      _selectedRole = widget.initialRole;
-    } else {
-      // Coach-family registrations use coach signup endpoint
-      _selectedRole = 'coach';
-    }
     _passwordFocusNode.addListener(() {
       setState(() {
         _showPasswordRules = _passwordFocusNode.hasFocus;
@@ -80,8 +74,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isCoachRegistration = _selectedRole == 'coach';
-    final bool isAdminRegistration = _selectedRole == 'admin';
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -127,9 +119,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                     const SizedBox(height: 8),
                     Text(
-                      isCoachRegistration
-                          ? 'Register Academy'
-                          : (isAdminRegistration ? 'Register Admin' : 'Register Player'),
+                      'Register Academy',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
                         fontSize: 16,
@@ -147,14 +137,12 @@ class _AuthScreenState extends State<AuthScreen> {
                 
                     const SizedBox(height: 20),
                 
-                    if (isCoachRegistration) ...[
-                      CustomTextFieldCreateAccount(
-                        label: 'Academy/Organization Name',
-                        hintText: 'Enter academy name',
-                        controller: _academyNameController,
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+                    CustomTextFieldCreateAccount(
+                      label: 'Academy/Organization Name',
+                      hintText: 'Enter academy name',
+                      controller: _academyNameController,
+                    ),
+                    const SizedBox(height: 20),
 
                     CustomTextFieldCreateAccount(
                       label: 'Phone Number',
@@ -217,9 +205,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                     _emailController.text.trim(),
                                     _passwordController.text.trim(),
                                     _selectedRole,
-                                    academyName: isCoachRegistration
-                                        ? _academyNameController.text.trim()
-                                        : null,
+                                    academyName: _academyNameController.text.trim(),
                                   );
                                 },
                               );

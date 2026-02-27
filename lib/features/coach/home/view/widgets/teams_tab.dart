@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:courtiq/core/widgets/custom_button.dart';
 import 'package:courtiq/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:courtiq/core/widgets/home/invite_players_card.dart';
 import 'package:courtiq/core/widgets/home/team_card.dart';
+import 'package:courtiq/core/models/local_academy_models.dart';
 import 'package:courtiq/features/coach/team_details/view/team_detail_screen.dart';
+import 'package:courtiq/core/repositories/dashboard_repository.dart';
+import 'package:courtiq/features/management/viewmodel/academy_provider.dart';
+import 'package:provider/provider.dart';
 
 class TeamsTab extends StatefulWidget {
   const TeamsTab({super.key});
@@ -13,32 +16,22 @@ class TeamsTab extends StatefulWidget {
 }
 
 class _TeamsTabState extends State<TeamsTab> {
-  // Mock data for teams
-  final List<Map<String, dynamic>> _teams = [
-    {
-      'name': 'Thunder Squad',
-      'members': '12 members',
-      'icon': Icons.flash_on,
-      'color': Colors.orange,
-    },
-    {
-      'name': 'Rising Stars',
-      'members': '8 members',
-      'icon': Icons.star,
-      'color': Colors.blueAccent,
-    },
-    {
-      'name': 'Elite Dunkers',
-      'members': '15 members',
-      'icon': Icons.sports_basketball,
-      'color': Colors.amber,
-    },
-  ];
+  final DashboardRepository _dashboardRepository = DashboardRepository();
+  late Future<List<Map<String, dynamic>>> _teamsFuture;
 
-  void _addNewTeam(Map<String, dynamic> newTeam) {
-    setState(() {
-      _teams.add(newTeam);
-    });
+  @override
+  void initState() {
+    super.initState();
+    _teamsFuture = _loadTeams();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTeams() async {
+    final data = await _dashboardRepository.getCoachDashboard();
+    final teams = (data['teams'] as List? ?? [])
+        .cast<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    return teams;
   }
 
   @override
@@ -48,45 +41,80 @@ class _TeamsTabState extends State<TeamsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ..._teams.map((team) => Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TeamDetailScreen(teamName: team['name']),
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: _teamsFuture,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final teams = snapshot.data!;
+              if (teams.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text('No teams available yet.', style: TextStyle(color: Colors.white54)),
+                );
+              }
+              return Column(
+                children: teams
+                    .map((team) => Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TeamDetailScreen(teamName: team['name']?.toString() ?? ''),
+                                ),
+                              );
+                            },
+                            child: TeamCard(
+                              title: team['name']?.toString() ?? 'Team',
+                              members: '${(team['players'] as List? ?? []).length} members',
+                              icon: Icons.shield_rounded,
+                              iconBg: Color((team['colorValue'] is int) ? team['colorValue'] as int : 0xFFF59E0B),
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              );
+            },
+          ),
+          
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  builder: (_) => CreateTeamDialog(
+                    onTeamCreated: (name, age, color) async {
+                      final provider = context.read<AcademyProvider>();
+                      await provider.addTeamToBackend(
+                        Team(
+                          id: provider.nextId('t'),
+                          name: name,
+                          players: const [],
+                          ageGroup: age,
+                          colorValue: color.value,
+                        ),
+                      );
+                      if (mounted) {
+                        setState(() {
+                          _teamsFuture = _loadTeams();
+                        });
+                      }
+                    },
                   ),
                 );
               },
-              child: TeamCard(
-                title: team['name'],
-                members: team['members'],
-                icon: team['icon'],
-                iconBg: team['color'],
-              ),
+              icon: const Icon(Icons.add),
+              label: const Text('+ Create New Team'),
             ),
-          )).toList(),
-          
-          const SizedBox(height: 10),
-          CustomButton(
-            text: '+ Create New Team',
-            onPressed: () {
-              showDialog(
-                context: context,
-                barrierDismissible: true,
-                builder: (_) => CreateTeamDialog(
-                  onTeamCreated: (name, age, color) {
-                    _addNewTeam({
-                      'name': name,
-                      'members': '1 member', // Coach
-                      'icon': Icons.shield,
-                      'color': color,
-                    });
-                  },
-                ),
-              );
-            },
           ),
           const SizedBox(height: 20),
           InvitePlayersCard(),

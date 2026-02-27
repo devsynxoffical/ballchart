@@ -36,10 +36,12 @@ class _SplashScreenState extends State<SplashScreen> {
       final user = profileVm.user;
 
       if (user != null) {
-        if (user.profileCompleted) {
+        if (user.role == 'admin') {
+          Navigator.pushReplacementNamed(context, RouteNames.academyDashboard);
+        } else if (user.profileCompleted) {
           Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: user.role);
         } else {
-          if (user.role == 'coach') {
+          if (user.role == 'coach' || user.role == 'assistant_coach' || user.role == 'head_coach') {
             Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_coach);
           } else {
             Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_player);
@@ -50,7 +52,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     // Default fallback: start directly at login flow
-    Navigator.pushReplacementNamed(context, RouteNames.login, arguments: 'coach');
+    Navigator.pushReplacementNamed(context, RouteNames.login, arguments: 'admin');
   }
 
   @override

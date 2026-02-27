@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:courtiq/core/constants/colors.dart';
 import 'package:courtiq/core/widgets/custom_button.dart';
 import 'package:courtiq/core/widgets/dialogues/CreateStaffDialog.dart';
+import 'package:courtiq/features/staff/service/staff_service.dart';
 
 class SelectCoachDialog extends StatefulWidget {
   final String role; // 'Coach' or 'Assistant Coach'
@@ -18,16 +19,37 @@ class SelectCoachDialog extends StatefulWidget {
 }
 
 class _SelectCoachDialogState extends State<SelectCoachDialog> {
-  // Mock List of Available Staff
-  final List<Map<String, dynamic>> _availableStaff = [
-    {'name': 'Coach Carter', 'email': 'carter@ballchart.com', 'role': 'Coach'},
-    {'name': 'Coach Smith', 'email': 'smith@ballchart.com', 'role': 'Coach'},
-    {'name': 'Asst. Doe', 'email': 'doe@ballchart.com', 'role': 'Assistant'},
-    {'name': 'Asst. Jane', 'email': 'jane@ballchart.com', 'role': 'Assistant'},
-    {'name': 'Coach Mike', 'email': 'mike@ballchart.com', 'role': 'Coach'},
-  ];
+  final StaffService _staffService = StaffService();
+  List<Map<String, dynamic>> _availableStaff = [];
+  bool _isLoading = true;
 
   String? _selectedCoachEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStaff();
+  }
+
+  Future<void> _loadStaff() async {
+    try {
+      final staff = await _staffService.getStaffCredentials();
+      _availableStaff = staff.map((s) {
+        final role = (s['role'] ?? '').toString();
+        return {
+          'name': s['username'] ?? 'Staff',
+          'email': s['email'] ?? '',
+          'role': role == 'assistant_coach' ? 'Assistant' : 'Coach',
+        };
+      }).toList();
+    } catch (_) {
+      _availableStaff = [];
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   void _addNewStaff(Map<String, dynamic> newStaff) {
     setState(() {
@@ -105,7 +127,9 @@ class _SelectCoachDialogState extends State<SelectCoachDialog> {
             /// Staff List
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 300),
-              child: ListView.builder(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
                 shrinkWrap: true,
                 itemCount: _availableStaff.length,
                 itemBuilder: (context, index) {

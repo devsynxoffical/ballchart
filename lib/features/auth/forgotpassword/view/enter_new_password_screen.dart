@@ -30,9 +30,23 @@ class EnterNewPasswordScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       ResetHeader(
-                        bgColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
-                        title: 'Reset Password',
-                        subtitle: 'Create new password',
+                        bgColor: AppColors.yellow,
+                        title: 'BallChart',
+                        subtitle: 'Password Recovery',
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Reset Password',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Create new password',
+                        style: TextStyle(color: Colors.white.withOpacity(0.7)),
                       ),
                       const SizedBox(height: 30),
                       _passwordField('New Password'),
@@ -43,8 +57,8 @@ class EnterNewPasswordScreen extends StatelessWidget {
                       const SizedBox(height: 24),
                       CustomButton(
                         text: 'Submit New Password',
-                        backgroundColor: role == 'coach' ? AppColors.yellow :AppColors.blue,
-                        textColor: role == 'coach' ? AppColors.black :AppColors.white,
+                        backgroundColor: AppColors.yellow,
+                        textColor: AppColors.black,
                         onPressed: () {
                           NewPasswordViewmodel.goToLogin(context,role);
                         },
@@ -81,7 +95,7 @@ class EnterNewPasswordScreen extends StatelessWidget {
             hintText: 'Enter password',
             hintStyle: const TextStyle(color: Colors.white38),
             filled: true,
-            fillColor: Colors.white10,
+            fillColor: const Color(0xFF1E293B),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
