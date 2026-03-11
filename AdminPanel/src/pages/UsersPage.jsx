@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { motion } from 'framer-motion';
-import { Search, Filter, MoreVertical, CheckCircle, XCircle, Trash2, Mail } from 'lucide-react';
+import { Search, Filter, CheckCircle, Trash2, Mail } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { clsx } from 'clsx';
-import { toast } from 'react-hot-toast'; // You might need to install this or use simple alert
 
 const UsersPage = ({ type }) => { // type: 'player' | 'coach'
     const [users, setUsers] = useState([]);
@@ -18,10 +16,12 @@ const UsersPage = ({ type }) => { // type: 'player' | 'coach'
 
     const fetchUsers = async () => {
         try {
-            const response = await api.get('/admin/users');
-            // Filter based on type prop if API returns all users
-            // Assuming API returns an array of users with a 'role' field
-            const filteredUsers = response.data.filter(user => user.role === type);
+            const response = await api.get('/admin/users', { params: { role: type } });
+            const filteredUsers = response.data.filter((user) => (
+                type === 'coach'
+                    ? ['coach', 'assistant_coach', 'head_coach'].includes(user.role)
+                    : user.role === 'player'
+            ));
             setUsers(filteredUsers);
         } catch (error) {
             console.error("Failed to fetch users", error);
@@ -38,8 +38,8 @@ const UsersPage = ({ type }) => { // type: 'player' | 'coach'
 
     const handleVerify = async (id) => {
         try {
-            await api.put(`/admin/users/${id}/verify`);
-            setUsers(users.map(user => user._id === id ? { ...user, isVerified: true } : user));
+            await api.put(`/admin/users/${id}/verify`, null, { params: { type } });
+            setUsers(users.map(user => user._id === id ? { ...user, isVerified: !user.isVerified } : user));
         } catch (error) {
             console.error("Verify failed", error);
         }
@@ -48,7 +48,7 @@ const UsersPage = ({ type }) => { // type: 'player' | 'coach'
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure?")) return;
         try {
-            await api.delete(`/admin/users/${id}`);
+            await api.delete(`/admin/users/${id}`, { params: { type } });
             setUsers(users.filter(user => user._id !== id));
         } catch (error) {
             console.error("Delete failed", error);

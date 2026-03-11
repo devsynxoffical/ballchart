@@ -31,6 +31,22 @@ const adminSchema = mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        approvalStatus: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'approved',
+        },
+        isTempBanned: {
+            type: Boolean,
+            default: false,
+        },
+        isStopped: {
+            type: Boolean,
+            default: false,
+        },
+        approvedAt: {
+            type: Date,
+        },
     },
     {
         timestamps: true,

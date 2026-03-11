@@ -238,6 +238,9 @@ const registerAdmin = asyncHandler(async (req, res) => {
         role: 'admin',
         academyName,
         profileCompleted: true,
+        approvalStatus: 'pending',
+        isTempBanned: false,
+        isStopped: false,
     });
 
     if (admin) {
@@ -248,7 +251,8 @@ const registerAdmin = asyncHandler(async (req, res) => {
             role: 'admin',
             academyName: admin.academyName,
             profileCompleted: true,
-            token: generateToken(admin._id, 'admin'),
+            approvalStatus: 'pending',
+            message: 'Your academy signup request has been submitted. Admin will contact you shortly and review within 24 hours.',
         });
     } else {
         res.status(400);
@@ -272,6 +276,25 @@ const loginAdmin = asyncHandler(async (req, res) => {
     // Check for admin email
     const admin = await Admin.findOne({ email: cleanEmail });
 
+    if (admin) {
+        if (admin.approvalStatus === 'pending') {
+            res.status(403);
+            throw new Error('Academy signup is pending approval. Please wait for admin confirmation within 24 hours.');
+        }
+        if (admin.approvalStatus === 'rejected') {
+            res.status(403);
+            throw new Error('Academy signup request was rejected. Please contact support.');
+        }
+        if (admin.isTempBanned) {
+            res.status(403);
+            throw new Error('Academy account is temporarily banned. Please contact admin support.');
+        }
+        if (admin.isStopped) {
+            res.status(403);
+            throw new Error('Academy account is currently stopped. Please contact admin support.');
+        }
+    }
+
     if (admin && (await bcrypt.compare(password, admin.password))) {
         res.json({
             _id: admin.id,
@@ -281,6 +304,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
             academyName: admin.academyName,
             logoUrl: admin.logoUrl || null,
             profileCompleted: true,
+            approvalStatus: admin.approvalStatus || 'approved',
             token: generateToken(admin._id, 'admin'),
         });
     } else {

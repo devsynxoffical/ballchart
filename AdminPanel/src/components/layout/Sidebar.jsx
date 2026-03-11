@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
     LayoutDashboard,
+    Building2,
     Users,
     Swords,
     Settings,
@@ -24,6 +25,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+        { icon: Building2, label: 'Academies', path: '/academies' },
         { icon: Users, label: 'Coaches', path: '/coaches' },
         { icon: Users, label: 'Players', path: '/players' },
         { icon: Swords, label: 'Battles', path: '/battles' },

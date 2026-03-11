@@ -82,16 +82,18 @@ class AuthViewmodel extends ChangeNotifier {
     try {
       await _authRepository.signup(username, email, password, role, academyName: academyName);
       _setLoading(false);
-      
-      // Success Dialog and Navigate to Login
+
+      final bool isAcademySignup = role == 'admin';
       showDialog(
         context: context,
         builder: (context) => CustomDialog(
-          title: 'Success!',
-          message: 'Account created successfully. Please log in.',
+          title: isAcademySignup ? 'Request Submitted' : 'Success!',
+          message: isAcademySignup
+              ? 'Your academy signup request has been submitted. Admin will contact you shortly with details. Approval usually happens within 24 hours.'
+              : 'Account created successfully. Please log in.',
           isSuccess: true,
           onOk: () {
-             if (role == 'admin') {
+             if (isAcademySignup) {
                Navigator.pushNamedAndRemoveUntil(context, RouteNames.login, (route) => false, arguments: 'admin');
              } else if (role == 'coach' || role == 'head_coach') {
                Navigator.pushNamedAndRemoveUntil(context, RouteNames.profilecomplete_coach, (route) => false);

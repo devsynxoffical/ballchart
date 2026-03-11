@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:courtiq/core/widgets/dialogues/CreateTeamDialog.dart';
-import 'package:courtiq/core/widgets/home/invite_players_card.dart';
 import 'package:courtiq/core/widgets/home/team_card.dart';
 import 'package:courtiq/core/models/local_academy_models.dart';
 import 'package:courtiq/features/coach/team_details/view/team_detail_screen.dart';
@@ -100,7 +99,7 @@ class _TeamsTabState extends State<TeamsTab> {
                           name: name,
                           players: const [],
                           ageGroup: age,
-                          colorValue: color.value,
+                          colorValue: color.toARGB32(),
                         ),
                       );
                       if (mounted) {
@@ -116,8 +115,6 @@ class _TeamsTabState extends State<TeamsTab> {
               label: const Text('+ Create New Team'),
             ),
           ),
-          const SizedBox(height: 20),
-          InvitePlayersCard(),
         ],
       ),
     );

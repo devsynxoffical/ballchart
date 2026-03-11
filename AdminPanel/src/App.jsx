@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import DashboardLayout from './components/layout/DashboardLayout';
-import Dashboard from './pages/Dashboard';
+import AcademiesPage from './pages/AcademiesPage';
 import UsersPage from './pages/UsersPage';
 import { Loader2 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
@@ -46,7 +46,8 @@ function App() {
                         </ProtectedRoute>
                     }>
                         <Route index element={<Navigate to="/dashboard" />} />
-                        <Route path="dashboard" element={<Dashboard />} />
+                        <Route path="dashboard" element={<AcademiesPage />} />
+                        <Route path="academies" element={<AcademiesPage />} />
                         <Route path="coaches" element={<UsersPage type="coach" />} />
                         <Route path="players" element={<UsersPage type="player" />} />
                         <Route path="battles" element={<div className="p-8 text-center text-text-muted">Battles Management Coming Soon</div>} />
