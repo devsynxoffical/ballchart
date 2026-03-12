@@ -238,9 +238,10 @@ const registerAdmin = asyncHandler(async (req, res) => {
         role: 'admin',
         academyName,
         profileCompleted: true,
-        approvalStatus: 'pending',
+        approvalStatus: 'approved',
         isTempBanned: false,
         isStopped: false,
+        approvedAt: new Date(),
     });
 
     if (admin) {
@@ -251,8 +252,8 @@ const registerAdmin = asyncHandler(async (req, res) => {
             role: 'admin',
             academyName: admin.academyName,
             profileCompleted: true,
-            approvalStatus: 'pending',
-            message: 'Your academy signup request has been submitted. Admin will contact you shortly and review within 24 hours.',
+            approvalStatus: 'approved',
+            message: 'Signup successful. You can now log in with your credentials.',
         });
     } else {
         res.status(400);
@@ -277,13 +278,12 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const admin = await Admin.findOne({ email: cleanEmail });
 
     if (admin) {
+        // Temporary bypass: approval is not required for admin academy login.
+        // Auto-upgrade legacy pending accounts so existing signups can log in.
         if (admin.approvalStatus === 'pending') {
-            res.status(403);
-            throw new Error('Academy signup is pending approval. Please wait for admin confirmation within 24 hours.');
-        }
-        if (admin.approvalStatus === 'rejected') {
-            res.status(403);
-            throw new Error('Academy signup request was rejected. Please contact support.');
+            admin.approvalStatus = 'approved';
+            admin.approvedAt = admin.approvedAt || new Date();
+            await admin.save();
         }
         if (admin.isTempBanned) {
             res.status(403);
