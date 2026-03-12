@@ -365,7 +365,8 @@ const createStaff = asyncHandler(async (req, res) => {
 
     ensureAdmin(req, res);
 
-    if (!['coach', 'assistant_coach'].includes(role)) {
+    const validRoles = ['coach', 'assistant_coach', 'custom'];
+    if (!validRoles.includes(role)) {
         res.status(400);
         throw new Error('Invalid staff role');
     }
@@ -379,7 +380,9 @@ const createStaff = asyncHandler(async (req, res) => {
 
     // Check if user exists
     const userExists = await Coach.findOne({ email: cleanEmail });
-    if (userExists) {
+    const adminExists = await Admin.findOne({ email: cleanEmail });
+    const playerExists = await Player.findOne({ email: cleanEmail });
+    if (userExists || adminExists || playerExists) {
         res.status(400);
         throw new Error('User already exists');
     }
@@ -397,7 +400,7 @@ const createStaff = asyncHandler(async (req, res) => {
         profileCompleted: true, // Auto-complete for managed staff
         assignedTeamIds,
         assignedTeams: assignedTeamIds,
-        customRoleName,
+        customRoleName: role === 'custom' ? (customRoleName || null) : null,
         permissions: {
             createPlayer: !!permissions.createPlayer,
             readPlayer: permissions.readPlayer ?? true,
@@ -514,7 +517,7 @@ const updateStaff = asyncHandler(async (req, res) => {
 
     if (username) staff.username = username;
     if (email) staff.email = email.toLowerCase().trim();
-    if (role && ['coach', 'assistant_coach'].includes(role)) staff.role = role;
+    if (role && ['coach', 'assistant_coach', 'custom'].includes(role)) staff.role = role;
     if (customRoleName !== undefined) staff.customRoleName = customRoleName;
     if (Array.isArray(assignedTeamIds)) {
         staff.assignedTeamIds = assignedTeamIds;

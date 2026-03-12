@@ -2200,6 +2200,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   }
 
   void _showAddStaffDialog(BuildContext context) {
+    final parentContext = context;
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
@@ -2213,6 +2214,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setState) {
+            final dialogContext = context;
             return _adminDialog(
               title: _dialogTitle(
                 Icons.person_add_alt_1_rounded,
@@ -2405,13 +2407,15 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                           permissions: permissions,
                         ),
                       );
-                      if (context.mounted) Navigator.pop(context);
-                      _showStaffCredentialsDialog(
-                        context,
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      if (parentContext.mounted) {
+                        _showStaffCredentialsDialog(
+                          parentContext,
                         name: createdName,
                         email: createdEmail,
                         password: createdPassword,
-                      );
+                        );
+                      }
                     } catch (e) {
                       _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
                     }
