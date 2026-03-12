@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -22,41 +23,65 @@ class ApiService {
   }
 
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
-    final headers = await _getHeaders();
-    final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 15));
-    return _processResponse(response);
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+      return _processResponse(response);
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check internet/server and try again.');
+    }
   }
 
   Future<dynamic> get(String endpoint) async {
-    final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: headers,
-    ).timeout(const Duration(seconds: 15));
-    return _processResponse(response);
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 30));
+      return _processResponse(response);
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check internet/server and try again.');
+    }
   }
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
-    final headers = await _getHeaders();
-    final response = await http.put(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 10));
-    return _processResponse(response);
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+      return _processResponse(response);
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check internet/server and try again.');
+    }
   }
 
   Future<dynamic> delete(String endpoint) async {
-    final headers = await _getHeaders();
-    final response = await http.delete(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: headers,
-    ).timeout(const Duration(seconds: 10));
-    return _processResponse(response);
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 30));
+      return _processResponse(response);
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check internet/server and try again.');
+    }
   }
 
   dynamic _processResponse(http.Response response) {
