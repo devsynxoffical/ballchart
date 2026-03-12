@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:courtiq/core/models/local_academy_models.dart';
 import 'package:courtiq/core/constants/colors.dart';
@@ -19,6 +23,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   bool _notificationsEnabled = true;
   bool _weeklyReportsEnabled = true;
   bool _playerAutoAssignEnabled = true;
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -36,6 +41,79 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
         backgroundColor: isError ? Colors.redAccent : Colors.green,
       ),
     );
+  }
+
+  Uint8List? _decodeDataUri(String? value) {
+    if (value == null || value.isEmpty || !value.startsWith('data:')) return null;
+    final index = value.indexOf(',');
+    if (index < 0 || index + 1 >= value.length) return null;
+    try {
+      return base64Decode(value.substring(index + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ImageProvider? _imageProviderFromSource(String? source) {
+    if (source == null || source.isEmpty) return null;
+    if (source.startsWith('data:')) {
+      final bytes = _decodeDataUri(source);
+      if (bytes != null) return MemoryImage(bytes);
+      return null;
+    }
+    final uri = Uri.tryParse(source);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return NetworkImage(source);
+    }
+    return null;
+  }
+
+  Widget _teamLogoBadge({
+    required String? logoSource,
+    required Color teamColor,
+    required double size,
+    double borderRadius = 10,
+  }) {
+    final provider = _imageProviderFromSource(logoSource);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: teamColor.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(borderRadius),
+        image: provider != null ? DecorationImage(image: provider, fit: BoxFit.cover) : null,
+      ),
+      child: provider == null ? Icon(Icons.shield_rounded, color: teamColor) : null,
+    );
+  }
+
+  Future<String?> _pickImageAsDataUri(ImageSource source) async {
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 45,
+      maxWidth: 640,
+      maxHeight: 640,
+    );
+    if (picked == null) return null;
+    final bytes = await picked.readAsBytes();
+    if (bytes.lengthInBytes > 450 * 1024) {
+      if (mounted) {
+        _showInfo(
+          'Selected image is too large. Please pick a smaller image.',
+          isError: true,
+        );
+      }
+      return null;
+    }
+    final path = picked.path.toLowerCase();
+    final mime = path.endsWith('.png')
+        ? 'image/png'
+        : path.endsWith('.webp')
+            ? 'image/webp'
+            : path.endsWith('.gif')
+                ? 'image/gif'
+                : 'image/jpeg';
+    return 'data:$mime;base64,${base64Encode(bytes)}';
   }
 
   Future<void> _confirmLogout() async {
@@ -479,14 +557,11 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: teamColor.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.shield_rounded, color: teamColor),
+                  _teamLogoBadge(
+                    logoSource: team.logoPath,
+                    teamColor: teamColor,
+                    size: 40,
+                    borderRadius: 10,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -557,7 +632,12 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.shield_rounded, color: teamColor),
+                      _teamLogoBadge(
+                        logoSource: team.logoPath,
+                        teamColor: teamColor,
+                        size: 24,
+                        borderRadius: 6,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -744,6 +824,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       0,
       (sum, team) => sum + team.players.length,
     );
+    final academyLogo = _imageProviderFromSource(provider.academy.logoUrl);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -785,8 +866,13 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                       decoration: BoxDecoration(
                         color: AppColors.yellow.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
+                        image: academyLogo != null
+                            ? DecorationImage(image: academyLogo, fit: BoxFit.cover)
+                            : null,
                       ),
-                      child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.yellow),
+                      child: academyLogo == null
+                          ? const Icon(Icons.admin_panel_settings_rounded, color: AppColors.yellow)
+                          : null,
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
@@ -822,12 +908,6 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                     _profileStatPill('$totalPlayers Players'),
                   ],
                 ),
-                const SizedBox(height: 12),
-                if (provider.academy.logoUrl != null && provider.academy.logoUrl!.isNotEmpty)
-                  Text(
-                    'Logo: ${provider.academy.logoUrl}',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  ),
                 const SizedBox(height: 12),
                 _actionButton(
                   label: 'Manage Academy Profile',
@@ -1248,12 +1328,24 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
             title: _dialogTitle(
               Icons.group_work_rounded,
               'Manage ${team.name}',
-              subtitle: 'Assign coach hierarchy',
+              subtitle: 'Assign coach hierarchy and edit details',
             ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showEditTeamDialog(context, team);
+                      },
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text('Edit Team Name / Logo'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
                     value: selectedCoachId,
                     dropdownColor: const Color(0xFF111827),
@@ -1320,6 +1412,185 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showEditTeamDialog(BuildContext context, Team team) {
+    final provider = context.read<AcademyProvider>();
+    final nameController = TextEditingController(text: team.name);
+    String selectedAgeGroup = team.ageGroup;
+    Color selectedColor = Color(team.colorValue);
+    String? selectedLogo = team.logoPath;
+    final ageGroups = const ['Under 12', 'Under 14', 'Under 16', 'Under 19', 'Open'];
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => _adminDialog(
+          title: _dialogTitle(
+            Icons.edit_note_rounded,
+            'Edit Team Details',
+            subtitle: 'Update identity and branding',
+            color: selectedColor,
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 82,
+                  height: 82,
+                  decoration: BoxDecoration(
+                    color: selectedColor.withValues(alpha: 0.22),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: selectedColor, width: 2),
+                    image: _imageProviderFromSource(selectedLogo) != null
+                        ? DecorationImage(
+                            image: _imageProviderFromSource(selectedLogo)!,
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: _imageProviderFromSource(selectedLogo) == null
+                      ? Icon(Icons.shield_rounded, color: selectedColor, size: 38)
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await _pickImageAsDataUri(ImageSource.gallery);
+                        if (picked != null) setDialogState(() => selectedLogo = picked);
+                      },
+                      icon: const Icon(Icons.photo_library_rounded, size: 16),
+                      label: const Text('Gallery'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await _pickImageAsDataUri(ImageSource.camera);
+                        if (picked != null) setDialogState(() => selectedLogo = picked);
+                      },
+                      icon: const Icon(Icons.photo_camera_rounded, size: 16),
+                      label: const Text('Camera'),
+                    ),
+                    if (selectedLogo != null && selectedLogo!.isNotEmpty)
+                      TextButton(
+                        onPressed: () => setDialogState(() => selectedLogo = null),
+                        child: const Text('Remove'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dialogInputDecoration(
+                    'Team Name',
+                    prefixIcon: Icons.groups_rounded,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: ageGroups.contains(selectedAgeGroup) ? selectedAgeGroup : 'Open',
+                  dropdownColor: const Color(0xFF111827),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dialogInputDecoration(
+                    'Age Group',
+                    prefixIcon: Icons.cake_rounded,
+                  ),
+                  items: ageGroups
+                      .map((group) => DropdownMenuItem<String>(value: group, child: Text(group)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => selectedAgeGroup = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Team Color',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    Colors.blue,
+                    Colors.red,
+                    Colors.green,
+                    Colors.orange,
+                    Colors.purple,
+                    Colors.teal,
+                    Colors.pink,
+                    const Color(0xFF1E293B),
+                    AppColors.yellow,
+                  ].map((color) {
+                    final isSelected = selectedColor.toARGB32() == color.toARGB32();
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedColor = color),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? Colors.white : Colors.white24,
+                            width: isSelected ? 2.6 : 1,
+                          ),
+                        ),
+                        child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final teamName = nameController.text.trim();
+                if (teamName.isEmpty) {
+                  _showInfo('Team name is required', isError: true);
+                  return;
+                }
+
+                try {
+                  await provider.updateTeamInBackend(
+                    Team(
+                      id: team.id,
+                      name: teamName,
+                      players: team.players,
+                      ageGroup: selectedAgeGroup,
+                      colorValue: selectedColor.toARGB32(),
+                      logoPath: selectedLogo,
+                      coachStaffId: team.coachStaffId,
+                      assistantCoachStaffId: team.assistantCoachStaffId,
+                    ),
+                  );
+                  if (context.mounted) Navigator.pop(context);
+                  _showInfo('Team details updated');
+                } catch (e) {
+                  _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1631,114 +1902,147 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   void _showManageAcademyDialog(BuildContext context) {
     final provider = context.read<AcademyProvider>();
     final academyNameController = TextEditingController(text: provider.academy.name);
-    final logoController = TextEditingController(text: provider.academy.logoUrl ?? '');
     final ownerNameController = TextEditingController(text: provider.adminName);
     final ownerEmailController = TextEditingController(text: provider.adminEmail);
     final passwordController = TextEditingController();
+    String? selectedLogo = provider.academy.logoUrl;
 
     showDialog(
       context: context,
-      builder: (_) => _adminDialog(
-        title: _dialogTitle(
-          Icons.apartment_rounded,
-          'Manage Academy Profile',
-          subtitle: 'Branding, owner profile and security',
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => _adminDialog(
+          title: _dialogTitle(
+            Icons.apartment_rounded,
+            'Manage Academy Profile',
+            subtitle: 'Branding, owner profile and security',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.yellow.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.yellow.withValues(alpha: 0.3)),
+                  ),
+                  child: const Text(
+                    'Academy Branding',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: academyNameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dialogInputDecoration('Academy Name', prefixIcon: Icons.apartment_rounded),
+                ),
+                const SizedBox(height: 10),
+                CircleAvatar(
+                  radius: 36,
+                  backgroundColor: Colors.white10,
+                  backgroundImage: _imageProviderFromSource(selectedLogo),
+                  child: _imageProviderFromSource(selectedLogo) == null
+                      ? const Icon(Icons.image_rounded, color: Colors.white54, size: 24)
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await _pickImageAsDataUri(ImageSource.gallery);
+                        if (picked != null) {
+                          setDialogState(() => selectedLogo = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.photo_library_rounded, size: 16),
+                      label: const Text('Gallery'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await _pickImageAsDataUri(ImageSource.camera);
+                        if (picked != null) {
+                          setDialogState(() => selectedLogo = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.photo_camera_rounded, size: 16),
+                      label: const Text('Camera'),
+                    ),
+                    if (selectedLogo != null && selectedLogo!.isNotEmpty)
+                      TextButton(
+                        onPressed: () => setDialogState(() => selectedLogo = null),
+                        child: const Text('Remove Logo'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Owner Credentials',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: ownerNameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dialogInputDecoration('Admin Name', prefixIcon: Icons.person_rounded),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: ownerEmailController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dialogInputDecoration('Admin Email', prefixIcon: Icons.email_rounded),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _dialogInputDecoration(
+                    'New Password (optional)',
+                    prefixIcon: Icons.lock_rounded,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await provider.updateAcademyProfileInBackend(
+                    academyName: academyNameController.text.trim(),
+                    logoUrl: (selectedLogo ?? '').trim().isEmpty ? null : selectedLogo!.trim(),
+                    ownerName: ownerNameController.text.trim(),
+                    ownerEmail: ownerEmailController.text.trim(),
+                    newPassword: passwordController.text.trim(),
+                  );
+                  if (context.mounted) Navigator.pop(context);
+                  _showInfo('Admin profile updated');
+                } catch (e) {
+                  _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.yellow.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.yellow.withValues(alpha: 0.3)),
-                ),
-                child: const Text(
-                  'Academy Branding',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: academyNameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Academy Name', prefixIcon: Icons.apartment_rounded),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: logoController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration(
-                  'Academy Logo URL',
-                  hint: 'https://...',
-                  prefixIcon: Icons.image_rounded,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Owner Credentials',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: ownerNameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Admin Name', prefixIcon: Icons.person_rounded),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: ownerEmailController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration('Admin Email', prefixIcon: Icons.email_rounded),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: _dialogInputDecoration(
-                  'New Password (optional)',
-                  prefixIcon: Icons.lock_rounded,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await provider.updateAcademyProfileInBackend(
-                  academyName: academyNameController.text.trim(),
-                  logoUrl: logoController.text.trim().isEmpty ? null : logoController.text.trim(),
-                  ownerName: ownerNameController.text.trim(),
-                  ownerEmail: ownerEmailController.text.trim(),
-                  newPassword: passwordController.text.trim(),
-                );
-                if (context.mounted) Navigator.pop(context);
-                _showInfo('Admin profile updated');
-              } catch (e) {
-                _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
@@ -1748,7 +2052,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       context: context,
       barrierDismissible: true,
       builder: (_) => CreateTeamDialog(
-        onTeamCreated: (name, ageGroup, color) {
+        onTeamCreated: (name, ageGroup, color, logoPath) {
           final provider = context.read<AcademyProvider>();
           provider
               .addTeamToBackend(
@@ -1756,7 +2060,8 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                   id: provider.nextId('t'),
                   name: name,
                   ageGroup: ageGroup,
-                  colorValue: color.value,
+                  colorValue: color.toARGB32(),
+                  logoPath: logoPath,
                   players: const [],
                 ),
               )

@@ -16,6 +16,7 @@ const {
     updateStaff,
     deleteStaff,
     createTeamByAdmin,
+    updateTeamByAdmin,
     assignTeamLeadsByAdmin,
     updateAdminProfile,
     getAdminOverview,
@@ -41,6 +42,7 @@ router.put('/staff/:id', protect, updateStaff);
 router.delete('/staff/:id', protect, deleteStaff);
 router.post('/player/create', protect, createPlayerByCoach);
 router.post('/team/create', protect, createTeamByAdmin);
+router.put('/team/:id', protect, updateTeamByAdmin);
 router.put('/team/:id/leads', protect, assignTeamLeadsByAdmin);
 router.put('/admin/profile', protect, updateAdminProfile);
 router.get('/admin/overview', protect, getAdminOverview);

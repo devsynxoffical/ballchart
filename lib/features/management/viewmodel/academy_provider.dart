@@ -176,6 +176,35 @@ class AcademyProvider extends ChangeNotifier {
     );
   }
 
+  void updateTeam(Team updatedTeam) {
+    final index = academy.teams.indexWhere((t) => t.id == updatedTeam.id);
+    if (index == -1) return;
+    academy.teams[index] = updatedTeam;
+    notifyListeners();
+  }
+
+  Future<void> updateTeamInBackend(Team updatedTeam) async {
+    final response = await _apiService.put('/auth/team/${updatedTeam.id}', {
+      'name': updatedTeam.name,
+      'ageGroup': updatedTeam.ageGroup,
+      'colorValue': updatedTeam.colorValue,
+      'logoPath': updatedTeam.logoPath,
+    });
+
+    updateTeam(
+      Team(
+        id: (response['_id'] ?? updatedTeam.id).toString(),
+        name: (response['name'] ?? updatedTeam.name).toString(),
+        players: updatedTeam.players,
+        ageGroup: (response['ageGroup'] ?? updatedTeam.ageGroup).toString(),
+        colorValue: (response['colorValue'] is int) ? response['colorValue'] as int : updatedTeam.colorValue,
+        logoPath: response['logoPath']?.toString(),
+        coachStaffId: updatedTeam.coachStaffId,
+        assistantCoachStaffId: updatedTeam.assistantCoachStaffId,
+      ),
+    );
+  }
+
   void addPlayer(String teamId, Player player) {
     final team = academy.teams.firstWhere((t) => t.id == teamId);
     team.players.add(player);

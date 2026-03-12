@@ -90,7 +90,7 @@ class _ManagementScreenState extends State<ManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => CreateTeamDialog(
-        onTeamCreated: (name, age, color) {
+        onTeamCreated: (name, age, color, logoPath) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Team $name created!'), backgroundColor: AppColors.green),
           );

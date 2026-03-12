@@ -91,7 +91,7 @@ class _TeamsTabState extends State<TeamsTab> {
                   context: context,
                   barrierDismissible: true,
                   builder: (_) => CreateTeamDialog(
-                    onTeamCreated: (name, age, color) async {
+                    onTeamCreated: (name, age, color, logoPath) async {
                       final provider = context.read<AcademyProvider>();
                       await provider.addTeamToBackend(
                         Team(
@@ -100,6 +100,7 @@ class _TeamsTabState extends State<TeamsTab> {
                           players: const [],
                           ageGroup: age,
                           colorValue: color.toARGB32(),
+                          logoPath: logoPath,
                         ),
                       );
                       if (mounted) {

@@ -609,6 +609,47 @@ const createTeamByAdmin = asyncHandler(async (req, res) => {
     res.status(201).json(team);
 });
 
+// @desc    Update team details by admin
+// @route   PUT /api/auth/team/:id
+// @access  Private (Admin)
+const updateTeamByAdmin = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const { name, ageGroup, colorValue, logoPath, description } = req.body;
+    const team = await Team.findOne({ _id: req.params.id, managedBy: req.user._id });
+    if (!team) {
+        res.status(404);
+        throw new Error('Team not found');
+    }
+
+    if (name !== undefined) {
+        if (!name || !name.trim()) {
+            res.status(400);
+            throw new Error('Please add a team name');
+        }
+        const duplicate = await Team.findOne({
+            _id: { $ne: team._id },
+            managedBy: req.user._id,
+            name: name.trim(),
+        });
+        if (duplicate) {
+            res.status(400);
+            throw new Error('Team with this name already exists');
+        }
+        team.name = name.trim();
+    }
+
+    if (ageGroup !== undefined) team.ageGroup = ageGroup || 'Open';
+    if (colorValue !== undefined) {
+        team.colorValue = typeof colorValue === 'number' ? colorValue : team.colorValue;
+    }
+    if (logoPath !== undefined) team.logoPath = logoPath || null;
+    if (description !== undefined) team.description = description;
+
+    const updated = await team.save();
+    res.status(200).json(updated);
+});
+
 // @desc    Assign team leads by admin
 // @route   PUT /api/auth/team/:id/leads
 // @access  Private (Admin)
@@ -771,6 +812,7 @@ module.exports = {
     updateStaff,
     deleteStaff,
     createTeamByAdmin,
+    updateTeamByAdmin,
     assignTeamLeadsByAdmin,
     updateAdminProfile,
     getAdminOverview,

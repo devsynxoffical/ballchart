@@ -1,10 +1,14 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:courtiq/core/constants/colors.dart';
 import 'package:courtiq/core/widgets/custom_button.dart';
 import 'package:courtiq/core/widgets/auth/custom_textfield_createaccount.dart';
+import 'package:image_picker/image_picker.dart';
 
 class CreateTeamDialog extends StatefulWidget {
-  final Function(String name, String ageGroup, Color color)? onTeamCreated;
+  final Function(String name, String ageGroup, Color color, String? logoPath)? onTeamCreated;
 
   const CreateTeamDialog({super.key, this.onTeamCreated});
 
@@ -16,6 +20,8 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
   final TextEditingController _nameController = TextEditingController();
   String _selectedAgeGroup = 'Under 12';
   Color _selectedColor = Colors.blue;
+  String? _logoDataUri;
+  final ImagePicker _imagePicker = ImagePicker();
   
   // Predefined age groups
   final List<String> _ageGroups = [
@@ -42,6 +48,50 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  Uint8List? _decodeDataUri(String? value) {
+    if (value == null || value.isEmpty || !value.startsWith('data:')) return null;
+    final index = value.indexOf(',');
+    if (index < 0 || index + 1 >= value.length) return null;
+    try {
+      return base64Decode(value.substring(index + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _pickLogo(ImageSource source) async {
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 45,
+      maxWidth: 640,
+      maxHeight: 640,
+    );
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (bytes.lengthInBytes > 450 * 1024) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image is too large. Please choose a smaller photo.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+    final path = picked.path.toLowerCase();
+    final mime = path.endsWith('.png')
+        ? 'image/png'
+        : path.endsWith('.webp')
+            ? 'image/webp'
+            : path.endsWith('.gif')
+                ? 'image/gif'
+                : 'image/jpeg';
+    setState(() {
+      _logoDataUri = 'data:$mime;base64,${base64Encode(bytes)}';
+    });
   }
 
   @override
@@ -115,7 +165,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      /// Logo Upload (Mock)
+                      /// Logo Upload
                       Center(
                         child: Column(
                           children: [
@@ -141,15 +191,45 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                                   ),
                                 ],
                               ),
-                              child: Icon(Icons.shield, color: _selectedColor, size: 46),
+                              child: Builder(
+                                builder: (_) {
+                                  final bytes = _decodeDataUri(_logoDataUri);
+                                  if (bytes == null) {
+                                    return Icon(Icons.shield, color: _selectedColor, size: 46);
+                                  }
+                                  return ClipOval(
+                                    child: Image.memory(
+                                      bytes,
+                                      fit: BoxFit.cover,
+                                      width: 96,
+                                      height: 96,
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                             const SizedBox(height: 10),
-                            TextButton.icon(
-                              onPressed: () {
-                                // Implement Image Picker logic here
-                              },
-                              icon: const Icon(Icons.upload_file, size: 18, color: AppColors.yellow),
-                              label: const Text('Upload Logo', style: TextStyle(color: AppColors.yellow)),
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () => _pickLogo(ImageSource.gallery),
+                                  icon: const Icon(Icons.photo_library_rounded, size: 18, color: AppColors.yellow),
+                                  label: const Text('Gallery', style: TextStyle(color: AppColors.yellow)),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => _pickLogo(ImageSource.camera),
+                                  icon: const Icon(Icons.photo_camera_rounded, size: 18, color: AppColors.yellow),
+                                  label: const Text('Camera', style: TextStyle(color: AppColors.yellow)),
+                                ),
+                                if (_logoDataUri != null)
+                                  TextButton(
+                                    onPressed: () => setState(() => _logoDataUri = null),
+                                    child: const Text('Remove', style: TextStyle(color: Colors.white70)),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
@@ -283,6 +363,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                               _nameController.text,
                               _selectedAgeGroup,
                               _selectedColor,
+                              _logoDataUri,
                             );
                           }
                           Navigator.pop(context);
