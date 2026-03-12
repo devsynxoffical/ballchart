@@ -21,6 +21,55 @@ const ensureAdmin = (req, res) => {
     }
 };
 
+const roleToTeamLeadField = (role) => {
+    if (role === 'coach') return 'coachStaffId';
+    if (role === 'assistant_coach') return 'assistantCoachStaffId';
+    return null;
+};
+
+const normalizeIdList = (ids = []) => (Array.isArray(ids) ? ids.map((id) => id.toString()) : []);
+
+const syncStaffLeadAssignments = async ({
+    adminId,
+    staffId,
+    previousRole,
+    previousAssignedTeamIds = [],
+    nextRole,
+    nextAssignedTeamIds = [],
+}) => {
+    const previousField = roleToTeamLeadField(previousRole);
+    const nextField = roleToTeamLeadField(nextRole);
+    const previousTeamIds = normalizeIdList(previousAssignedTeamIds);
+    const nextTeamIds = normalizeIdList(nextAssignedTeamIds);
+
+    if (previousField && previousTeamIds.length) {
+        await Team.updateMany(
+            {
+                managedBy: adminId,
+                _id: { $in: previousTeamIds },
+                [previousField]: staffId,
+            },
+            {
+                $set: { [previousField]: null },
+                $pull: { coachingStaff: staffId },
+            }
+        );
+    }
+
+    if (nextField && nextTeamIds.length) {
+        await Team.updateMany(
+            {
+                managedBy: adminId,
+                _id: { $in: nextTeamIds },
+            },
+            {
+                $set: { [nextField]: staffId },
+                $addToSet: { coachingStaff: staffId },
+            }
+        );
+    }
+};
+
 const normalizeUserResponse = (doc) => {
     if (!doc) return null;
     return {
@@ -391,6 +440,8 @@ const createStaff = asyncHandler(async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    const normalizedAssignedTeamIds = normalizeIdList(assignedTeamIds);
+
     const staff = await Coach.create({
         username,
         email: cleanEmail,
@@ -398,8 +449,8 @@ const createStaff = asyncHandler(async (req, res) => {
         role,
         managedBy: req.user._id,
         profileCompleted: true, // Auto-complete for managed staff
-        assignedTeamIds,
-        assignedTeams: assignedTeamIds,
+        assignedTeamIds: normalizedAssignedTeamIds,
+        assignedTeams: normalizedAssignedTeamIds,
         customRoleName: role === 'custom' ? (customRoleName || null) : null,
         permissions: {
             createPlayer: !!permissions.createPlayer,
@@ -409,6 +460,15 @@ const createStaff = asyncHandler(async (req, res) => {
             createTeam: !!permissions.createTeam,
             manageStaff: !!permissions.manageStaff,
         },
+    });
+
+    await syncStaffLeadAssignments({
+        adminId: req.user._id,
+        staffId: staff._id,
+        previousRole: null,
+        previousAssignedTeamIds: [],
+        nextRole: staff.role,
+        nextAssignedTeamIds: normalizedAssignedTeamIds,
     });
 
     res.status(201).json({
@@ -515,13 +575,17 @@ const updateStaff = asyncHandler(async (req, res) => {
         customRoleName,
     } = req.body;
 
+    const previousRole = staff.role;
+    const previousAssignedTeamIds = normalizeIdList(staff.assignedTeamIds);
+
     if (username) staff.username = username;
     if (email) staff.email = email.toLowerCase().trim();
     if (role && ['coach', 'assistant_coach', 'custom'].includes(role)) staff.role = role;
     if (customRoleName !== undefined) staff.customRoleName = customRoleName;
     if (Array.isArray(assignedTeamIds)) {
-        staff.assignedTeamIds = assignedTeamIds;
-        staff.assignedTeams = assignedTeamIds;
+        const normalizedAssignedTeamIds = normalizeIdList(assignedTeamIds);
+        staff.assignedTeamIds = normalizedAssignedTeamIds;
+        staff.assignedTeams = normalizedAssignedTeamIds;
     }
     if (permissions) {
         staff.permissions = {
@@ -539,6 +603,16 @@ const updateStaff = asyncHandler(async (req, res) => {
     }
 
     const updated = await staff.save();
+
+    await syncStaffLeadAssignments({
+        adminId: req.user._id,
+        staffId: updated._id,
+        previousRole,
+        previousAssignedTeamIds,
+        nextRole: updated.role,
+        nextAssignedTeamIds: normalizeIdList(updated.assignedTeamIds),
+    });
+
     res.status(200).json({
         _id: updated._id,
         username: updated.username,
