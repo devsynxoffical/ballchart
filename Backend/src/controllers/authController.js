@@ -21,6 +21,13 @@ const ensureAdmin = (req, res) => {
     }
 };
 
+const canManagePlayerAction = (user, actionKey) => {
+    if (!user) return false;
+    if (['admin', 'head_coach'].includes(user.role)) return true;
+    if (!['coach', 'assistant_coach'].includes(user.role)) return false;
+    return user.permissions && user.permissions[actionKey] === true;
+};
+
 const roleToTeamLeadField = (role) => {
     if (role === 'coach') return 'coachStaffId';
     if (role === 'assistant_coach') return 'assistantCoachStaffId';
@@ -492,6 +499,10 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
         res.status(403);
         throw new Error('Not authorized to create players');
     }
+    if (!canManagePlayerAction(req.user, 'createPlayer')) {
+        res.status(403);
+        throw new Error('You do not have permission to create players');
+    }
 
     if (!username || !email || !password) {
         res.status(400);
@@ -781,13 +792,36 @@ const getManagedPlayerForAdmin = async (adminId, playerId) => {
     });
 };
 
+const getManagedPlayerForUser = async (user, playerId) => {
+    if (['admin', 'head_coach'].includes(user.role)) {
+        return getManagedPlayerForAdmin(user._id, playerId);
+    }
+    if (!['coach', 'assistant_coach'].includes(user.role)) return null;
+
+    const academyId = user.managedBy;
+    if (!academyId) return null;
+    const staff = await Coach.find({ managedBy: academyId }).select('_id');
+    const staffIds = staff.map((member) => member._id);
+    return Player.findOne({
+        _id: playerId,
+        $or: [
+            { managedBy: academyId },
+            { managedBy: { $in: staffIds } },
+            { managedBy: user._id },
+        ],
+    });
+};
+
 // @desc    Update player by admin
 // @route   PUT /api/auth/player/:id
 // @access  Private (Admin)
 const updatePlayerByAdmin = asyncHandler(async (req, res) => {
-    ensureAdmin(req, res);
+    if (!canManagePlayerAction(req.user, 'updatePlayer')) {
+        res.status(403);
+        throw new Error('You do not have permission to update players');
+    }
 
-    const player = await getManagedPlayerForAdmin(req.user._id, req.params.id);
+    const player = await getManagedPlayerForUser(req.user, req.params.id);
     if (!player) {
         res.status(404);
         throw new Error('Player not found');
@@ -820,16 +854,22 @@ const updatePlayerByAdmin = asyncHandler(async (req, res) => {
 // @route   DELETE /api/auth/player/:id
 // @access  Private (Admin)
 const deletePlayerByAdmin = asyncHandler(async (req, res) => {
-    ensureAdmin(req, res);
+    if (!canManagePlayerAction(req.user, 'deletePlayer')) {
+        res.status(403);
+        throw new Error('You do not have permission to delete players');
+    }
 
-    const player = await getManagedPlayerForAdmin(req.user._id, req.params.id);
+    const player = await getManagedPlayerForUser(req.user, req.params.id);
     if (!player) {
         res.status(404);
         throw new Error('Player not found');
     }
 
+    const adminScopeId = ['admin', 'head_coach'].includes(req.user.role)
+        ? req.user._id
+        : req.user.managedBy;
     await Team.updateMany(
-        { managedBy: req.user._id, players: player._id },
+        { managedBy: adminScopeId, players: player._id },
         { $pull: { players: player._id } }
     );
     await player.deleteOne();

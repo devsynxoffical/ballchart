@@ -4,7 +4,16 @@ const battleSchema = mongoose.Schema(
     {
         host: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
+            required: true,
+        },
+        managedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Admin',
+            required: true,
+        },
+        createdByRole: {
+            type: String,
+            enum: ['admin', 'head_coach', 'coach', 'assistant_coach'],
             required: true,
         },
         location: {
