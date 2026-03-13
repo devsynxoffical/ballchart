@@ -7,8 +7,16 @@ import 'package:courtiq/features/staff/service/staff_service.dart';
 class HierarchyManagementWidget extends StatefulWidget {
   final Function(Map<String, String> player)? onPlayerAdded;
   final String role;
+  final String? coachName;
+  final String? assistantCoachName;
 
-  const HierarchyManagementWidget({super.key, this.onPlayerAdded, required this.role});
+  const HierarchyManagementWidget({
+    super.key,
+    this.onPlayerAdded,
+    required this.role,
+    this.coachName,
+    this.assistantCoachName,
+  });
 
   @override
   State<HierarchyManagementWidget> createState() => _HierarchyManagementWidgetState();
@@ -18,6 +26,17 @@ class _HierarchyManagementWidgetState extends State<HierarchyManagementWidget> {
   // Local state for demo
   Map<String, dynamic>? _assignedCoach;
   Map<String, dynamic>? _assignedAsstCoach;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.coachName != null && widget.coachName!.trim().isNotEmpty) {
+      _assignedCoach = {'name': widget.coachName!.trim()};
+    }
+    if (widget.assistantCoachName != null && widget.assistantCoachName!.trim().isNotEmpty) {
+      _assignedAsstCoach = {'name': widget.assistantCoachName!.trim()};
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -665,28 +665,6 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                     'Assistant Coach: ${assistant?.name ?? 'Not assigned'}',
                     style: const TextStyle(color: Colors.white70),
                   ),
-                  if (team.players.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: team.players
-                          .map(
-                            (p) => Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${p.name} • ${p.position}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 11),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
                 ],
               ),
             ),

@@ -20,7 +20,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<ProfileViewmodel>().user;
     final role = user?.role ?? 'player';
-    final canRemove = role == 'coach' || role == 'head_coach';
+    final canRemove = role != 'player';
 
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
@@ -58,6 +58,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               .cast<Map>()
               .map((e) => e.cast<String, dynamic>())
               .toList();
+          final coachName = (team['coachStaffId'] is Map)
+              ? (team['coachStaffId']['username']?.toString())
+              : null;
+          final assistantCoachName = (team['assistantCoachStaffId'] is Map)
+              ? (team['assistantCoachStaffId']['username']?.toString())
+              : null;
 
           return SingleChildScrollView(
             child: Column(
@@ -68,6 +74,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   child: HierarchyManagementWidget(
                     onPlayerAdded: (_) {},
                     role: role,
+                    coachName: coachName,
+                    assistantCoachName: assistantCoachName,
                   ),
                 ),
                 const SizedBox(height: 30),
@@ -130,7 +138,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               onPressed: onRemove,
             )
           else
-            const Icon(Icons.lock_outline, color: Colors.white24, size: 18),
+            const SizedBox.shrink(),
         ],
       ),
     );
