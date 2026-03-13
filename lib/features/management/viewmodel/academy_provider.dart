@@ -272,6 +272,8 @@ class AcademyProvider extends ChangeNotifier {
         permissions: staff.permissions,
       ),
     );
+    // Keep team lead labels in sync immediately after staff assignment changes.
+    await loadAdminOverview(force: true);
   }
 
   void updateStaff(Staff updatedStaff) {
@@ -312,6 +314,8 @@ class AcademyProvider extends ChangeNotifier {
         permissions: updatedStaff.permissions,
       ),
     );
+    // Backend may re-map coach/assistant team leads based on assigned teams.
+    await loadAdminOverview(force: true);
   }
 
   void deleteStaff(String staffId) {
