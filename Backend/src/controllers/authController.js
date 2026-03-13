@@ -813,6 +813,7 @@ const getCoachDashboard = asyncHandler(async (req, res) => {
         ? null
         : await Coach.findById(req.user._id).select('-password');
 
+    const assignedTeamIds = normalizeIdList(req.user.assignedTeamIds);
     const teamQuery = req.user.role === 'admin'
         ? { managedBy: req.user._id }
         : {
@@ -820,7 +821,7 @@ const getCoachDashboard = asyncHandler(async (req, res) => {
                 { coachStaffId: req.user._id },
                 { assistantCoachStaffId: req.user._id },
                 { coachingStaff: req.user._id },
-                { managedBy: req.user.managedBy || null },
+                ...(assignedTeamIds.length ? [{ _id: { $in: assignedTeamIds } }] : []),
             ],
         };
 
