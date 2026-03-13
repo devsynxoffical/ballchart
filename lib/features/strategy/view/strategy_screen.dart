@@ -354,8 +354,8 @@ class _StrategyScreenState extends State<StrategyScreen> {
                       Row(
                         children: [
                           const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'Strategy Videos',

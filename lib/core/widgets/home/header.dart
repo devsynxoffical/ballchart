@@ -8,37 +8,45 @@ class Header extends StatelessWidget {
 
   String _getRoleLabel(String role) {
     switch (role) {
+      case 'admin':
+        return 'Academy Owner';
       case 'head_coach':
         return 'Academy Owner';
       case 'assistant_coach':
         return 'Assistant Coach';
       case 'coach':
         return 'Coach';
+      case 'player':
+        return 'Player';
       default:
-        return 'Coach';
+        return 'User';
     }
   }
 
   Color _getRoleBadgeColor(String role) {
     switch (role) {
+      case 'admin':
+        return AppColors.yellow;
       case 'head_coach':
         return AppColors.yellow;
       case 'assistant_coach':
         return const Color(0xFF8B5CF6);
       case 'coach':
         return const Color(0xFF3B82F6);
+      case 'player':
+        return const Color(0xFF10B981);
       default:
-        return const Color(0xFF3B82F6);
+        return Colors.white54;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<ProfileViewmodel>().user;
-    final name = user?.username ?? 'Coach';
+    final name = user?.username ?? 'User';
     final role = user?.role ?? 'coach';
     final academyName = user?.teamName?.trim() ?? '';
-    final displayName = name.trim().isEmpty ? 'Coach' : name.split(' ').first;
+    final displayName = name.trim().isEmpty ? 'User' : name.split(' ').first;
     final roleLabel = _getRoleLabel(role);
     final badgeColor = _getRoleBadgeColor(role);
     final subtitle = academyName.isNotEmpty

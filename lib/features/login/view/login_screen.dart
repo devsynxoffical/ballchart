@@ -21,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  String _selectedLoginRole = 'auto';
 
   @override
   void initState() {
@@ -142,38 +141,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 14),
-
-                  DropdownButtonFormField<String>(
-                    value: _selectedLoginRole,
-                    dropdownColor: const Color(0xFF111827),
-                    style: const TextStyle(color: Colors.white),
-                    items: const [
-                      DropdownMenuItem(value: 'auto', child: Text('Auto Detect Role')),
-                      DropdownMenuItem(value: 'player', child: Text('Player Login')),
-                      DropdownMenuItem(value: 'coach', child: Text('Coach/Staff Login')),
-                      DropdownMenuItem(value: 'admin', child: Text('Admin Login')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _selectedLoginRole = value);
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Login Type',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.yellow),
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 40),
 
                   if (authViewModel.isLoading)
@@ -188,8 +155,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           context,
                           _emailController.text.trim(),
                           _passwordController.text.trim(),
-                          preferredRole:
-                              _selectedLoginRole == 'auto' ? null : _selectedLoginRole,
                         );
                       },
                     ),

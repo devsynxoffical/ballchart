@@ -190,13 +190,26 @@ class _CoachingStaffList extends StatelessWidget {
   final List<Map<String, dynamic>> staff;
   const _CoachingStaffList({required this.staff});
 
+  String _roleLabel(String role) {
+    switch (role) {
+      case 'head_coach':
+        return 'Head Coach';
+      case 'assistant_coach':
+        return 'Assistant Coach';
+      case 'coach':
+        return 'Coach';
+      default:
+        return role.replaceAll('_', ' ').trim();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final normalized = staff.map((s) {
       final role = (s['role'] ?? '').toString();
       return {
         'name': s['username'] ?? 'Staff',
-        'role': role.replaceAll('_', ' '),
+        'role': _roleLabel(role),
         'color': role == 'assistant_coach' ? const Color(0xFF8B5CF6) : AppColors.yellow,
       };
     }).toList();
