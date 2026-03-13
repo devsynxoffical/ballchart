@@ -18,6 +18,8 @@ const {
     createTeamByAdmin,
     updateTeamByAdmin,
     assignTeamLeadsByAdmin,
+    updatePlayerByAdmin,
+    deletePlayerByAdmin,
     updateAdminProfile,
     getAdminOverview,
     getCoachDashboard,
@@ -41,6 +43,8 @@ router.get('/staff/credentials', protect, getStaffCredentials);
 router.put('/staff/:id', protect, updateStaff);
 router.delete('/staff/:id', protect, deleteStaff);
 router.post('/player/create', protect, createPlayerByCoach);
+router.put('/player/:id', protect, updatePlayerByAdmin);
+router.delete('/player/:id', protect, deletePlayerByAdmin);
 router.post('/team/create', protect, createTeamByAdmin);
 router.put('/team/:id', protect, updateTeamByAdmin);
 router.put('/team/:id/leads', protect, assignTeamLeadsByAdmin);

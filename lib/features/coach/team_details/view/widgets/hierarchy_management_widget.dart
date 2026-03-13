@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:courtiq/core/constants/colors.dart';
 import 'package:courtiq/core/widgets/dialogues/CreatePlayerDialog.dart';
 import 'package:courtiq/core/widgets/dialogues/SelectCoachDialog.dart';
-import 'package:courtiq/features/staff/service/staff_service.dart';
 
 class HierarchyManagementWidget extends StatefulWidget {
   final Function(Map<String, String> player)? onPlayerAdded;
   final String role;
+  final String teamId;
   final String? coachName;
   final String? assistantCoachName;
 
@@ -14,6 +14,7 @@ class HierarchyManagementWidget extends StatefulWidget {
     super.key,
     this.onPlayerAdded,
     required this.role,
+    required this.teamId,
     this.coachName,
     this.assistantCoachName,
   });
@@ -40,7 +41,7 @@ class _HierarchyManagementWidgetState extends State<HierarchyManagementWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isHC = widget.role == 'head_coach';
+    final bool canManageLeads = widget.role == 'head_coach' || widget.role == 'admin';
     
     return Column(
       children: [
@@ -59,12 +60,12 @@ class _HierarchyManagementWidgetState extends State<HierarchyManagementWidget> {
             _buildNode(
               _assignedCoach?['name'] ?? 'Coach',
               isAssigned: _assignedCoach != null,
-              onTap: isHC ? () => _showSelectCoachDialog(context, 'Coach') : null,
+              onTap: canManageLeads ? () => _showSelectCoachDialog(context, 'Coach') : null,
             ),
             _buildNode(
               _assignedAsstCoach?['name'] ?? 'Asst. Coach',
               isAssigned: _assignedAsstCoach != null,
-              onTap: isHC ? () => _showSelectCoachDialog(context, 'Assistant Coach') : null,
+              onTap: canManageLeads ? () => _showSelectCoachDialog(context, 'Assistant Coach') : null,
             ),
           ],
         ),
@@ -162,93 +163,10 @@ class _HierarchyManagementWidgetState extends State<HierarchyManagementWidget> {
     showDialog(
       context: context,
       builder: (context) => CreatePlayerDialog(
-        onPlayerCreated: (player) async {
-          final staffService = StaffService();
-          try {
-             await staffService.createPlayer(
-              name: player['name']!,
-              email: player['email']!,
-              password: player['tempPassword']!,
-              number: player['number'],
-              position: player['position'],
-              height: player['height'],
-              weight: player['weight'],
-            );
-
-            widget.onPlayerAdded?.call(player);
-
-            if (context.mounted) {
-              _showCredentialResult(
-                context,
-                player['name']!,
-                player['email']!,
-                player['tempPassword']!
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error creating player account: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
+        teamId: widget.teamId,
+        onPlayerCreated: (player) {
+          widget.onPlayerAdded?.call(player);
         },
-      ),
-    );
-  }
-
-  void _showCredentialResult(BuildContext context, String name, String email, String password) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Account Created: $name', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Login Credentials:', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.yellow.withValues(alpha: 0.2)),
-              ),
-              child: Column(
-                children: [
-                   const Text('EMAIL', style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2)),
-                  Text(email, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  const Text('PASSWORD', style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2)),
-                  SelectableText(
-                    password,
-                    style: const TextStyle(
-                      color: AppColors.yellow,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Share these credentials for immediate login.', style: TextStyle(color: Colors.white54, fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('DONE', style: TextStyle(color: AppColors.yellow, fontWeight: FontWeight.bold))
-          ),
-        ],
       ),
     );
   }

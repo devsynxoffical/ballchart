@@ -769,6 +769,73 @@ const assignTeamLeadsByAdmin = asyncHandler(async (req, res) => {
     res.status(200).json(team);
 });
 
+const getManagedPlayerForAdmin = async (adminId, playerId) => {
+    const staff = await Coach.find({ managedBy: adminId }).select('_id');
+    const staffIds = staff.map((member) => member._id);
+    return Player.findOne({
+        _id: playerId,
+        $or: [
+            { managedBy: adminId },
+            { managedBy: { $in: staffIds } },
+        ],
+    });
+};
+
+// @desc    Update player by admin
+// @route   PUT /api/auth/player/:id
+// @access  Private (Admin)
+const updatePlayerByAdmin = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const player = await getManagedPlayerForAdmin(req.user._id, req.params.id);
+    if (!player) {
+        res.status(404);
+        throw new Error('Player not found');
+    }
+
+    const { username, email, password, position, ageRange } = req.body;
+    if (username !== undefined) player.username = username;
+    if (position !== undefined) player.position = position;
+    if (ageRange !== undefined) player.ageRange = ageRange;
+    if (email !== undefined && email.trim()) {
+        player.email = email.toLowerCase().trim();
+    }
+    if (password !== undefined && password.trim()) {
+        const salt = await bcrypt.genSalt(10);
+        player.password = await bcrypt.hash(password.trim(), salt);
+    }
+
+    const updated = await player.save();
+    res.status(200).json({
+        _id: updated._id,
+        username: updated.username,
+        email: updated.email,
+        role: updated.role,
+        position: updated.position,
+        ageRange: updated.ageRange,
+    });
+});
+
+// @desc    Delete player by admin
+// @route   DELETE /api/auth/player/:id
+// @access  Private (Admin)
+const deletePlayerByAdmin = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const player = await getManagedPlayerForAdmin(req.user._id, req.params.id);
+    if (!player) {
+        res.status(404);
+        throw new Error('Player not found');
+    }
+
+    await Team.updateMany(
+        { managedBy: req.user._id, players: player._id },
+        { $pull: { players: player._id } }
+    );
+    await player.deleteOne();
+    res.status(200).json({ message: 'Player deleted successfully' });
+});
+
 // @desc    Get admin overview data
 // @route   GET /api/auth/admin/overview
 // @access  Private (Admin)
@@ -892,6 +959,8 @@ module.exports = {
     createTeamByAdmin,
     updateTeamByAdmin,
     assignTeamLeadsByAdmin,
+    updatePlayerByAdmin,
+    deletePlayerByAdmin,
     updateAdminProfile,
     getAdminOverview,
     getProfile,

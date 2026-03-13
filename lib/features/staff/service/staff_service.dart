@@ -28,8 +28,10 @@ class StaffService {
     required String name,
     required String email,
     required String password,
+    String? teamId,
     String? number,
     String? position,
+    String? ageRange,
     String? height,
     String? weight,
   }) async {
@@ -38,8 +40,10 @@ class StaffService {
         'username': name,
         'email': email,
         'password': password,
+        if (teamId != null && teamId.isNotEmpty) 'teamId': teamId,
         'number': number,
         'position': position,
+        if (ageRange != null && ageRange.isNotEmpty) 'ageRange': ageRange,
         'height': height,
         'weight': weight,
       });
@@ -53,6 +57,36 @@ class StaffService {
     try {
       final response = await _apiService.get('/auth/staff/credentials');
       return response as List<dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> updatePlayer({
+    required String playerId,
+    String? name,
+    String? email,
+    String? password,
+    String? position,
+    String? ageRange,
+  }) async {
+    try {
+      final payload = <String, dynamic>{};
+      if (name != null) payload['username'] = name;
+      if (email != null) payload['email'] = email;
+      if (password != null && password.isNotEmpty) payload['password'] = password;
+      if (position != null) payload['position'] = position;
+      if (ageRange != null) payload['ageRange'] = ageRange;
+      final response = await _apiService.put('/auth/player/$playerId', payload);
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deletePlayer(String playerId) async {
+    try {
+      await _apiService.delete('/auth/player/$playerId');
     } catch (e) {
       rethrow;
     }

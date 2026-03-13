@@ -7,8 +7,9 @@ import 'package:courtiq/features/staff/service/staff_service.dart';
 
 class CreatePlayerDialog extends StatefulWidget {
   final Function(Map<String, String> player)? onPlayerCreated;
+  final String? teamId;
 
-  const CreatePlayerDialog({super.key, this.onPlayerCreated});
+  const CreatePlayerDialog({super.key, this.onPlayerCreated, this.teamId});
 
   @override
   State<CreatePlayerDialog> createState() => _CreatePlayerDialogState();
@@ -69,6 +70,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         name: name,
         email: email,
         password: password,
+        teamId: widget.teamId,
         number: _numberController.text.trim(),
         position: _selectedPosition,
       );
