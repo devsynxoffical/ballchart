@@ -30,12 +30,21 @@ class AuthViewmodel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(BuildContext context, String email, String password) async {
+  Future<void> login(
+    BuildContext context,
+    String email,
+    String password, {
+    String? preferredRole,
+  }) async {
     _setLoading(true);
     _errorMessage = null;
 
     try {
-      final user = await _authRepository.login(email, password);
+      final user = await _authRepository.login(
+        email,
+        password,
+        preferredRole: preferredRole,
+      );
       Provider.of<ProfileViewmodel>(context, listen: false).setUser(user);
       _setLoading(false);
 

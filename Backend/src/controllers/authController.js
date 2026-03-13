@@ -738,6 +738,33 @@ const updateTeamByAdmin = asyncHandler(async (req, res) => {
     res.status(200).json(updated);
 });
 
+// @desc    Delete team by admin
+// @route   DELETE /api/auth/team/:id
+// @access  Private (Admin)
+const deleteTeamByAdmin = asyncHandler(async (req, res) => {
+    ensureAdmin(req, res);
+
+    const team = await Team.findOne({ _id: req.params.id, managedBy: req.user._id });
+    if (!team) {
+        res.status(404);
+        throw new Error('Team not found');
+    }
+
+    const teamIdString = team._id.toString();
+    await Coach.updateMany(
+        { managedBy: req.user._id },
+        {
+            $pull: {
+                assignedTeamIds: teamIdString,
+                assignedTeams: team.name,
+            },
+        }
+    );
+
+    await team.deleteOne();
+    res.status(200).json({ message: 'Team deleted successfully' });
+});
+
 // @desc    Assign team leads by admin
 // @route   PUT /api/auth/team/:id/leads
 // @access  Private (Admin)
@@ -998,6 +1025,7 @@ module.exports = {
     deleteStaff,
     createTeamByAdmin,
     updateTeamByAdmin,
+    deleteTeamByAdmin,
     assignTeamLeadsByAdmin,
     updatePlayerByAdmin,
     deletePlayerByAdmin,

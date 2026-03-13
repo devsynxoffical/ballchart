@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../../core/repositories/battle_repository.dart';
 import '../../../core/models/battle_model.dart';
 
@@ -13,14 +14,24 @@ class BattleViewmodel extends ChangeNotifier {
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+  Timer? _pollingTimer;
 
-  Future<void> loadBattles() async {
-    _setLoading(true);
+  Future<void> loadBattles({bool silent = false}) async {
+    if (!silent) {
+      _setLoading(true);
+    }
     try {
       _battles = await _battleRepository.getBattles();
-      _setLoading(false);
+      _errorMessage = null;
+      if (!silent) {
+        _setLoading(false);
+      } else {
+        notifyListeners();
+      }
     } catch (e) {
-      _setLoading(false);
+      if (!silent) {
+        _setLoading(false);
+      }
       _errorMessage = e.toString();
       notifyListeners();
     }
@@ -54,8 +65,26 @@ class BattleViewmodel extends ChangeNotifier {
     }
   }
 
+  void startLiveUpdates() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      loadBattles(silent: true);
+    });
+  }
+
+  void stopLiveUpdates() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    stopLiveUpdates();
+    super.dispose();
   }
 }

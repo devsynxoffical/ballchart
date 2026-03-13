@@ -1323,6 +1323,22 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                       label: const Text('Edit Team Name / Logo'),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _confirmDeleteTeam(context, team);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: const BorderSide(color: Colors.redAccent),
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: const Text('Delete Team'),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
                     value: selectedCoachId,
@@ -1865,6 +1881,43 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                 await context.read<AcademyProvider>().deleteStaffInBackend(staff.id);
                 if (context.mounted) Navigator.pop(context);
                 _showInfo('Staff deleted');
+              } catch (e) {
+                _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteTeam(BuildContext context, Team team) {
+    showDialog(
+      context: context,
+      builder: (_) => _adminDialog(
+        title: _dialogTitle(
+          Icons.warning_amber_rounded,
+          'Delete Team',
+          subtitle: 'This action cannot be undone',
+          color: Colors.redAccent,
+        ),
+        content: Text(
+          'Are you sure you want to delete ${team.name}? This removes it from your academy dashboard.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await context.read<AcademyProvider>().deleteTeamInBackend(team.id);
+                if (context.mounted) Navigator.pop(context);
+                _showInfo('Team deleted');
               } catch (e) {
                 _showInfo(e.toString().replaceAll('Exception: ', ''), isError: true);
               }

@@ -205,6 +205,19 @@ class AcademyProvider extends ChangeNotifier {
     );
   }
 
+  void deleteTeam(String teamId) {
+    academy.teams.removeWhere((t) => t.id == teamId);
+    for (final staff in academy.staff) {
+      staff.assignedTeamIds.removeWhere((id) => id == teamId);
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteTeamInBackend(String teamId) async {
+    await _apiService.delete('/auth/team/$teamId');
+    deleteTeam(teamId);
+  }
+
   void addPlayer(String teamId, Player player) {
     final team = academy.teams.firstWhere((t) => t.id == teamId);
     team.players.add(player);

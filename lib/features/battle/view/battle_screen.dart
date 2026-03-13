@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../viewmodel/battle_viewmodel.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/widgets/battle/battle_header.dart';
-import '../../../core/widgets/battle/leader_board_Header.dart';
 import '../../../core/widgets/battle/rank_progress_card.dart';
 import '../../../core/models/battle_model.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
@@ -16,16 +15,35 @@ class BattleScreen extends StatefulWidget {
 }
 
 class _BattleScreenState extends State<BattleScreen> {
+  BattleViewmodel? _battleViewmodel;
+  String _selectedFilter = 'all';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BattleViewmodel>().loadBattles();
+      final battleViewModel = context.read<BattleViewmodel>();
+      _battleViewmodel = battleViewModel;
+      battleViewModel.loadBattles();
+      battleViewModel.startLiveUpdates();
       final profileViewModel = context.read<ProfileViewmodel>();
       if (profileViewModel.user == null) {
         profileViewModel.loadProfile();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _battleViewmodel?.stopLiveUpdates();
+    super.dispose();
+  }
+
+  bool _canCreateBattle(String? role) {
+    return role == 'admin' ||
+        role == 'head_coach' ||
+        role == 'coach' ||
+        role == 'assistant_coach';
   }
 
   String _formatDateTime(DateTime dateTime) {
@@ -75,6 +93,93 @@ class _BattleScreenState extends State<BattleScreen> {
       pickedDate.day,
       pickedTime.hour,
       pickedTime.minute,
+    );
+  }
+
+  String _relativeTimeLabel(DateTime dateTime) {
+    final diff = dateTime.difference(DateTime.now());
+    if (diff.inMinutes.abs() < 1) return 'now';
+    if (diff.isNegative) {
+      if (diff.inHours.abs() < 24) return '${diff.inHours.abs()}h ago';
+      return '${diff.inDays.abs()}d ago';
+    }
+    if (diff.inHours < 24) return 'in ${diff.inHours}h';
+    return 'in ${diff.inDays}d';
+  }
+
+  List<BattleModel> _applyFilter(
+    List<BattleModel> battles,
+    String filter,
+    String? currentUserId,
+  ) {
+    if (filter == 'joined') {
+      return battles.where((battle) => battle.isJoined).toList();
+    }
+    if (filter == 'hosting') {
+      return battles.where((battle) => battle.host?.id == currentUserId).toList();
+    }
+    if (filter == 'upcoming') {
+      final now = DateTime.now();
+      return battles
+          .where((battle) => battle.dateTime.isAfter(now) && battle.status == 'pending')
+          .toList();
+    }
+    return battles;
+  }
+
+  Widget _summaryCard({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: AppColors.yellow),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white60, fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip({
+    required String id,
+    required String label,
+  }) {
+    final selected = _selectedFilter == id;
+    return ChoiceChip(
+      selected: selected,
+      label: Text(label),
+      onSelected: (_) => setState(() => _selectedFilter = id),
+      selectedColor: AppColors.yellow,
+      backgroundColor: const Color(0xFF1E293B),
+      labelStyle: TextStyle(
+        color: selected ? Colors.black : Colors.white70,
+        fontWeight: FontWeight.w600,
+      ),
+      side: const BorderSide(color: Colors.white10),
     );
   }
 
@@ -219,8 +324,19 @@ class _BattleScreenState extends State<BattleScreen> {
     );
   }
 
-  Widget _battleCard(BattleModel battle, BattleViewmodel viewModel) {
+  Widget _battleCard(BattleModel battle, BattleViewmodel viewModel, String? currentUserId) {
     final statusColor = _statusColor(battle.status);
+    final hostName = battle.host?.username.isNotEmpty == true
+        ? battle.host!.username
+        : 'Unknown host';
+    final hostRole = battle.host?.role ?? 'staff';
+    final participantNames = battle.participants
+        .map((participant) => participant.username.trim())
+        .where((name) => name.isNotEmpty)
+        .take(5)
+        .toList();
+    final isHost = battle.host?.id == currentUserId;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -265,34 +381,61 @@ class _BattleScreenState extends State<BattleScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${battle.participants.length} participants',
+            _relativeTimeLabel(battle.dateTime),
             style: const TextStyle(color: Colors.white38, fontSize: 12),
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Host: $hostName (${hostRole.replaceAll('_', ' ')})',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${battle.participantCount} participants',
+            style: const TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+          if (participantNames.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Players: ${participantNames.join(', ')}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton(
-              onPressed: () async {
-                try {
-                  await viewModel.joinBattle(battle.id);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Joined battle successfully')),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
-                    );
-                  }
-                }
-              },
+              onPressed: (battle.canJoin && !isHost)
+                  ? () async {
+                      try {
+                        await viewModel.joinBattle(battle.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Joined battle successfully')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                          );
+                        }
+                      }
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.yellow,
                 foregroundColor: Colors.black,
               ),
-              child: const Text('Join Battle'),
+              child: Text(
+                isHost
+                    ? 'Hosting'
+                    : battle.isJoined
+                    ? 'Joined'
+                    : (battle.status == 'pending' ? 'Join Battle' : 'Closed'),
+              ),
             ),
           ),
         ],
@@ -311,8 +454,18 @@ class _BattleScreenState extends State<BattleScreen> {
             child: Consumer<ProfileViewmodel>(
               builder: (context, profileViewModel, child) {
                 final user = profileViewModel.user;
+                final canCreateBattle = _canCreateBattle(user?.role);
                 return Consumer<BattleViewmodel>(
                   builder: (context, viewModel, _) {
+                    final battles = viewModel.battles;
+                    final filteredBattles = _applyFilter(battles, _selectedFilter, user?.id);
+                    final joinedCount = battles.where((battle) => battle.isJoined).length;
+                    final hostingCount = battles.where((battle) => battle.host?.id == user?.id).length;
+                    final upcomingCount = battles
+                        .where((battle) =>
+                            battle.status == 'pending' &&
+                            battle.dateTime.isAfter(DateTime.now()))
+                        .length;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -342,7 +495,7 @@ class _BattleScreenState extends State<BattleScreen> {
                               ),
                               SizedBox(height: 6),
                               Text(
-                                '1) Tap Create Battle  •  2) Set location & time  •  3) Share with players  •  4) Players join',
+                                'Create by coach/assistant, players join, and updates sync live every few seconds.',
                                 style: TextStyle(color: Colors.white60, fontSize: 12),
                               ),
                             ],
@@ -351,19 +504,64 @@ class _BattleScreenState extends State<BattleScreen> {
                         const SizedBox(height: 16),
                         Row(
                           children: [
+                            _summaryCard(
+                              label: 'All Battles',
+                              value: '${battles.length}',
+                              icon: Icons.sports_basketball_outlined,
+                            ),
+                            const SizedBox(width: 10),
+                            _summaryCard(
+                              label: 'Upcoming',
+                              value: '$upcomingCount',
+                              icon: Icons.schedule,
+                            ),
+                            const SizedBox(width: 10),
+                            _summaryCard(
+                              label: 'Joined',
+                              value: '$joinedCount',
+                              icon: Icons.check_circle_outline,
+                            ),
+                            const SizedBox(width: 10),
+                            _summaryCard(
+                              label: 'Hosting',
+                              value: '$hostingCount',
+                              icon: Icons.workspace_premium_outlined,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: () => _showCreateBattleSheet(context),
+                                onPressed: canCreateBattle ? () => _showCreateBattleSheet(context) : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.yellow,
                                   foregroundColor: Colors.black,
                                   minimumSize: const Size.fromHeight(46),
                                 ),
                                 icon: const Icon(Icons.add_circle_outline),
-                                label: const Text('Create Battle'),
+                                label: Text(canCreateBattle ? 'Create Battle' : 'Only staff can create'),
                               ),
                             ),
                             const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.greenAccent.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'LIVE',
+                                style: TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             IconButton(
                               onPressed: viewModel.isLoading
                                   ? null
@@ -372,54 +570,36 @@ class _BattleScreenState extends State<BattleScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _filterChip(id: 'all', label: 'All'),
+                            _filterChip(id: 'upcoming', label: 'Upcoming'),
+                            _filterChip(id: 'joined', label: 'Joined'),
+                            _filterChip(id: 'hosting', label: 'Hosting'),
+                          ],
+                        ),
                         const SizedBox(height: 18),
                         const Text(
-                          'Active Battles',
+                          'Live Battles',
                           style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         if (viewModel.isLoading)
                           const Center(child: CircularProgressIndicator())
-                        else if (viewModel.battles.isEmpty)
+                        else if (filteredBattles.isEmpty)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 12),
                             child: Text(
-                              'No active battles yet. Create your first battle to get started.',
+                              'No battles found in this filter.',
                               style: TextStyle(color: Colors.white60),
                             ),
                           )
                         else
-                          ...viewModel.battles.map((battle) => _battleCard(battle, viewModel)),
-                        const SizedBox(height: 24),
-                        LeaderboardHeader(),
-                        const SizedBox(height: 16),
-                        const LeaderboardItem(
-                          rank: 1,
-                          name: 'Alex Johnson',
-                          role: 'Captain',
-                          points: 485,
-                          progress: 0.95,
-                          color: AppColors.yellow,
-                        ),
-                        const SizedBox(height: 14),
-                        const LeaderboardItem(
-                          rank: 2,
-                          name: 'You',
-                          role: 'All-Star',
-                          points: 375,
-                          progress: 0.75,
-                          color: Colors.pinkAccent,
-                          isYou: true,
-                        ),
-                        const SizedBox(height: 14),
-                        const LeaderboardItem(
-                          rank: 3,
-                          name: 'Sarah Williams',
-                          role: 'Starter',
-                          points: 340,
-                          progress: 0.65,
-                          color: Colors.lightBlue,
-                        ),
+                          ...filteredBattles
+                              .map((battle) => _battleCard(battle, viewModel, user?.id)),
                       ],
                     );
                   },

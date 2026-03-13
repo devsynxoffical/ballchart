@@ -22,23 +22,37 @@ class AppNavigator extends StatefulWidget {
 
 class _AppNavigatorState extends State<AppNavigator> {
   int _currentIndex = 0;
+  String _effectiveRole = '';
   late List<Widget> _memoizedScreens;
 
   @override
   void initState() {
     super.initState();
+    _effectiveRole = widget.role;
     _memoizedScreens = _buildScreens();
     
     // Centralized profile load
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfileViewmodel>().loadProfile();
+      final profileVm = context.read<ProfileViewmodel>();
+      profileVm.loadProfile().then((_) {
+        final resolvedRole = profileVm.user?.role;
+        if (!mounted || resolvedRole == null || resolvedRole.isEmpty) return;
+        if (resolvedRole != _effectiveRole) {
+          setState(() {
+            _effectiveRole = resolvedRole;
+            _currentIndex = 0;
+            _memoizedScreens = _buildScreens();
+          });
+        }
+      });
     });
   }
 
   List<Widget> _buildScreens() {
-    final bool isHC = widget.role == 'head_coach';
+    final role = _effectiveRole;
+    final bool isHC = role == 'head_coach';
     final List<Widget> screens = [
-      (widget.role == 'coach' || widget.role == 'head_coach' || widget.role == 'assistant_coach')
+      (role == 'coach' || role == 'head_coach' || role == 'assistant_coach')
           ? const CoachHomeScreen()
           : const HomeScreen(),
     ];
@@ -109,7 +123,7 @@ class _AppNavigatorState extends State<AppNavigator> {
         bottomNavigationBar: CourtIQBottomNav(
           currentIndex: _currentIndex,
           onTap: _onNavTap,
-          role: widget.role,
+          role: _effectiveRole,
         ),
       ),
     );

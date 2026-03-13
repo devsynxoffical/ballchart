@@ -4,12 +4,29 @@ import '../services/api_service.dart';
 class AuthRepository {
   final ApiService _apiService = ApiService();
 
-  Future<UserModel> login(String email, String password) async {
+  Future<UserModel> login(
+    String email,
+    String password, {
+    String? preferredRole,
+  }) async {
+    final roleToEndpoint = <String, String>{
+      'admin': '/auth/admin/login',
+      'coach': '/auth/coach/login',
+      'player': '/auth/player/login',
+      'assistant_coach': '/auth/coach/login',
+      'head_coach': '/auth/coach/login',
+    };
+
+    final normalizedRole = preferredRole?.trim().toLowerCase();
+    final String? preferredEndpoint =
+        normalizedRole != null ? roleToEndpoint[normalizedRole] : null;
+
     final endpoints = <String>[
+      if (preferredEndpoint != null) preferredEndpoint,
       '/auth/admin/login',
       '/auth/coach/login',
       '/auth/player/login',
-    ];
+    ].toSet().toList();
 
     Exception? lastInvalidError;
 
@@ -22,6 +39,16 @@ class AuthRepository {
         final user = UserModel.fromJson(response);
         if (user.token != null) {
           await _apiService.saveToken(user.token!);
+          try {
+            final profile = await _apiService.get('/auth/profile');
+            return UserModel.fromJson({
+              ...response,
+              ...profile,
+              'token': user.token,
+            });
+          } catch (_) {
+            // If profile fetch fails, continue with login payload.
+          }
         }
         return user;
       } catch (e) {
