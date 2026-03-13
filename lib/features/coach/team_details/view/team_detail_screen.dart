@@ -16,11 +16,33 @@ class TeamDetailScreen extends StatefulWidget {
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
   final DashboardRepository _dashboardRepository = DashboardRepository();
 
+  String? _extractStaffName(
+    dynamic staffRef,
+    List<Map<String, dynamic>> staffList,
+  ) {
+    if (staffRef is Map) {
+      final mapped = staffRef.cast<String, dynamic>();
+      final username = mapped['username']?.toString();
+      if (username != null && username.isNotEmpty) return username;
+      final id = mapped['_id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        final matched = staffList.where((s) => s['_id']?.toString() == id).toList();
+        if (matched.isNotEmpty) return matched.first['username']?.toString();
+      }
+    } else if (staffRef != null) {
+      final id = staffRef.toString();
+      if (id.isNotEmpty) {
+        final matched = staffList.where((s) => s['_id']?.toString() == id).toList();
+        if (matched.isNotEmpty) return matched.first['username']?.toString();
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<ProfileViewmodel>().user;
-    final role = user?.role ?? 'player';
-    final canRemove = role != 'player';
+    final localRole = user?.role;
 
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
@@ -46,7 +68,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snapshot.data!;
+          final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
+          final role = (profile['role']?.toString() ?? localRole ?? 'coach');
+          final canManagePlayers = role != 'player';
+
           final teams = (data['teams'] as List? ?? [])
+              .cast<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+          final staffList = (data['staff'] as List? ?? [])
               .cast<Map>()
               .map((e) => e.cast<String, dynamic>())
               .toList();
@@ -58,12 +88,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               .cast<Map>()
               .map((e) => e.cast<String, dynamic>())
               .toList();
-          final coachName = (team['coachStaffId'] is Map)
-              ? (team['coachStaffId']['username']?.toString())
-              : null;
-          final assistantCoachName = (team['assistantCoachStaffId'] is Map)
-              ? (team['assistantCoachStaffId']['username']?.toString())
-              : null;
+          final coachName = _extractStaffName(team['coachStaffId'], staffList);
+          final assistantCoachName = _extractStaffName(team['assistantCoachStaffId'], staffList);
 
           return SingleChildScrollView(
             child: Column(
@@ -102,7 +128,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             p['username']?.toString() ?? 'Player',
                             p['position']?.toString() ?? '-',
                             '#',
-                            canRemove,
+                            canManagePlayers,
                             () {},
                           )),
                     ],
