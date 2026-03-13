@@ -41,6 +41,9 @@ class ProfileScreen extends StatelessWidget {
 
               final user = viewModel.user!;
               final isCoach = _isCoachRole(user.role);
+              final canCreatePlayer = user.role == 'admin' ||
+                  user.role == 'head_coach' ||
+                  (user.permissions?['createPlayer'] == true);
 
               return Column(
                 children: [
@@ -59,25 +62,26 @@ class ProfileScreen extends StatelessWidget {
                   if (isCoach) ...[
                     MyTeamsSection(teams: user.assignedTeams),
                     const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 24.0),
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Create Player Account'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.blue,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    if (canCreatePlayer)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.person_add),
+                          label: const Text('Create Player Account'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.blue,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => const CreatePlayerDialog(),
+                            );
+                          },
                         ),
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (_) => const CreatePlayerDialog(),
-                          );
-                        },
                       ),
-                    ),
                   ],
 
                   // Player: show team membership, coaching staff, teammates

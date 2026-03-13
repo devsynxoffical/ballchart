@@ -10,6 +10,7 @@ class UserModel {
   final String? academyId;
   final String? parentId; // createdBy
   final String? managedBy;
+  final Map<String, dynamic>? permissions;
 
   // Coach specific
   final String? experienceLevel;
@@ -33,6 +34,7 @@ class UserModel {
     this.academyId,
     this.parentId,
     this.managedBy,
+    this.permissions,
     this.stats = const {'matchesPlayed': 0, 'wins': 0, 'points': 0},
     this.rank = 0,
     this.profileCompleted = false,
@@ -58,6 +60,7 @@ class UserModel {
       academyId: json['academy'] is String ? json['academy'] : json['academy']?['_id'], // Handle population
       parentId: json['createdBy'],
       managedBy: json['managedBy'],
+      permissions: json['permissions'] is Map ? Map<String, dynamic>.from(json['permissions']) : null,
       stats: json['stats'] ?? {'matchesPlayed': 0, 'wins': 0, 'points': 0},
       rank: json['rank'] ?? 0,
       profileCompleted: json['profileCompleted'] ?? false,
@@ -91,6 +94,7 @@ class UserModel {
       'teamName': teamName,
       'academyName': teamName,
       'assignedTeams': assignedTeams,
+      'permissions': permissions,
       'position': position,
       'ageRange': ageRange,
       'goals': goals,

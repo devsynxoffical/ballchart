@@ -893,7 +893,7 @@ const getCoachDashboard = asyncHandler(async (req, res) => {
         };
 
     const teams = await Team.find(teamQuery)
-        .populate('players', 'username position ageRange stats')
+        .populate('players', 'username email position ageRange stats')
         .populate('coachStaffId', 'username email role')
         .populate('assistantCoachStaffId', 'username email role');
 

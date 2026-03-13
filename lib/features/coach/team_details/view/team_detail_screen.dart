@@ -72,7 +72,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           final data = snapshot.data!;
           final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
           final role = (profile['role']?.toString() ?? localRole ?? 'coach');
-          final canManagePlayers = role == 'admin' || role == 'head_coach' || role == 'coach';
+          final permissions = (profile['permissions'] as Map?)?.cast<String, dynamic>() ?? {};
+          final isAdminLike = role == 'admin' || role == 'head_coach';
+          final canCreatePlayers = isAdminLike || permissions['createPlayer'] == true;
+          final canUpdatePlayers = isAdminLike || permissions['updatePlayer'] == true;
+          final canDeletePlayers = isAdminLike || permissions['deletePlayer'] == true;
 
           final teams = (data['teams'] as List? ?? [])
               .cast<Map>()
@@ -106,6 +110,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     },
                     role: role,
                     teamId: teamId,
+                    canCreatePlayer: canCreatePlayers,
                     coachName: coachName,
                     assistantCoachName: assistantCoachName,
                   ),
@@ -134,12 +139,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             p['_id']?.toString() ?? '',
                             p['username']?.toString() ?? 'Player',
                             p['position']?.toString() ?? '-',
+                            p['email']?.toString() ?? '',
                             '#',
-                            canManagePlayers,
+                            canUpdatePlayers,
+                            canDeletePlayers,
                             () => _deletePlayer(p['_id']?.toString() ?? ''),
                             () => _editPlayerDialog(
                               p['_id']?.toString() ?? '',
                               p['username']?.toString() ?? '',
+                              p['email']?.toString() ?? '',
                               p['position']?.toString() ?? '',
                               p['ageRange']?.toString() ?? '',
                             ),
@@ -192,11 +200,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Future<void> _editPlayerDialog(
     String playerId,
     String currentName,
+    String currentEmail,
     String currentPosition,
     String currentAgeRange,
   ) async {
     if (playerId.isEmpty) return;
     final nameController = TextEditingController(text: currentName);
+    final emailController = TextEditingController(text: currentEmail);
+    final passwordController = TextEditingController();
     final positionController = TextEditingController(text: currentPosition);
     final ageRangeController = TextEditingController(text: currentAgeRange);
 
@@ -213,6 +224,25 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 controller: nameController,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(labelText: 'Name', labelStyle: TextStyle(color: Colors.white70)),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: emailController,
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Login Email', labelStyle: TextStyle(color: Colors.white70)),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: passwordController,
+                style: const TextStyle(color: Colors.white),
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Reset/New Password (optional)',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  helperText: 'Leave empty to keep current password',
+                  helperStyle: TextStyle(color: Colors.white38),
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -242,6 +272,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       await _staffService.updatePlayer(
         playerId: playerId,
         name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
         position: positionController.text.trim(),
         ageRange: ageRangeController.text.trim(),
       );
@@ -264,8 +296,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     String playerId,
     String name,
     String position,
+    String email,
     String number,
-    bool canRemove,
+    bool canEdit,
+    bool canDelete,
     VoidCallback onRemove,
     VoidCallback onEdit,
   ) {
@@ -281,21 +315,25 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               children: [
                 Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 Text(position, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                if (email.isNotEmpty)
+                  Text(email, style: const TextStyle(color: Colors.white38, fontSize: 11)),
               ],
             ),
           ),
-          if (canRemove)
+          if (canEdit || canDelete)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 20),
-                  onPressed: onEdit,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                  onPressed: onRemove,
-                ),
+                if (canEdit)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 20),
+                    onPressed: onEdit,
+                  ),
+                if (canDelete)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                    onPressed: onRemove,
+                  ),
               ],
             )
           else

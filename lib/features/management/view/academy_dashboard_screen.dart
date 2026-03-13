@@ -2056,9 +2056,16 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
-    final positionController = TextEditingController();
     final ageController = TextEditingController();
     String? selectedTeamId = initialTeamId;
+    String selectedPosition = 'Point Guard';
+    const positionOptions = <String>[
+      'Point Guard',
+      'Shooting Guard',
+      'Small Forward',
+      'Power Forward',
+      'Center',
+    ];
     showDialog(
       context: context,
       builder: (_) {
@@ -2122,9 +2129,18 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                       decoration: _dialogInputDecoration('Password', prefixIcon: Icons.lock_rounded),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: positionController,
+                    DropdownButtonFormField<String>(
+                      value: selectedPosition,
+                      dropdownColor: const Color(0xFF111827),
                       style: const TextStyle(color: Colors.white),
+                      items: positionOptions
+                          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => selectedPosition = val);
+                        }
+                      },
                       decoration: _dialogInputDecoration('Position', prefixIcon: Icons.sports_rounded),
                     ),
                     const SizedBox(height: 8),
@@ -2153,9 +2169,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                         Player(
                           id: provider.nextId('p'),
                           name: nameController.text.trim(),
-                          position: positionController.text.trim().isEmpty
-                              ? 'Guard'
-                              : positionController.text.trim(),
+                          position: selectedPosition,
                           age: age,
                         ),
                         email: emailController.text.trim(),

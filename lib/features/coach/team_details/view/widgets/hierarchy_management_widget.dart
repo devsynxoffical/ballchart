@@ -7,6 +7,7 @@ class HierarchyManagementWidget extends StatefulWidget {
   final Function(Map<String, String> player)? onPlayerAdded;
   final String role;
   final String teamId;
+  final bool canCreatePlayer;
   final String? coachName;
   final String? assistantCoachName;
 
@@ -15,6 +16,7 @@ class HierarchyManagementWidget extends StatefulWidget {
     this.onPlayerAdded,
     required this.role,
     required this.teamId,
+    required this.canCreatePlayer,
     this.coachName,
     this.assistantCoachName,
   });
@@ -87,10 +89,11 @@ class _HierarchyManagementWidgetState extends State<HierarchyManagementWidget> {
               const SizedBox(width: 8),
               const Text('Players Management', style: TextStyle(color: Colors.white)),
               const Spacer(),
-              IconButton(
-                 icon: const Icon(Icons.add_circle, color: AppColors.yellow),
-                 onPressed: () => _showCreatePlayerDialog(context),
-              )
+              if (widget.canCreatePlayer)
+                IconButton(
+                  icon: const Icon(Icons.add_circle, color: AppColors.yellow),
+                  onPressed: () => _showCreatePlayerDialog(context),
+                ),
             ],
           ),
         ),
