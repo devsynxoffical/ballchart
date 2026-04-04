@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-background text-text font-sans antialiased;
+    }
+}
+
+@layer components {
+    .btn-primary {
+        @apply px-8 py-4 bg-primary text-black font-bold rounded-full shadow-glow hover:bg-primary-hover transition-all duration-300 transform hover:scale-105 flex items-center gap-2;
+    }
+
+    .glass-card {
+        @apply bg-surface/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8;
+    }
+
+    .gradient-text {
+        @apply text-transparent bg-clip-text bg-gradient-to-r from-primary to-yellow-200;
+    }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-background;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-surface rounded-full border-2 border-background;
+}
