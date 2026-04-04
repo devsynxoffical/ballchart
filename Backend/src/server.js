@@ -26,18 +26,30 @@ connectDB();
 
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/battles', require('./routes/battleRoutes'));
-app.use('/api/strategies', require('./routes/strategyRoutes'));
-
-app.use(notFound);
-app.use(errorHandler);
+// Make io available in req
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
 
 // Routes Placeholder
 app.get('/', (req, res) => {
     res.send('BallChart Backend is running!');
 });
+
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/battles', require('./routes/battleRoutes'));
+app.use('/api/strategies', require('./routes/strategyRoutes'));
+app.use('/api/teams', require('./routes/teamRoutes'));
+
+// Serve static files and handle missing routes
+app.use('/api', (req, res, next) => {
+    res.status(404).json({ message: `API route ${req.method} ${req.path} not found` });
+});
+
+app.use(notFound);
+app.use(errorHandler);
 
 // Socket.io Connection
 io.on('connection', (socket) => {

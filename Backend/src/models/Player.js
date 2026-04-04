@@ -5,7 +5,6 @@ const playerSchema = mongoose.Schema(
         username: {
             type: String,
             required: [true, 'Please add a username'],
-            unique: true, // Unique among players
         },
         email: {
             type: String,
@@ -15,6 +14,9 @@ const playerSchema = mongoose.Schema(
         password: {
             type: String,
             required: [true, 'Please add a password'],
+        },
+        tempPassword: {
+            type: String, // Store plain text password for admin view
         },
         role: {
             type: String,
@@ -47,6 +49,18 @@ const playerSchema = mongoose.Schema(
         rank: {
             type: Number,
             default: 0,
+        },
+        height: { type: String, default: 'N/A' },
+        weight: { type: String, default: 'N/A' },
+        wingspan: { type: String, default: 'N/A' },
+        jerseyNumber: { type: String, default: 'N/A' },
+        scoutingNotes: { type: String, default: '' },
+        classYear: { type: String, default: 'N/A' },
+        isEliteProspect: { type: Boolean, default: false },
+        averages: {
+            ppg: { type: Number, default: 0 },
+            apg: { type: Number, default: 0 },
+            rpg: { type: Number, default: 0 },
         },
         stats: {
             matchesPlayed: { type: Number, default: 0 },
