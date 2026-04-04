@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/widgets/ballchart_bottom_nav.dart';
 import '../battle/view/battle_screen.dart';
 import '../home/view/home_screen.dart';
 import '../profile/view/profile_screen.dart';
@@ -119,11 +118,6 @@ class _AppNavigatorState extends State<AppNavigator> {
         body: IndexedStack(
           index: _currentIndex,
           children: _memoizedScreens,
-        ),
-        bottomNavigationBar: BallChartBottomNav(
-          currentIndex: _currentIndex,
-          onTap: _onNavTap,
-          role: _effectiveRole,
         ),
       ),
     );
