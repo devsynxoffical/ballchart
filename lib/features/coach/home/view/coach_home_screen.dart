@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../profile/viewmodel/profile_viewmodel.dart';
 import '../../../management/viewmodel/academy_provider.dart';
-import '../../battle/view/battle_screen.dart';
-import '../../strategy/view/strategy_screen.dart';
+import '../../../battle/view/battle_screen.dart';
+import '../../../strategy/view/strategy_screen.dart';
+import '../../../profile/view/profile_screen.dart';
 import 'widgets/teams_tab.dart';
 
 class CoachHomeScreen extends StatefulWidget {
@@ -37,8 +38,8 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
       ),
       body: IndexedStack(
         index: _currentTab,
-        children: const [
-          TeamsTab(),
+        children: [
+          const TeamsTab(),
           BattleScreen(),
           StrategyScreen(),
           ProfileScreen(),
