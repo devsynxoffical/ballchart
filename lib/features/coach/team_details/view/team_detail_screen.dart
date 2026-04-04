@@ -17,11 +17,15 @@ class TeamDetailScreen extends StatefulWidget {
 }
 
 class _AcademyTheme {
-  static const Color primaryContainer = Color(0xFFFDB927);
-  static const Color surfaceDim = Color(0xFF131313);
+  // BallChart Redesign Tokens - Same as Admin Panel
+  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color bgColor = Color(0xFF131313);
   static const Color surfaceContainer = Color(0xFF201F1F);
   static const Color surfaceHigh = Color(0xFF2A2A2A);
   static const Color surfaceHighest = Color(0xFF353534);
+  static const Color outlineColor = Color(0xFF9D8F79);
+  static const Color primaryContainer = Color(0xFFFDB927);
+  static const Color surfaceDim = Color(0xFF131313);
   static const Color outline = Color(0xFF9D8F79);
   static const Color tertiaryContainer = Color(0xFF14D7FF);
   static const Color tertiary = Color(0xFFADEBFF);
@@ -50,7 +54,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _AcademyTheme.surfaceDim,
+      backgroundColor: _AcademyTheme.bgColor,
       body: Consumer<AcademyProvider>(
         builder: (context, provider, _) {
           final team = provider.academy.teams.firstWhere(

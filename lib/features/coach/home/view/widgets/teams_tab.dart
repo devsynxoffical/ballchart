@@ -13,8 +13,12 @@ class TeamsTab extends StatefulWidget {
 }
 
 class _TeamsTabState extends State<TeamsTab> {
+  // BallChart Redesign Tokens - Same as Admin Panel
   static const Color primaryColor = Color(0xFFFFD900);
-  static const Color surfaceHigh = Color(0xFF201F1F);
+  static const Color bgColor = Color(0xFF131313);
+  static const Color surfaceContainer = Color(0xFF201F1F);
+  static const Color surfaceHigh = Color(0xFF2A2A2A);
+  static const Color surfaceHighest = Color(0xFF353534);
   static const Color outlineColor = Color(0xFF9D8F79);
 
   @override
@@ -35,10 +39,27 @@ class _TeamsTabState extends State<TeamsTab> {
         if (i == retryCount - 1) {
           // Last retry failed, show error
           if (mounted) {
+            String errorMessage = e.toString();
+            
+            // Handle specific error cases
+            if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
+              errorMessage = 'Authentication failed. Please log in again.';
+            } else if (errorMessage.contains('403') || errorMessage.contains('Forbidden')) {
+              errorMessage = 'Access denied. You do not have permission to view coach data.';
+            } else if (errorMessage.contains('Cannot read properties of undefined')) {
+              errorMessage = 'Connection error. Please check your internet connection.';
+            } else if (errorMessage.contains('Network')) {
+              errorMessage = 'Network error. Please check your connection and try again.';
+            } else if (errorMessage.contains('timeout')) {
+              errorMessage = 'Request timeout. Please try again.';
+            } else {
+              errorMessage = errorMessage.replaceAll('Exception: ', '');
+            }
+            
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Failed to load coach data: ${e.toString().replaceAll('Exception: ', '')}'),
-                backgroundColor: Colors.red,
+                content: Text('Failed to load coach data: $errorMessage'),
+                backgroundColor: Colors.redAccent,
                 duration: const Duration(seconds: 5),
                 action: SnackBarAction(
                   label: 'Retry',
@@ -83,30 +104,67 @@ class _TeamsTabState extends State<TeamsTab> {
             height: 400,
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(32),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 64),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error Loading Data',
-                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      provider.error!,
-                      style: const TextStyle(color: Colors.white70),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () => _loadDataWithRetry(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.black,
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: surfaceHigh,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: outlineColor.withValues(alpha: 0.2)),
                       ),
-                      child: const Text('RETRY'),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Error Loading Data',
+                            style: const TextStyle(
+                              color: Colors.white, 
+                              fontSize: 20, 
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Space Grotesk',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            provider.error!,
+                            style: const TextStyle(color: outlineColor, fontSize: 14),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: () => _loadDataWithRetry(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                'RETRY',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900, 
+                                  letterSpacing: 2,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -194,7 +252,7 @@ class _TeamsTabState extends State<TeamsTab> {
   }
 
   Widget _buildSquadCard(Map<String, dynamic> team) {
-    final color = Color((team['colorValue'] is int) ? team['colorValue'] as int : 0xFFFDB927);
+    final color = Color((team['colorValue'] is int) ? team['colorValue'] as int : primaryColor.value);
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -212,7 +270,13 @@ class _TeamsTabState extends State<TeamsTab> {
           color: surfaceHigh,
           borderRadius: BorderRadius.circular(24),
           border: Border(left: BorderSide(color: color, width: 4)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3), 
+              blurRadius: 20, 
+              offset: const Offset(0, 10)
+            ),
+          ],
         ),
         child: Stack(
           children: [
@@ -293,7 +357,18 @@ class _TeamsTabState extends State<TeamsTab> {
   Widget _buildNextBattleCard() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(
+        color: surfaceHigh, 
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: outlineColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2), 
+            blurRadius: 10, 
+            offset: const Offset(0, 4)
+          ),
+        ],
+      ),
       child: Column(
         children: [
           Row(
@@ -354,7 +429,18 @@ class _TeamsTabState extends State<TeamsTab> {
           flex: 2,
           child: Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(24), border: const Border(left: BorderSide(color: primaryColor, width: 4))),
+            decoration: BoxDecoration(
+              color: surfaceHigh, 
+              borderRadius: BorderRadius.circular(24), 
+              border: Border(left: BorderSide(color: primaryColor, width: 4)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2), 
+                  blurRadius: 10, 
+                  offset: const Offset(0, 4)
+                ),
+              ],
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -432,7 +518,11 @@ class _TeamsTabState extends State<TeamsTab> {
   Widget _buildIntelligenceFeed() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: const Color(0xFF1C1B1B), borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(
+        color: surfaceHigh, 
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: outlineColor.withValues(alpha: 0.1)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
