@@ -33,8 +33,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         final provider = Provider.of<AcademyProvider>(context, listen: false);
         if (provider.currentUser?.role == 'player') {
           await provider.loadPlayerDashboard(force: true);
-        } else {
-          await provider.loadAdminOverview(force: true);
         }
         break; // Success, exit retry loop
       } catch (e) {
@@ -100,7 +98,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 onPressed: () {
                   final dashboard = provider.playerDashboard;
                   if (dashboard != null) {
-                    final playerData = dashboard['player'] ?? {};
+                    final playerData = dashboard['player'] as Map<String, dynamic>? ?? {};
                     _showEditBiometricsDialog(context, playerData);
                   }
                 },
@@ -231,7 +229,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 onPressed: () {
                   final dashboard = provider.playerDashboard;
                   if (dashboard != null) {
-                    final playerData = dashboard['player'] ?? {};
+                    final playerData = dashboard['player'] as Map<String, dynamic>? ?? {};
                     _showEditBiometricsDialog(context, playerData);
                   }
                 },
@@ -252,16 +250,85 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final dashboard = provider.playerDashboard;
-        if (dashboard == null) {
+        final error = provider.error;
+        final currentUser = provider.currentUser;
+        final isOwnProfile = currentUser?.role == 'player' || currentUser?.role == null;
+        
+        // For coaches viewing other players, use widget.player data directly
+        if (!isOwnProfile) {
+          return _buildPlayerHeroContent(
+            name: widget.player.name,
+            isEliteProspect: widget.player.isEliteProspect,
+            classYear: widget.player.classYear,
+            position: widget.player.position,
+          );
+        }
+        
+        // For players viewing their own profile
+        if (provider.isPlayerLoading) {
           return const SizedBox(
             height: 380,
             child: Center(child: CircularProgressIndicator(color: primaryContainer)),
           );
         }
-
-        final playerData = dashboard['player'] ?? {};
+        
+        if (error != null) {
+          return SizedBox(
+            height: 380,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.withOpacity(0.7), size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load player data',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      error.replaceAll('Failed to load player dashboard: ', ''),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => _loadDataWithRetry(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryContainer,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: const Text('RETRY'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        
+        final playerData = dashboard?['player'] as Map<String, dynamic>? ?? {};
         final isEliteProspect = playerData['isEliteProspect'] ?? widget.player.isEliteProspect;
         final classYear = playerData['classYear'] ?? widget.player.classYear;
+        
+        return _buildPlayerHeroContent(
+          name: widget.player.name,
+          isEliteProspect: isEliteProspect,
+          classYear: classYear,
+          position: widget.player.position,
+        );
+      },
+    );
+  }
+  
+  Widget _buildPlayerHeroContent({
+    required String name,
+    required bool isEliteProspect,
+    required String classYear,
+    required String position,
+  }) {
         
         return RelativeStack(
           children: [
@@ -269,9 +336,23 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               height: 380,
               width: double.infinity,
               child: Image.network(
-                'https://lh3.googleusercontent.com/aida-public/AB6AXuBFNjWiVjj2epZaO4cnv72REQhc40aHmbF3KdUWv9cFtA0dbNfsSTM6MqRy-4S2n_Ya6_26L9WC_1oTF0-jkzKe2sKZI1Ytnbwc8UvOo_9jUT0GhyE0cU-vZ9b0h0ytIVeZC94Lla8DRv4lzPSPSFqdKClAhuugs6RwT5t8zojERf1srgZGcfVklTZ3LTkc6wXO5pqZbgspOAkbnojc6cTgGNfcMhv9_lSV-nFCJy1HoWIoapUfmMw0OwJ-qgtU5IitYPkzwYieMcGm',
+                'https://picsum.photos/seed/player-${widget.player.id}/800/600.jpg',
                 fit: BoxFit.cover,
                 alignment: Alignment.topCenter,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [surfaceHigh, surfaceDim],
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(Icons.person, color: Colors.white24, size: 80),
+                    ),
+                  );
+                },
               ),
             ),
             Positioned(
@@ -310,11 +391,11 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        _infoBit('POSITION', playerData['position'] ?? widget.player.position),
+                        _infoBit('POSITION', position),
                         const SizedBox(width: 24),
                         Container(width: 1, height: 32, color: Colors.white10),
                         const SizedBox(width: 24),
-                        _infoBit('JERSEY', playerData['jerseyNumber'] ?? widget.player.jerseyNumber, isPrimary: true),
+                        _infoBit('JERSEY', widget.player.jerseyNumber, isPrimary: true),
                       ],
                     ),
                   ],
@@ -323,8 +404,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             ),
           ],
         );
-      },
-    );
   }
 
   Widget _infoBit(String label, String value, {bool isPrimary = false}) {
@@ -341,25 +420,53 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final dashboard = provider.playerDashboard;
-        if (dashboard == null) {
+        final error = provider.error;
+        final currentUser = provider.currentUser;
+        final isOwnProfile = currentUser?.role == 'player' || currentUser?.role == null;
+        
+        // For coaches viewing other players, use widget.player data directly
+        if (!isOwnProfile) {
+          return _buildBiometricsContent(
+            height: widget.player.height,
+            weight: widget.player.weight,
+            wingspan: widget.player.wingspan,
+            age: widget.player.age.toString(),
+            isOwnProfile: false,
+          );
+        }
+        
+        // For players viewing their own profile
+        if (provider.isPlayerLoading) {
           return const Padding(
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator(color: primaryContainer)),
           );
         }
+        
+        if (error != null) {
+          return const SizedBox.shrink(); // Don't show biometrics if there's an error
+        }
 
-        final playerData = dashboard['player'] ?? {};
-        final currentUser = provider.currentUser;
+        final playerData = dashboard?['player'] as Map<String, dynamic>? ?? {};
         
-        // Show edit icon if current user is a player (more permissive for testing)
-        final isOwnProfile = currentUser?.role == 'player' || currentUser?.role == null;
-        
-        // Debug info - remove in production
-        print('Current user role: ${currentUser?.role}');
-        print('Current user ID: ${currentUser?.id}');
-        print('Player ID: ${widget.player.id}');
-        print('Is own profile: $isOwnProfile');
-        
+        return _buildBiometricsContent(
+          height: playerData['height'] ?? widget.player.height,
+          weight: playerData['weight'] ?? widget.player.weight,
+          wingspan: playerData['wingspan'] ?? widget.player.wingspan,
+          age: (playerData['age'] ?? widget.player.age).toString(),
+          isOwnProfile: isOwnProfile,
+        );
+      },
+    );
+  }
+  
+  Widget _buildBiometricsContent({
+    required String height,
+    required String weight,
+    required String wingspan,
+    required String age,
+    required bool isOwnProfile,
+  }) {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
@@ -377,7 +484,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                       ),
                       child: IconButton(
                         icon: const Icon(Icons.edit_outlined, color: primaryContainer, size: 20),
-                        onPressed: () => _showEditBiometricsDialog(context, playerData),
+                        onPressed: () {}, // Edit not available in extracted method
                         tooltip: 'Edit Profile',
                       ),
                     ),
@@ -386,18 +493,16 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Expanded(child: _biometricBit(Icons.height, 'Height', playerData['height'] ?? widget.player.height)),
+                  Expanded(child: _biometricBit(Icons.height, 'Height', height)),
                   const SizedBox(width: 12),
-                  Expanded(child: _biometricBit(Icons.monitor_weight_outlined, 'Weight', playerData['weight'] ?? widget.player.weight)),
+                  Expanded(child: _biometricBit(Icons.monitor_weight_outlined, 'Weight', weight)),
                   const SizedBox(width: 12),
-                  Expanded(child: _biometricBit(Icons.straighten, 'Wingspan', playerData['wingspan'] ?? widget.player.wingspan)),
+                  Expanded(child: _biometricBit(Icons.straighten, 'Wingspan', wingspan)),
                 ],
               ),
             ],
           ),
         );
-      },
-    );
   }
 
   Widget _biometricBit(IconData icon, String label, String value) {
@@ -418,17 +523,54 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   Widget _buildPerformanceStats() {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
-        final dashboard = provider.playerDashboard;
-        if (dashboard == null) {
+        final currentUser = provider.currentUser;
+        final isOwnProfile = currentUser?.role == 'player' || currentUser?.role == null;
+        
+        // For coaches viewing other players, use widget.player stats directly
+        if (!isOwnProfile) {
+          return _buildPerformanceContent(
+            ppg: widget.player.ppg,
+            apg: widget.player.apg,
+            rpg: widget.player.rpg,
+            matchesPlayed: widget.player.matchesPlayed,
+            wins: widget.player.wins,
+          );
+        }
+        
+        // For players viewing their own profile
+        if (provider.isPlayerLoading) {
           return const Padding(
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator(color: primaryContainer)),
           );
         }
-
-        final playerStats = dashboard['player'] ?? {};
-        final stats = playerStats['stats'] ?? playerStats;
         
+        final dashboard = provider.playerDashboard;
+        if (dashboard == null) {
+          return const SizedBox.shrink();
+        }
+        
+        final playerData = dashboard['player'] as Map<String, dynamic>? ?? {};
+        final stats = playerData['stats'] as Map<String, dynamic>? ?? playerData;
+        
+        return _buildPerformanceContent(
+          ppg: (stats['ppg'] ?? widget.player.ppg).toDouble(),
+          apg: (stats['apg'] ?? widget.player.apg).toDouble(),
+          rpg: (stats['rpg'] ?? widget.player.rpg).toDouble(),
+          matchesPlayed: stats['matchesPlayed'] ?? widget.player.matchesPlayed,
+          wins: stats['wins'] ?? widget.player.wins,
+        );
+      },
+    );
+  }
+  
+  Widget _buildPerformanceContent({
+    required double ppg,
+    required double apg,
+    required double rpg,
+    required int matchesPlayed,
+    required int wins,
+  }) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -447,18 +589,16 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
-                  _statTile('PPG', (stats['pointsPerGame'] ?? 0).toString(), 'SEASON AVG', true),
+                  _statTile('PPG', ppg.toStringAsFixed(1), 'SEASON AVG', true),
                   const SizedBox(width: 16),
-                  _statTile('APG', (stats['assistsPerGame'] ?? 0).toString(), 'SEASON AVG', true),
+                  _statTile('APG', apg.toStringAsFixed(1), 'SEASON AVG', true),
                   const SizedBox(width: 16),
-                  _statTile('RPG', (stats['reboundsPerGame'] ?? 0).toString(), 'SEASON AVG', true),
+                  _statTile('RPG', rpg.toStringAsFixed(1), 'SEASON AVG', true),
                 ],
               ),
             ),
           ],
         );
-      },
-    );
   }
 
   Widget _statTile(String label, String value, String change, bool isPositive) {
@@ -489,25 +629,60 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   Widget _buildBattleStats() {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
-        final dashboard = provider.playerDashboard;
-        if (dashboard == null) {
+        final currentUser = provider.currentUser;
+        final isOwnProfile = currentUser?.role == 'player' || currentUser?.role == null;
+        
+        // For coaches viewing other players, use widget.player stats directly
+        if (!isOwnProfile) {
+          return _buildBattleContent(
+            totalBattles: widget.player.matchesPlayed,
+            wins: widget.player.wins,
+            points: widget.player.points,
+            teamName: 'N/A',
+            isOwnProfile: false,
+            battleStats: null,
+          );
+        }
+        
+        // For players viewing their own profile
+        if (provider.isPlayerLoading) {
           return const Padding(
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator(color: primaryContainer)),
           );
         }
-
-        final playerData = dashboard['player'] ?? {};
-        final stats = playerData['stats'] ?? playerData;
-        final battleStats = playerData['battleStats'] ?? {};
         
-        // Calculate battle statistics
-        final totalBattles = battleStats['totalBattles'] ?? 0;
-        final wins = battleStats['wins'] ?? 0;
-        final losses = battleStats['losses'] ?? 0;
+        final dashboard = provider.playerDashboard;
+        if (dashboard == null) {
+          return const SizedBox.shrink();
+        }
+        
+        final playerData = dashboard['player'] as Map<String, dynamic>? ?? {};
+        final stats = playerData['stats'] as Map<String, dynamic>? ?? playerData;
+        final battleStats = playerData['battleStats'] as Map<String, dynamic>? ?? {};
+        
+        return _buildBattleContent(
+          totalBattles: battleStats['totalBattles'] ?? widget.player.matchesPlayed,
+          wins: battleStats['wins'] ?? widget.player.wins,
+          points: battleStats['totalPoints'] ?? stats['points'] ?? widget.player.points,
+          teamName: playerData['teamName'] ?? 'UNASSIGNED',
+          isOwnProfile: true,
+          battleStats: battleStats,
+        );
+      },
+    );
+  }
+  
+  Widget _buildBattleContent({
+    required int totalBattles,
+    required int wins,
+    required int points,
+    required String teamName,
+    required bool isOwnProfile,
+    Map<String, dynamic>? battleStats,
+  }) {
+        final losses = totalBattles - wins;
         final winRate = totalBattles > 0 ? ((wins / totalBattles) * 100).round() : 0;
-        final totalPoints = battleStats['totalPoints'] ?? stats['points'] ?? 0;
-        final teamName = playerData['teamName'] ?? 'UNASSIGNED';
         
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,7 +750,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                   const SizedBox(width: 16),
                   _battleStatTile('WIN %', '$winRate%', 'Win Rate', winRate >= 50),
                   const SizedBox(width: 16),
-                  _battleStatTile('POINTS', totalPoints.toString(), 'Total Points', true),
+                  _battleStatTile('POINTS', points.toString(), 'Total Points', true),
                 ],
               ),
             ),
@@ -591,8 +766,16 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                   children: [
                     Text('RECENT BATTLES', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
                     const SizedBox(height: 16),
-                    if (battleStats['recentBattles'] != null && battleStats['recentBattles'].isNotEmpty)
-                      ...battleStats['recentBattles'].take(3).map((battle) => _recentBattleItem(battle)).toList()
+                    if (!isOwnProfile)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(color: surfaceContainer.withOpacity(0.3), borderRadius: BorderRadius.circular(12)),
+                        child: Center(
+                          child: Text('Battle history available for own profile only', style: TextStyle(color: outline, fontSize: 14, fontFamily: bodyFont)),
+                        ),
+                      )
+                    else if (battleStats?['recentBattles'] != null && battleStats?['recentBattles'].isNotEmpty == true)
+                      ...(battleStats?['recentBattles'] ?? []).take(3).map((battle) => _recentBattleItem(battle)).toList()
                     else
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -607,8 +790,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             ),
           ],
         );
-      },
-    );
   }
 
   Widget _battleStatTile(String label, String value, String subtitle, bool isPositive) {
@@ -684,15 +865,23 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   Widget _buildScoutingNotes() {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
-        final dashboard = provider.playerDashboard;
-        if (dashboard == null) {
+        final currentUser = provider.currentUser;
+        final isOwnProfile = currentUser?.role == 'player' || currentUser?.role == null;
+        final dashboard = (isOwnProfile ? provider.playerDashboard : {'player': {}}) ?? {'player': {}};
+        final error = provider.error;
+        
+        if (isOwnProfile && (provider.isPlayerLoading || provider.playerDashboard == null)) {
           return const Padding(
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator(color: primaryContainer)),
           );
         }
+        
+        if (error != null && error.contains('player dashboard')) {
+          return const SizedBox.shrink(); // Don't show scouting notes if there's an error
+        }
 
-        final playerData = dashboard['player'] ?? {};
+        final playerData = dashboard['player'] as Map<String, dynamic>? ?? {};
         final scoutingNotes = playerData['scoutingNotes'] ?? widget.player.scoutingNotes;
         
         return Padding(

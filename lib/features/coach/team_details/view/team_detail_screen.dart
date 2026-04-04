@@ -57,10 +57,49 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       backgroundColor: _AcademyTheme.bgColor,
       body: Consumer<AcademyProvider>(
         builder: (context, provider, _) {
-          final team = provider.academy.teams.firstWhere(
-            (t) => t.name.toLowerCase() == widget.teamName.toLowerCase(),
-            orElse: () => Team(id: '', name: 'NOT FOUND', players: const []),
-          );
+          // Try to find team from coach dashboard first, then from academy
+          Team? team;
+          
+          // For coaches, check coach dashboard
+          if (provider.coachDashboard != null) {
+            final teams = (provider.coachDashboard!['teams'] as List? ?? [])
+                .cast<Map>()
+                .map((e) => e.cast<String, dynamic>())
+                .toList();
+            
+            final teamData = teams.firstWhere(
+              (t) => (t['name']?.toString().toLowerCase() ?? '') == widget.teamName.toLowerCase(),
+              orElse: () => {},
+            );
+            
+            if (teamData.isNotEmpty) {
+              // Convert coach dashboard team data to Team model
+              team = Team(
+                id: teamData['_id']?.toString() ?? teamData['id']?.toString() ?? '',
+                name: teamData['name']?.toString() ?? widget.teamName,
+                colorValue: teamData['colorValue'] as int? ?? 0xFFFDB927,
+                players: (teamData['players'] as List? ?? []).map<Player>((p) => 
+                  Player(
+                    id: p['_id']?.toString() ?? p['id']?.toString() ?? '',
+                    name: p['name']?.toString() ?? 'Unknown',
+                    email: p['email']?.toString() ?? '',
+                    position: p['position']?.toString() ?? '',
+                    age: p['age'] ?? 18,
+                  )
+                ).toList(),
+                coachStaffId: teamData['coachStaffId']?.toString(),
+                assistantCoachStaffId: teamData['assistantCoachStaffId']?.toString(),
+              );
+            }
+          }
+          
+          // If not found in coach dashboard, try academy (for admin)
+          if (team == null) {
+            team = provider.academy.teams.firstWhere(
+              (t) => t.name.toLowerCase() == widget.teamName.toLowerCase(),
+              orElse: () => Team(id: '', name: 'NOT FOUND', players: const []),
+            );
+          }
           
           if (team.id.isEmpty) {
             return const Center(child: Text('TEAM NOT FOUND', style: TextStyle(color: Colors.white)));
@@ -71,7 +110,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           final assistant = team.assistantCoachStaffId != null ? provider.getStaffById(team.assistantCoachStaffId) : null;
 
           return RefreshIndicator(
-            onRefresh: () => provider.loadAdminOverview(force: true),
+            onRefresh: () async {
+              final provider = Provider.of<AcademyProvider>(context, listen: false);
+              if (provider.currentUser?.role == 'admin') {
+                await provider.loadAdminOverview(force: true);
+              } else if (['coach', 'assistant_coach', 'head_coach'].contains(provider.currentUser?.role)) {
+                await provider.loadCoachDashboard(force: true);
+              }
+            },
             color: _AcademyTheme.primaryContainer,
             backgroundColor: _AcademyTheme.surfaceHigh,
             child: CustomScrollView(

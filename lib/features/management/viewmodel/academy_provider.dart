@@ -171,15 +171,45 @@ class AcademyProvider extends ChangeNotifier {
     if (_isPlayerLoading) return;
     if (_playerDashboard != null && !force) return;
 
+    // Check if user is authenticated
+    final token = await _apiService.getToken();
+    if (token == null) {
+      _error = 'Not authenticated. Please log in again.';
+      notifyListeners();
+      return;
+    }
+
     _isPlayerLoading = true;
+    _error = null;
     notifyListeners();
 
     try {
+      print('Loading player dashboard with token: ${token.substring(0, 10)}...');
       final response = await _apiService.get('/auth/dashboard/player');
+      print('Player dashboard response received: ${response.runtimeType}');
+      
       _playerDashboard = Map<String, dynamic>.from(response as Map);
       _setupSocketListeners();
+      print('Player dashboard loaded successfully');
     } catch (e) {
-      _error = e.toString();
+      String errorMessage = e.toString();
+      print('Error loading player dashboard: $errorMessage');
+      
+      // Handle specific error cases
+      if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (errorMessage.contains('403') || errorMessage.contains('Forbidden')) {
+        errorMessage = 'Access denied. You do not have permission to view player data.';
+      } else if (errorMessage.contains('Cannot read properties of undefined')) {
+        errorMessage = 'Connection error. Please check your internet connection.';
+      } else if (errorMessage.contains('Network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (errorMessage.contains('timeout')) {
+        errorMessage = 'Request timeout. Please try again.';
+      }
+      
+      _error = 'Failed to load player dashboard: $errorMessage';
+      print('Player dashboard error set: $_error');
     } finally {
       _isPlayerLoading = false;
       notifyListeners();
@@ -740,6 +770,10 @@ class AcademyProvider extends ChangeNotifier {
           'deletePlayer': staff.permissions.deletePlayer,
           'createTeam': staff.permissions.createTeam,
           'manageStaff': staff.permissions.manageStaff,
+          'createBattle': staff.permissions.createBattle,
+          'manageBattle': staff.permissions.manageBattle,
+          'createStrategy': staff.permissions.createStrategy,
+          'manageStrategy': staff.permissions.manageStrategy,
         },
       });
       
