@@ -3,6 +3,7 @@ const Admin = require('../models/Admin');
 const Coach = require('../models/Coach');
 const Player = require('../models/Player');
 const Team = require('../models/Team');
+const Battle = require('../models/Battle');
 
 const resolveAcademyScope = async (academyId) => {
     const academy = await Admin.findById(academyId).select('_id');
@@ -118,11 +119,14 @@ const getAcademyDetails = asyncHandler(async (req, res) => {
         throw new Error('Academy not found');
     }
 
-    const staff = await Coach.find({ managedBy: academyId }).select('-password');
-    const teams = await Team.find({ managedBy: academyId })
-        .populate('players', 'username email role position ageRange isVerified profileCompleted')
-        .populate('coachStaffId', 'username email role isVerified')
-        .populate('assistantCoachStaffId', 'username email role isVerified');
+    const [staff, teams, battles] = await Promise.all([
+        Coach.find({ managedBy: academyId }).select('-password'),
+        Team.find({ managedBy: academyId })
+            .populate('players', 'username email role position ageRange isVerified profileCompleted')
+            .populate('coachStaffId', 'username email role isVerified')
+            .populate('assistantCoachStaffId', 'username email role isVerified'),
+        Battle.find({ managedBy: academyId }).sort({ dateTime: -1 }).limit(20)
+    ]);
 
     const staffIds = staff.map((member) => member._id);
     const teamPlayerIds = teams.flatMap((team) => (team.players || []).map((player) => player._id));
@@ -153,10 +157,12 @@ const getAcademyDetails = asyncHandler(async (req, res) => {
         teams,
         staff,
         players,
+        battles,
         stats: {
             teams: teams.length,
             staff: staff.length,
             players: players.length,
+            battles: battles.length,
         },
     });
 });
@@ -248,7 +254,7 @@ const updateAcademyStatus = asyncHandler(async (req, res) => {
 
     const updated = await academy.save();
 
-    req.io.emit('ACADEMY_STATUS_UPDATED', { academyId: updated._id, status: updated.approvalStatus, action: normalizedAction });
+    req.io?.emit('ACADEMY_STATUS_UPDATED', { academyId: updated._id, status: updated.approvalStatus, action: normalizedAction });
 
     res.status(200).json({
         _id: updated._id,
@@ -285,7 +291,7 @@ const deleteAcademy = asyncHandler(async (req, res) => {
     await Coach.deleteMany({ managedBy: academyId });
     await academy.deleteOne();
 
-    req.io.emit('ACADEMY_DELETED', { academyId });
+    req.io?.emit('ACADEMY_DELETED', { academyId });
 
     res.status(200).json({ message: 'Academy and related data deleted successfully' });
 });
@@ -303,6 +309,7 @@ const deleteAcademyTeam = asyncHandler(async (req, res) => {
     }
 
     await team.deleteOne();
+    req.io?.emit('TEAM_DELETED', { academyId, teamId: req.params.teamId });
     res.status(200).json({ message: 'Team deleted successfully' });
 });
 
@@ -366,7 +373,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 
     await user.deleteOne();
 
-    req.io.emit('USER_DELETED', { id, type: resolvedType, academyId });
+    req.io?.emit('USER_DELETED', { id, type: resolvedType, academyId });
 
     res.status(200).json({ message: `${resolvedType === 'coach' ? 'Coach' : 'Player'} removed` });
 });
@@ -394,7 +401,7 @@ const verifyUser = asyncHandler(async (req, res) => {
     user.isVerified = !user.isVerified;
     const updatedUser = await user.save();
 
-    req.io.emit('USER_VERIFIED', { id: updatedUser._id, type: resolvedType, isVerified: updatedUser.isVerified, academyId });
+    req.io?.emit('USER_VERIFIED', { id: updatedUser._id, type: resolvedType, isVerified: updatedUser.isVerified, academyId });
 
     res.json({
         _id: updatedUser._id,

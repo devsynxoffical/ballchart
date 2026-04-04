@@ -118,7 +118,7 @@ const createBattle = asyncHandler(async (req, res) => {
         participants: [req.user.id], // Host is automatically a participant
     });
 
-    req.io.emit('BATTLE_CREATED', { academyId: academyScopeId, battleId: battle._id });
+    req.io?.emit('BATTLE_CREATED', { academyId: academyScopeId, battleId: battle._id });
 
     const usersMap = await resolveUsersByIds([battle.host, ...(battle.participants || [])]);
     res.status(201).json(serializeBattle(battle, usersMap, toIdString(req.user._id)));
@@ -179,7 +179,7 @@ const joinBattle = asyncHandler(async (req, res) => {
     battle.participants.push(req.user.id);
     await battle.save();
 
-    req.io.emit('BATTLE_JOINED', { battleId: battle._id, userId: req.user.id });
+    req.io?.emit('BATTLE_JOINED', { battleId: battle._id, userId: req.user.id });
 
     const usersMap = await resolveUsersByIds([battle.host, ...(battle.participants || [])]);
     res.status(200).json(serializeBattle(battle, usersMap, toIdString(req.user._id)));
