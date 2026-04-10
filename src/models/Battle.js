@@ -42,6 +42,10 @@ const battleSchema = mongoose.Schema(
         result: {
             type: String, // e.g., "15-12"
         },
+        metadata: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {},
+        },
     },
     {
         timestamps: true,

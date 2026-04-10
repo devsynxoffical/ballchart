@@ -50,6 +50,15 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
+    socket.on('join_tactical_room', ({ battleId }) => {
+        if (battleId) socket.join(`tactical:${battleId}`);
+    });
+
+    socket.on('TACTICAL_ANIMATION_FRAME', (payload) => {
+        if (!payload || !payload.battleId) return;
+        socket.to(`tactical:${payload.battleId}`).emit('TACTICAL_ANIMATION_FRAME', payload);
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });

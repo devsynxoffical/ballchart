@@ -74,6 +74,7 @@ const serializeBattle = (battle, usersMap, currentUserId) => {
         participantCount: participantIds.length,
         isJoined,
         canJoin: battle.status === 'pending' && !isJoined,
+        metadata: battle.metadata || {},
     };
 };
 
@@ -185,8 +186,49 @@ const joinBattle = asyncHandler(async (req, res) => {
     res.status(200).json(serializeBattle(battle, usersMap, toIdString(req.user._id)));
 });
 
+// @desc    Append execution / analytics event (Phase 3)
+// @route   POST /api/battles/:id/events
+// @access  Private
+const appendBattleEvent = asyncHandler(async (req, res) => {
+    const battle = await Battle.findById(req.params.id);
+    if (!battle) {
+        res.status(404);
+        throw new Error('Battle not found');
+    }
+
+    const academyScopeId = await resolveAcademyScopeId(req.user);
+    if (!academyScopeId || toIdString(battle.managedBy) !== toIdString(academyScopeId)) {
+        res.status(403);
+        throw new Error('Not authorized');
+    }
+
+    const { type, payload } = req.body;
+    if (!type) {
+        res.status(400);
+        throw new Error('Event type is required');
+    }
+
+    const meta = battle.metadata && typeof battle.metadata === 'object' ? battle.metadata : {};
+    const events = Array.isArray(meta.events) ? meta.events : [];
+    events.push({
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        at: new Date().toISOString(),
+        type: String(type),
+        payload: payload && typeof payload === 'object' ? payload : {},
+    });
+    meta.events = events;
+    battle.metadata = meta;
+    await battle.save();
+
+    req.io.emit('BATTLE_EVENT', { battleId: battle._id, type, academyId: academyScopeId });
+
+    const usersMap = await resolveUsersByIds([battle.host, ...(battle.participants || [])]);
+    res.status(200).json(serializeBattle(battle, usersMap, toIdString(req.user._id)));
+});
+
 module.exports = {
     createBattle,
     getBattles,
     joinBattle,
+    appendBattleEvent,
 };
