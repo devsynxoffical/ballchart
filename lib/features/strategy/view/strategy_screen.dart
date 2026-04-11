@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
-import '../../../core/constants/colors.dart';
 import '../../../core/models/strategy_model.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
+import '../../../core/widgets/dialogues/strategy_creation_options_sheet.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
 import '../viewmodel/strategy_viewmodel.dart';
 
@@ -14,8 +16,10 @@ class StrategyScreen extends StatefulWidget {
   State<StrategyScreen> createState() => _StrategyScreenState();
 }
 
+enum _StrategyMediaFilter { all, video, nonVideo }
+
 class _StrategyScreenState extends State<StrategyScreen> {
-  String _filter = 'all';
+  _StrategyMediaFilter _mediaFilter = _StrategyMediaFilter.all;
   StrategyViewmodel? _strategyViewmodel;
 
   static const Color primaryColor = Color(0xFFFFD900);
@@ -137,7 +141,9 @@ class _StrategyScreenState extends State<StrategyScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
+                  _buildMediaFilterRow(),
+                  const SizedBox(height: 24),
                   const Text('TACTICAL REELS', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                   const SizedBox(height: 16),
                   _buildTacticalReels(vm),
@@ -177,7 +183,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
             ),
             if (canCreate)
               GestureDetector(
-                onTap: () => _showCreateStrategyDialog(context),
+                onTap: () => _openStrategyCreationFlow(context),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(color: primaryColor, shape: BoxShape.circle),
@@ -190,20 +196,73 @@ class _StrategyScreenState extends State<StrategyScreen> {
     );
   }
 
+  bool _strategyHasVideo(StrategyModel s) => s.videoUrl.trim().isNotEmpty;
+
+  List<StrategyModel> _visibleStrategies(StrategyViewmodel vm) {
+    final list = vm.strategies;
+    switch (_mediaFilter) {
+      case _StrategyMediaFilter.all:
+        return list;
+      case _StrategyMediaFilter.video:
+        return list.where(_strategyHasVideo).toList();
+      case _StrategyMediaFilter.nonVideo:
+        return list.where((s) => !_strategyHasVideo(s)).toList();
+    }
+  }
+
+  Widget _buildMediaFilterRow() {
+    Widget chip(String label, _StrategyMediaFilter value) {
+      final selected = _mediaFilter == value;
+      return GestureDetector(
+        onTap: () => setState(() => _mediaFilter = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? primaryColor.withOpacity(0.2) : surfaceHigh,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: selected ? primaryColor : outlineColor.withOpacity(0.25)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? primaryColor : outlineColor,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip('ALL', _StrategyMediaFilter.all),
+        const SizedBox(width: 8),
+        chip('VIDEO', _StrategyMediaFilter.video),
+        const SizedBox(width: 8),
+        chip('NO VIDEO', _StrategyMediaFilter.nonVideo),
+      ],
+    );
+  }
+
   Widget _buildTacticalReels(StrategyViewmodel vm) {
     if (vm.isLoading) return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator(color: primaryColor)));
-    final strategies = vm.strategies;
+    final strategies = _visibleStrategies(vm);
     if (strategies.isEmpty) {
       return Container(
         height: 180,
         width: double.infinity,
         decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(24), border: Border.all(color: outlineColor.withOpacity(0.1), style: BorderStyle.solid)),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.video_library_outlined, color: outlineColor, size: 32),
-            SizedBox(height: 12),
-            Text('NO REELS UPLOADED', style: TextStyle(color: outlineColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            const Icon(Icons.video_library_outlined, color: outlineColor, size: 32),
+            const SizedBox(height: 12),
+            Text(
+              vm.strategies.isEmpty ? 'NO REELS UPLOADED' : 'NO STRATEGIES FOR THIS FILTER',
+              style: const TextStyle(color: outlineColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1),
+            ),
           ],
         ),
       );
@@ -220,20 +279,79 @@ class _StrategyScreenState extends State<StrategyScreen> {
   }
 
   Widget _reelCard(StrategyModel strategy) {
+    final thumb = ApiService.resolveMediaUrl(strategy.thumbnailUrl);
+    final hasPlayableVideo = _strategyHasVideo(strategy);
+    final resolvedVideo = ApiService.resolveMediaUrl(strategy.videoUrl);
+    final canPlayNetwork = resolvedVideo.startsWith('http://') || resolvedVideo.startsWith('https://');
+
     return GestureDetector(
-      onTap: () => _playVideo(context, strategy.videoUrl),
+      onTap: () {
+        if (hasPlayableVideo && canPlayNetwork) {
+          _playVideo(context, resolvedVideo);
+        } else {
+          _showStrategyDetailSheet(strategy, highlightVideo: false);
+        }
+      },
       child: Container(
         width: 160,
         margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(24), image: const DecorationImage(image: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuCsae0Oq9Kq-clgdaCm9T3cjOP2BdDAJGUHNDzwFJUZG2kOSJxvHLr5_Gwzo5QriHnVYOSyX26PB5HNtPSFR_z36-ONprr8QczHvqarbUS9k0T8IVlxdsk9HiN5Ww4CTifljkBIgUxa0tCGQYIOaYWPP0jBSPR3PpnLg7Ek2L1yFIGuod-gS5Kelq7B7O416-e1w5ZYM-I8m6pGCs8_NvyuVVhCdxMST0JNmiLXgEiRE1mNi_HWEcYAQXAf0RCFJzLbiqG4ytYczZlX'), fit: BoxFit.cover, opacity: 0.6)),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            colors: [surfaceHigh, surfaceHigh.withOpacity(0.85), bgColor],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          image: thumb.isNotEmpty
+              ? DecorationImage(
+                  image: NetworkImage(thumb),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.45), BlendMode.darken),
+                )
+              : null,
+        ),
         child: Stack(
           children: [
-            Positioned(bottom: 16, left: 16, right: 16, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(strategy.title.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'), maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Text(strategy.category.toUpperCase(), style: const TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
-            ])),
-            Center(child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: primaryColor, size: 24))),
+            if (hasPlayableVideo)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), borderRadius: BorderRadius.circular(8)),
+                  child: const Text('VIDEO', style: TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                ),
+              ),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    strategy.title.toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(strategy.category.toUpperCase(), style: const TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                ],
+              ),
+            ),
+            if (hasPlayableVideo && canPlayNetwork)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
+                  child: const Icon(Icons.play_arrow, color: primaryColor, size: 24),
+                ),
+              )
+            else if (!hasPlayableVideo)
+              Center(
+                child: Icon(Icons.movie_creation_outlined, color: outlineColor.withOpacity(0.6), size: 36),
+              ),
           ],
         ),
       ),
@@ -268,111 +386,176 @@ class _StrategyScreenState extends State<StrategyScreen> {
   }
 
   List<Widget> _buildPlaybookItems(StrategyViewmodel vm) {
-    if (vm.strategies.isEmpty) return [const Text('No plays active.', style: TextStyle(color: outlineColor))];
-    return vm.strategies.map((s) => _playbookItem(s)).toList();
+    final items = _visibleStrategies(vm);
+    if (items.isEmpty) {
+      return [
+        Text(
+          vm.strategies.isEmpty ? 'No plays in playbook.' : 'Nothing matches this filter.',
+          style: const TextStyle(color: outlineColor),
+        ),
+      ];
+    }
+    return items.map((s) => _playbookItem(s)).toList();
   }
 
   Widget _playbookItem(StrategyModel s) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF1C1B1B).withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.description, color: outlineColor, size: 18)),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final hasVideo = _strategyHasVideo(s);
+    final subtitle = '${s.category.toUpperCase()} • ${s.sourceType.toUpperCase()}'
+        '${hasVideo ? ' • VIDEO' : ''}';
+
+    return GestureDetector(
+      onTap: () => _showStrategyDetailSheet(s, highlightVideo: hasVideo),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1B1B).withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: hasVideo ? primaryColor.withOpacity(0.35) : outlineColor.withOpacity(0.08)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Row(
                 children: [
-                  Text(s.title.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                  Text('${s.category.toUpperCase()} • 2.4MB PDF', style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold)),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(hasVideo ? Icons.videocam_outlined : Icons.description, color: hasVideo ? primaryColor : outlineColor, size: 18),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.title.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(subtitle, style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ],
-          ),
-          const Icon(Icons.file_download_outlined, color: outlineColor, size: 20),
-        ],
+            ),
+            Icon(hasVideo ? Icons.play_circle_outline : Icons.chevron_right, color: outlineColor, size: 22),
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _showCreateStrategyDialog(BuildContext context) async {
-    final titleCtrl = TextEditingController();
-    final sourceCtrl = TextEditingController();
-    final videoCtrl = TextEditingController();
-    String category = 'general';
-    bool submitting = false;
+  void _showStrategyDetailSheet(StrategyModel s, {required bool highlightVideo}) {
+    final resolved = ApiService.resolveMediaUrl(s.videoUrl);
+    final canPlay = resolved.startsWith('http://') || resolved.startsWith('https://');
 
-    await showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: bgColor,
+      backgroundColor: surfaceHigh,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('PUBLISH TACTICS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, fontFamily: 'Space Grotesk')),
-                    const SizedBox(height: 20),
-                    _dialogField(titleCtrl, 'TITLE'),
-                    const SizedBox(height: 12),
-                    _dialogField(sourceCtrl, 'DETAILS / TRANSCRIPT', maxLines: 3),
-                    const SizedBox(height: 12),
-                    _dialogField(videoCtrl, 'VIDEO URL'),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: submitting ? null : () async {
-                          if (titleCtrl.text.isEmpty || videoCtrl.text.isEmpty) return;
-                          setSheetState(() => submitting = true);
-                          try {
-                            await context.read<StrategyViewmodel>().createStrategy(
-                              title: titleCtrl.text,
-                              category: category,
-                              sourceType: 'video',
-                              sourceText: sourceCtrl.text,
-                              videoUrl: videoCtrl.text,
-                            );
-                            if (context.mounted) Navigator.pop(sheetCtx);
-                          } finally {
-                            if (context.mounted) setSheetState(() => submitting = false);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.black, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                        child: Text(submitting ? 'PROCESSING...' : 'CONFIRM DEPLOYMENT', style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                      ),
-                    ),
-                  ],
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: outlineColor.withOpacity(0.35), borderRadius: BorderRadius.circular(4)),
+                  ),
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 16),
+                Text(s.title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
+                const SizedBox(height: 8),
+                Text('${s.category.toUpperCase()} • ${s.sourceType.toUpperCase()}', style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                const SizedBox(height: 16),
+                Text(s.sourceText, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.45)),
+                if (canPlay) ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _playVideo(context, resolved);
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('PLAY STRATEGY VIDEO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                    ),
+                  ),
+                ] else if (highlightVideo) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Add a valid HTTPS video URL when creating or editing this strategy to enable playback.',
+                    style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _dialogField(TextEditingController ctrl, String label, {int maxLines = 1}) {
-    return TextField(
-      controller: ctrl,
-      maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
-        filled: true,
-        fillColor: surfaceHigh,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+  Future<void> _openStrategyCreationFlow(BuildContext context) async {
+    final vm = context.read<StrategyViewmodel>();
+    final entry = await showStrategyCreationOptionsSheet(context);
+    if (!context.mounted || entry == null) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => CreateStrategyDialog(
+        entry: entry,
+        onStrategyCreated:
+            (title, description, category, sourceTypeForApi, plays, imagePath, videoUrl, tags, referenceUrl) async {
+          try {
+            await vm.createStrategy(
+                  title: title,
+                  category: category,
+                  sourceType: sourceTypeForApi,
+                  sourceText: description,
+                  videoUrl: (videoUrl ?? '').trim().isEmpty ? null : videoUrl!.trim(),
+                  tags: tags,
+                  metadata: {
+                    'playSteps': plays,
+                    'revisionState': 'draft',
+                    'creationEntry': entry.name,
+                    if (referenceUrl != null && referenceUrl.trim().isNotEmpty) 'referenceUrl': referenceUrl.trim(),
+                    if (imagePath != null && imagePath.isNotEmpty) 'localDiagramPath': imagePath,
+                  },
+                );
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Strategy created successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to create strategy: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
       ),
     );
   }

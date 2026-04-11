@@ -45,7 +45,7 @@ class Header extends StatelessWidget {
     final user = context.watch<ProfileViewmodel>().user;
     final name = user?.username ?? 'User';
     final role = user?.role ?? 'coach';
-    final academyName = user?.teamName?.trim() ?? '';
+    final academyName = ((user?.academyName ?? user?.teamName) ?? '').trim();
     final displayName = name.trim().isEmpty ? 'User' : name.split(' ').first;
     final roleLabel = _getRoleLabel(role);
     final badgeColor = _getRoleBadgeColor(role);
@@ -62,7 +62,7 @@ class Header extends StatelessWidget {
             height: 46,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [badgeColor, badgeColor.withValues(alpha: 0.6)],
+                colors: [badgeColor, badgeColor.withOpacity(0.6)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -112,9 +112,9 @@ class Header extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.14),
+              color: badgeColor.withOpacity(0.14),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: badgeColor.withValues(alpha: 0.45)),
+              border: Border.all(color: badgeColor.withOpacity(0.45)),
             ),
             child:
               Text(

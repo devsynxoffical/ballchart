@@ -94,7 +94,7 @@ class BattleRepository {
   }
 
   Future<BattleModel> joinBattle(String id) async {
-    final response = await _apiService.post('/battles/$id/join', {});
+    final response = await _apiService.put('/battles/$id/join', {});
     return BattleModel.fromJson(Map<String, dynamic>.from(response));
   }
 
@@ -162,5 +162,18 @@ class BattleRepository {
   Future<Map<String, dynamic>> getBattleStats() async {
     final response = await _apiService.get('/battles/stats');
     return Map<String, dynamic>.from(response as Map);
+  }
+
+  /// Phase 3 — append execution event (assist, turnover, etc.).
+  Future<BattleModel> appendBattleEvent(
+    String battleId, {
+    required String type,
+    Map<String, dynamic>? payload,
+  }) async {
+    final response = await _apiService.post('/battles/$battleId/events', {
+      'type': type,
+      'payload': payload ?? {},
+    });
+    return BattleModel.fromJson(Map<String, dynamic>.from(response));
   }
 }

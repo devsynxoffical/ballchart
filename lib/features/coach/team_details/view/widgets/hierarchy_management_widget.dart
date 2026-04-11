@@ -117,7 +117,7 @@ class _HierarchyManagementWidgetState extends State<HierarchyManagementWidget> {
               boxShadow: [
                 BoxShadow(
                   color: isActive
-                      ? (isRoot ? AppColors.yellow : AppColors.green).withValues(alpha: 0.4)
+                      ? (isRoot ? AppColors.yellow : AppColors.green).withOpacity(0.4)
                       : Colors.black26,
                   blurRadius: 10,
                   spreadRadius: 2,

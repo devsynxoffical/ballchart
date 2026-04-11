@@ -46,7 +46,7 @@ class StrategyRepository {
     required String category,
     required String sourceType,
     required String sourceText,
-    required String videoUrl,
+    String videoUrl = '',
     List<String>? tags,
     bool isPublic = true,
     Map<String, dynamic>? metadata,

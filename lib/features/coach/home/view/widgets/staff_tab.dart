@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateStaffDialog.dart';
 import 'package:ballchart/core/widgets/dialogues/CreatePlayerDialog.dart';
+import 'package:ballchart/core/models/local_academy_models.dart';
+import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 
 class StaffTab extends StatefulWidget {
   const StaffTab({super.key});
@@ -349,7 +351,26 @@ class _StaffTabState extends State<StaffTab> {
       context: context,
       builder: (_) => CreateStaffDialog(
         initialRole: 'Coach',
-        onStaffCreated: (staff) => _loadStaff(),
+        onStaffCreated: (staffData) async {
+          final provider = context.read<AcademyProvider>();
+          try {
+            await provider.addStaffToBackend(
+              Staff(
+                id: provider.nextId('s'),
+                name: staffData['name'] ?? '',
+                email: staffData['email'] ?? '',
+                password: staffData['password'] ?? '',
+                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+                customRoleName: staffData['customRoleName']?.toString(),
+                assignedTeamIds: const [],
+                permissions: Permissions.fromDynamic(staffData['permissions']),
+              ),
+            );
+          } catch (_) {
+            // addStaffToBackend surfaces error via provider.error
+          }
+          if (context.mounted) await _loadStaff();
+        },
       ),
     );
   }

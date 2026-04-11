@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../profile/viewmodel/profile_viewmodel.dart';
 import '../../../management/viewmodel/academy_provider.dart';
 import '../../../battle/view/battle_screen.dart';
-import '../../../strategy/view/strategy_screen.dart';
+import '../../../strategy/view/enhanced_strategy_screen.dart';
 import '../../../profile/view/profile_screen.dart';
 import 'widgets/teams_tab.dart';
 
@@ -41,7 +41,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
         children: [
           const TeamsTab(),
           BattleScreen(),
-          StrategyScreen(),
+          EnhancedStrategyScreen(),
           ProfileScreen(),
         ],
       ),
@@ -66,14 +66,14 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
             height: 48,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [primaryColor, primaryColor.withValues(alpha: 0.7)],
+                colors: [primaryColor, primaryColor.withOpacity(0.7)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: primaryColor.withValues(alpha: 0.3),
+                  color: primaryColor.withOpacity(0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -112,9 +112,9 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha: 0.15),
+                        color: primaryColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
+                        border: Border.all(color: primaryColor.withOpacity(0.4)),
                       ),
                       child: Text(
                         role.toUpperCase().replaceAll('_', ' '),
@@ -151,7 +151,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.5),
+                  color: Colors.green.withOpacity(0.5),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -167,7 +167,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
     return Container(
       decoration: BoxDecoration(
         color: surfaceContainer,
-        border: Border(top: BorderSide(color: outlineColor.withValues(alpha: 0.1))),
+        border: Border(top: BorderSide(color: outlineColor.withOpacity(0.1))),
       ),
       child: SafeArea(
         child: Padding(
@@ -194,7 +194,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? primaryColor.withValues(alpha: 0.1) : Colors.transparent,
+          color: isActive ? primaryColor.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(

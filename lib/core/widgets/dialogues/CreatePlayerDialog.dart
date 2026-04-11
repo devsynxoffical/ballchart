@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'package:ballchart/features/staff/service/staff_service.dart';
 
 class CreatePlayerDialog extends StatefulWidget {
@@ -31,12 +33,29 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   final TextEditingController _numberController = TextEditingController();
 
   final StaffService _staffService = StaffService();
+  final ImagePicker _imagePicker = ImagePicker();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   String? _errorMessage;
+  String? _profileImagePath;
 
   String _selectedPosition = 'PG';
   final List<String> _positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() {
+          _profileImagePath = image.path;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to pick image: $e';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -63,6 +82,13 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
     });
 
     try {
+      String? profileImageUrl;
+      
+      // Upload image if selected
+      if (_profileImagePath != null) {
+        profileImageUrl = await _staffService.uploadImage(File(_profileImagePath!));
+      }
+
       await _staffService.createPlayer(
         name: name,
         email: email,
@@ -70,6 +96,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         teamId: widget.teamId,
         number: _numberController.text.trim(),
         position: _selectedPosition,
+        profileImageUrl: profileImageUrl, // This is now nullable in the service
       );
 
       if (!mounted) return;
@@ -81,6 +108,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         'tempPassword': password,
         'number': _numberController.text.trim(),
         'position': _selectedPosition,
+        'profileImageUrl': profileImageUrl ?? '',
       });
 
       _showCredentialsDialog(context, name, email, password);
@@ -142,34 +170,47 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
   }
 
   Widget _buildPhotoSection() {
-    return Column(
-      children: [
-        Stack(
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: _AcademyTheme.outline.withOpacity(0.2), style: BorderStyle.none), // Custom dashed look is hard with BoxDecoration alone
-                color: _AcademyTheme.surfaceHigh,
+    return GestureDetector(
+      onTap: _pickImage,
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _AcademyTheme.outline.withOpacity(0.2), style: BorderStyle.none),
+                  color: _AcademyTheme.surfaceHigh,
+                ),
+                child: _profileImagePath != null
+                    ? ClipOval(
+                        child: Image.file(
+                          File(_profileImagePath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(child: Icon(Icons.person, color: _AcademyTheme.outline, size: 32));
+                          },
+                        ),
+                      )
+                    : const Center(child: Icon(Icons.add_a_photo_rounded, color: _AcademyTheme.outline, size: 32)),
               ),
-              child: const Center(child: Icon(Icons.add_a_photo_rounded, color: _AcademyTheme.outline, size: 32)),
-            ),
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(color: _AcademyTheme.primaryContainer, shape: BoxShape.circle),
-                child: const Icon(Icons.edit, color: Colors.black, size: 14),
+              Positioned(
+                bottom: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(color: _AcademyTheme.primaryContainer, shape: BoxShape.circle),
+                  child: const Icon(Icons.edit, color: Colors.black, size: 14),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Text('UPLOAD ATHLETE PROFILE IMAGE', style: TextStyle(color: _AcademyTheme.outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-      ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text('UPLOAD ATHLETE PROFILE IMAGE', style: TextStyle(color: _AcademyTheme.outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        ],
+      ),
     );
   }
 

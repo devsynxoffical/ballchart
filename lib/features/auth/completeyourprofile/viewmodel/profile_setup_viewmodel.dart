@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ballchart/core/repositories/profile_repository.dart';
+import '../../../../core/utils/user_friendly_errors.dart';
 import '../../../../routes/routes_names.dart';
 import 'package:provider/provider.dart';
 import '../../../../features/profile/viewmodel/profile_viewmodel.dart';
@@ -64,7 +65,10 @@ class ProfileSetupViewmodel extends ChangeNotifier {
       }
     } catch (e) {
       _setLoading(false);
-      _showError(context, e.toString());
+      final copy = resolveAuthDialogCopy(e, isSignup: false);
+      if (context.mounted) {
+        _showError(context, copy.message, title: copy.title);
+      }
     }
   }
 
@@ -109,16 +113,19 @@ class ProfileSetupViewmodel extends ChangeNotifier {
       }
     } catch (e) {
       _setLoading(false);
-      _showError(context, e.toString());
+      final copy = resolveAuthDialogCopy(e, isSignup: false);
+      if (context.mounted) {
+        _showError(context, copy.message, title: copy.title);
+      }
     }
   }
 
-  void _showError(BuildContext context, String message) {
+  void _showError(BuildContext context, String message, {String title = 'Error'}) {
     showDialog(
       context: context,
       builder: (context) => CustomDialog(
-        title: 'Error',
-        message: message.replaceAll('Exception: ', ''),
+        title: title,
+        message: message,
         isSuccess: false,
       ),
     );

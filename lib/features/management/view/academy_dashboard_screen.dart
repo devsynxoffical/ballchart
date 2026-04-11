@@ -1,13 +1,13 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/constants/colors.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateStaffDialog.dart';
+import 'package:ballchart/core/widgets/notification_panel.dart';
+import 'package:ballchart/core/widgets/permission_wrapper.dart';
 import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/staff/view/staff_list_screen.dart';
@@ -24,6 +24,7 @@ class AcademyDashboardScreen extends StatefulWidget {
 
 class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   int _currentTab = 0;
+  AcademyProvider? _academyProvider;
 
   // BallChart Redesign Tokens
   static const Color primaryColor = Color(0xFFFFD900);
@@ -42,10 +43,9 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       
       // Listen to provider changes for error/success messages
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          final provider = context.read<AcademyProvider>();
-          provider.addListener(_onProviderChanged);
-        }
+        if (!mounted) return;
+        _academyProvider = context.read<AcademyProvider>();
+        _academyProvider!.addListener(_onProviderChanged);
       });
     });
   }
@@ -64,6 +64,9 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
           duration: const Duration(seconds: 3),
         ),
       );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        provider.clearError();
+      });
     }
     
     // Show success message if exists
@@ -84,8 +87,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
 
   @override
   void dispose() {
-    final provider = context.read<AcademyProvider>();
-    provider.removeListener(_onProviderChanged);
+    _academyProvider?.removeListener(_onProviderChanged);
     super.dispose();
   }
 
@@ -121,24 +123,67 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: _buildTopAppBar(),
-      body: Consumer<AcademyProvider>(
-        builder: (context, provider, _) {
-          final body = _buildBody(provider);
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: KeyedSubtree(
-              key: ValueKey<int>(_currentTab),
-              child: body,
-            ),
-          );
-        },
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: _buildTopAppBar(),
+        body: Consumer<AcademyProvider>(
+          builder: (context, provider, _) {
+            final body = _buildBody(provider);
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: KeyedSubtree(
+                key: ValueKey<int>(_currentTab),
+                child: body,
+              ),
+            );
+          },
+        ),
+        bottomNavigationBar: _buildModernBottomNav(),
       ),
-      bottomNavigationBar: _buildModernBottomNav(),
+    );
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_currentTab != 0) {
+      if (mounted) setState(() => _currentTab = 0);
+      return false;
+    }
+    final shouldExit = await _showExitDialog(context);
+    if (shouldExit == true) {
+      SystemNavigator.pop();
+    }
+    return false;
+  }
+
+  Future<void> _handleBackNavigation() async {
+    await _onWillPop();
+  }
+
+  Future<bool?> _showExitDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: surfaceContainer,
+        title: const Text('Exit App', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Do you want to exit the application?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Exit', style: TextStyle(color: primaryColor)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -146,7 +191,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     return AppBar(
       backgroundColor: bgColor,
       elevation: 0,
-      leading: const Icon(Icons.menu, color: primaryColor),
+      automaticallyImplyLeading: false,
       title: const Text(
         'ELITE ACADEMY',
         style: TextStyle(
@@ -159,11 +204,20 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       ),
       actions: [
         IconButton(
-          onPressed: () {},
+          onPressed: () => _showNotificationPanel(context),
           icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  void _showNotificationPanel(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => const NotificationPanel(),
     );
   }
 
@@ -259,22 +313,28 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildActionButton(
-                  'Add Team', 
-                  Icons.group_add_rounded, 
-                  primaryColor, 
-                  Colors.black,
-                  () => _showCreateTeamDialog(context)
+                child: PermissionWrapper(
+                  permission: 'createTeam',
+                  child: _buildActionButton(
+                    'Add Team', 
+                    Icons.group_add_rounded, 
+                    primaryColor, 
+                    Colors.black,
+                    () => _showCreateTeamDialog(context)
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildActionButton(
-                  'Invite Staff', 
-                  Icons.person_add_rounded, 
-                  surfaceHigh, 
-                  Colors.white,
-                  () => _showInviteStaffDialog(context)
+                child: PermissionWrapper(
+                  permission: 'manageStaff',
+                  child: _buildActionButton(
+                    'Invite Staff', 
+                    Icons.person_add_rounded, 
+                    surfaceHigh, 
+                    Colors.white,
+                    () => _showInviteStaffDialog(context)
+                  ),
                 ),
               ),
             ],
@@ -427,7 +487,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TeamDetailScreen(teamName: team.name),
+                  builder: (context) => TeamDetailScreen(teamId: team.id, teamName: team.name),
                 ),
               );
             },
@@ -741,14 +801,10 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                 name: staffData['name'] ?? '',
                 email: staffData['email'] ?? '',
                 password: staffData['password'] ?? '',
-                role: staffData['role'] ?? 'coach',
-                customRoleName: staffData['customRoleName'],
+                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+                customRoleName: staffData['customRoleName']?.toString(),
                 assignedTeamIds: const [],
-                permissions: Permissions(
-                  createPlayer: true,
-                  readPlayer: true,
-                  updatePlayer: true,
-                ),
+                permissions: Permissions.fromDynamic(staffData['permissions']),
               ),
             );
           } catch (e) {
@@ -772,7 +828,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => TeamDetailScreen(teamName: team.name),
+                builder: (context) => TeamDetailScreen(teamId: team.id, teamName: team.name),
               ),
             );
           },

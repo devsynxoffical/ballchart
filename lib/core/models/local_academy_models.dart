@@ -58,6 +58,7 @@ class Player {
   double ppg;
   double apg;
   double rpg;
+  String? profileImageUrl;
 
   Player({
     required this.id,
@@ -79,6 +80,7 @@ class Player {
     this.ppg = 0.0,
     this.apg = 0.0,
     this.rpg = 0.0,
+    this.profileImageUrl,
   });
 }
 
@@ -239,6 +241,17 @@ class Permissions {
       createStrategy: map['createStrategy'] ?? false,
       manageStrategy: map['manageStrategy'] ?? false,
     );
+  }
+
+  /// API / dialog payloads where [raw] may be a generic [Map].
+  factory Permissions.fromDynamic(dynamic raw) {
+    if (raw == null) return Permissions();
+    if (raw is Map) {
+      return Permissions.fromMap(
+        Map<String, dynamic>.from(raw.map((k, v) => MapEntry(k.toString(), v))),
+      );
+    }
+    return Permissions();
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/features/coach/team_details/view/team_detail_screen.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
+import 'package:ballchart/core/services/api_service.dart';
 import '../../../../management/viewmodel/academy_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -33,7 +34,7 @@ class _TeamsTabState extends State<TeamsTab> {
   Future<void> _loadDataWithRetry({int retryCount = 3}) async {
     for (int i = 0; i < retryCount; i++) {
       try {
-        await context.read<AcademyProvider>().loadCoachDashboard();
+        await context.read<AcademyProvider>().loadCoachDashboard(force: true);
         break; // Success, exit retry loop
       } catch (e) {
         if (i == retryCount - 1) {
@@ -98,8 +99,8 @@ class _TeamsTabState extends State<TeamsTab> {
           );
         }
 
-        // Show error state
-        if (provider.error != null) {
+        // Only block on errors when coach dashboard did not load (avoid stale global errors from admin/other flows).
+        if (provider.error != null && provider.coachDashboard == null && !provider.isCoachLoading) {
           return SizedBox(
             height: 400,
             child: Center(
@@ -113,14 +114,14 @@ class _TeamsTabState extends State<TeamsTab> {
                       decoration: BoxDecoration(
                         color: surfaceHigh,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: outlineColor.withValues(alpha: 0.2)),
+                        border: Border.all(color: outlineColor.withOpacity(0.2)),
                       ),
                       child: Column(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.redAccent.withValues(alpha: 0.1),
+                              color: Colors.redAccent.withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
@@ -187,10 +188,12 @@ class _TeamsTabState extends State<TeamsTab> {
         }
 
         final dashboard = provider.coachDashboard!;
-        final teams = (dashboard['teams'] as List? ?? [])
-            .cast<Map>()
-            .map((e) => e.cast<String, dynamic>())
+        final allTeams = (dashboard['teams'] as List? ?? [])
+            .map((e) => e is Map ? Map<String, dynamic>.from(e as Map) : <String, dynamic>{})
+            .where((m) => m.isNotEmpty)
             .toList();
+
+        final teams = allTeams;
 
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -204,10 +207,23 @@ class _TeamsTabState extends State<TeamsTab> {
                 style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'COMMANDER OVERVIEW',
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+              Text(
+                teams.isEmpty ? 'NO TEAMS ASSIGNED' : 'MY TEAMS (${teams.length})',
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
               ),
+              if (teams.isEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'You haven\'t been assigned to any team yet. Contact your academy admin to get team assignments.',
+                  style: const TextStyle(color: outlineColor, fontSize: 14),
+                ),
+              ] else ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Teams under your command',
+                  style: const TextStyle(color: outlineColor, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
               const SizedBox(height: 32),
 
               // Active Squads Section
@@ -229,20 +245,17 @@ class _TeamsTabState extends State<TeamsTab> {
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 child: Row(
-                  children: [
-                    ...teams.map((team) => _buildSquadCard(team)),
-                    _buildAddSquadCard(),
-                  ],
+                  children: teams.map((team) => _buildSquadCard(team, dashboard, provider)).toList(),
                 ),
               ),
               const SizedBox(height: 32),
 
               // Bento Grid - Strategic Intelligence
-              _buildNextBattleCard(),
+              _buildNextBattleCard(dashboard),
               const SizedBox(height: 16),
-              _buildPerformanceRow(),
+              _buildPerformanceRow(teams),
               const SizedBox(height: 16),
-              _buildIntelligenceFeed(),
+              _buildIntelligenceFeed(dashboard, teams),
               const SizedBox(height: 40),
             ],
           ),
@@ -251,14 +264,97 @@ class _TeamsTabState extends State<TeamsTab> {
     );
   }
 
-  Widget _buildSquadCard(Map<String, dynamic> team) {
-    final color = Color((team['colorValue'] is int) ? team['colorValue'] as int : primaryColor.value);
+  String? _staffRefId(dynamic v) {
+    if (v == null) return null;
+    if (v is Map) return v['_id']?.toString();
+    return v.toString();
+  }
+
+  Map<String, int> _aggregatePlayerStats(Map<String, dynamic> team) {
+    int matches = 0, wins = 0;
+    for (final p in (team['players'] as List?) ?? []) {
+      if (p is! Map) continue;
+      final stats = p['stats'];
+      if (stats is Map) {
+        matches += ((stats['matchesPlayed'] as num?) ?? 0).toInt();
+        wins += ((stats['wins'] as num?) ?? 0).toInt();
+      }
+    }
+    return {'matches': matches, 'wins': wins};
+  }
+
+  String _teamWinRateLabel(Map<String, dynamic> team) {
+    final s = _aggregatePlayerStats(team);
+    final m = s['matches'] ?? 0;
+    final w = s['wins'] ?? 0;
+    if (m <= 0) return '—';
+    return '${((w / m) * 100).round()}%';
+  }
+
+  String _profileRankLabel(Map<String, dynamic> dashboard, AcademyProvider provider) {
+    final profile = dashboard['profile'];
+    if (profile is Map && profile['rank'] != null) {
+      return '#${profile['rank']}';
+    }
+    final r = provider.currentUser?.rank;
+    if (r != null && r > 0) return '#$r';
+    return '—';
+  }
+
+  int _totalPlayersAcross(List<Map<String, dynamic>> teams) {
+    var n = 0;
+    for (final t in teams) {
+      n += ((t['players'] as List?)?.length ?? 0);
+    }
+    return n;
+  }
+
+  Map<String, dynamic>? _topPerformerFromTeams(List<Map<String, dynamic>> teams) {
+    Map<String, dynamic>? best;
+    var bestPts = -1;
+    for (final t in teams) {
+      for (final p in (t['players'] as List?) ?? []) {
+        if (p is! Map) continue;
+        final stats = p['stats'];
+        final pts = stats is Map ? ((stats['points'] as num?) ?? 0).toInt() : 0;
+        if (pts > bestPts) {
+          bestPts = pts;
+          best = Map<String, dynamic>.from(p.map((k, v) => MapEntry(k.toString(), v)));
+          best['_squadName'] = t['name']?.toString() ?? '';
+        }
+      }
+    }
+    if (best == null || bestPts < 0) return null;
+    return best;
+  }
+
+  String _formatBattleTime(dynamic raw) {
+    final d = DateTime.tryParse(raw?.toString() ?? '');
+    if (d == null) return '';
+    final local = d.toLocal();
+    return '${local.month}/${local.day} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildSquadCard(Map<String, dynamic> team, Map<String, dynamic> dashboard, AcademyProvider provider) {
+    final cv = team['colorValue'];
+    final color = Color(cv is int ? cv : 0xFFFFD900);
+    final currentUser = provider.currentUser;
+    final coachId = _staffRefId(team['coachStaffId']);
+    final asstId = _staffRefId(team['assistantCoachStaffId']);
+    final isHeadCoach = coachId != null && coachId == currentUser?.id;
+    final isAsstCoach = asstId != null && asstId == currentUser?.id;
+    final role = isHeadCoach ? 'HEAD COACH' : (isAsstCoach ? 'ASSISTANT COACH' : 'STAFF COHORT');
+    final teamId = team['_id']?.toString();
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => TeamDetailScreen(teamName: team['name']?.toString() ?? ''),
+            builder: (context) => TeamDetailScreen(
+              teamId: teamId,
+              teamName: team['name']?.toString() ?? '',
+            ),
           ),
         );
       },
@@ -272,7 +368,7 @@ class _TeamsTabState extends State<TeamsTab> {
           border: Border(left: BorderSide(color: color, width: 4)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3), 
+              color: Colors.black.withOpacity(0.3), 
               blurRadius: 20, 
               offset: const Offset(0, 10)
             ),
@@ -288,21 +384,44 @@ class _TeamsTabState extends State<TeamsTab> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  team['name']?.toString().toUpperCase() ?? 'SQUAD',
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        team['name']?.toString().toUpperCase() ?? 'SQUAD',
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: primaryColor.withOpacity(0.4)),
+                      ),
+                      child: Text(
+                        role,
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 Text(
                   team['ageGroup']?.toString().toUpperCase() ?? 'ELITE DIVISION',
                   style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _miniMetric('88%', 'WIN RATE', primaryColor),
-                    _miniMetric('104.2', 'AVG PPG', Colors.white),
-                    _miniMetric('#1', 'RANK', const Color(0xFF28D8FF)),
+                    _miniMetric('${(team['players'] as List?)?.length ?? 0}', 'PLAYERS', primaryColor),
+                    _miniMetric(_teamWinRateLabel(team), 'WIN RATE', Colors.white),
+                    _miniMetric(_profileRankLabel(dashboard, provider), 'RANK', const Color(0xFF28D8FF)),
                   ],
                 ),
               ],
@@ -354,18 +473,25 @@ class _TeamsTabState extends State<TeamsTab> {
     );
   }
 
-  Widget _buildNextBattleCard() {
+  Widget _buildNextBattleCard(Map<String, dynamic> dashboard) {
+    final raw = dashboard['upcomingBattles'] as List<dynamic>? ?? [];
+    final battles = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    final next = battles.isNotEmpty ? battles.first : null;
+    final subtitle = next == null
+        ? 'NO MATCHES ON THE CALENDAR'
+        : '${(next['status'] ?? 'pending').toString().toUpperCase()} · ${_formatBattleTime(next['dateTime'])}';
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: surfaceHigh, 
+        color: surfaceHigh,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: outlineColor.withValues(alpha: 0.1)),
+        border: Border.all(color: outlineColor.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2), 
-            blurRadius: 10, 
-            offset: const Offset(0, 4)
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -373,46 +499,72 @@ class _TeamsTabState extends State<TeamsTab> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('NEXT BATTLE', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
+                  const Text(
+                    'NEXT BATTLE',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk'),
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: primaryColor, shape: BoxShape.circle)),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: next != null ? primaryColor : outlineColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       const SizedBox(width: 6),
-                      const Text('LIVE SCOUTING IN PROGRESS', style: TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
+                      ),
                     ],
                   ),
                 ],
               ),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('STADIUM: NORTH ARENA', style: TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold)),
-                  Text('VS KINGS 19', style: TextStyle(color: primaryColor, fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      next != null ? 'LOCATION' : '',
+                      style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      next != null ? (next['location']?.toString() ?? 'TBA') : '—',
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(color: primaryColor, fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Container(
-            height: 160,
+            height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
-              image: const DecorationImage(
-                image: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuCsae0Oq9Kq-clgdaCm9T3cjOP2BdDAJGUHNDzwFJUZG2kOSJxvHLr5_Gwzo5QriHnVYOSyX26PB5HNtPSFR_z36-ONprr8QczHvqarbUS9k0T8IVlxdsk9HiN5Ww4CTifljkBIgUxa0tCGQYIOaYWPP0jBSPR3PpnLg7Ek2L1yFIGuod-gS5Kelq7B7O416-e1w5ZYM-I8m6pGCs8_NvyuVVhCdxMST0JNmiLXgEiRE1mNi_HWEcYAQXAf0RCFJzLbiqG4ytYczZlX'),
-                fit: BoxFit.cover,
-                opacity: 0.3,
-              ),
+              color: surfaceContainer,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: outlineColor.withOpacity(0.12)),
             ),
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(16)),
-                child: const Text('LAUNCH STRATEGY REEL', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  next != null
+                      ? 'Scheduled ${_formatBattleTime(next['dateTime'])}'
+                      : 'When your academy schedules a battle, it will appear here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ),
@@ -421,23 +573,58 @@ class _TeamsTabState extends State<TeamsTab> {
     );
   }
 
-  Widget _buildPerformanceRow() {
+  Widget _topPerformerLeadAvatar(Map<String, dynamic> top) {
+    final resolved = ApiService.resolveMediaUrl(top['profileImageUrl']?.toString());
+    if (resolved.isNotEmpty && resolved.startsWith('http')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          resolved,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(color: surfaceHighest, borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.person, color: Colors.white24, size: 28),
+          ),
+        ),
+      );
+    }
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(color: surfaceHighest, borderRadius: BorderRadius.circular(12)),
+      child: const Icon(Icons.person, color: Colors.white24, size: 28),
+    );
+  }
+
+  Widget _buildPerformanceRow(List<Map<String, dynamic>> teams) {
+    final top = _topPerformerFromTeams(teams);
+    final stats = top != null && top['stats'] is Map ? Map<String, dynamic>.from(top['stats'] as Map) : <String, dynamic>{};
+    final pts = (stats['points'] as num?)?.toInt() ?? 0;
+    final mp = (stats['matchesPlayed'] as num?)?.toInt() ?? 0;
+    final wins = (stats['wins'] as num?)?.toInt() ?? 0;
+    final winRate = mp > 0 ? (wins / mp).clamp(0.0, 1.0) : 0.0;
+    final name = (top?['username'] ?? top?['name'] ?? '—').toString();
+    final pos = (top?['position'] ?? '—').toString();
+    final squad = (top?['_squadName'] ?? '').toString();
+
     return Row(
       children: [
-        // Top Performer
         Expanded(
-          flex: 2,
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: surfaceHigh, 
-              borderRadius: BorderRadius.circular(24), 
-              border: Border(left: BorderSide(color: primaryColor, width: 4)),
+              color: surfaceHigh,
+              borderRadius: BorderRadius.circular(24),
+              border: const Border(left: BorderSide(color: primaryColor, width: 4)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2), 
-                  blurRadius: 10, 
-                  offset: const Offset(0, 4)
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -452,62 +639,79 @@ class _TeamsTabState extends State<TeamsTab> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), image: const DecorationImage(image: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuAS5r7-UjNTYUNiVRabu8WY5a_46n_9v-l4Gtz8YRy30mWBdUJkOllmSki_xn3dgrguULK_0623q-M6yXHiD6sjSw0lBRvZ0PwYPLAgijXncSA6i6H7B27_eWjW84rXlSzAeBtdvlg0KmaJzd_77jtu9cTkQ6QIQQdCCwEtI5G5CXRj2WbPcu2lTUhor2n22ByhlYZFZwFO6FzjMUkiWOIhTbuoppEy2CQ5x1p_F2sizDaQ1kL2mshTnLmgFljBuk69zp-UGl-H77v6'), fit: BoxFit.cover)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('MARCUS REED', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          Text('POINT GUARD // #12', style: TextStyle(color: outlineColor, fontSize: 8), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ],
+                if (top == null)
+                  Text(
+                    'Roster stats will show your leading scorer once players have recorded games.',
+                    style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 12),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      _topPerformerLeadAvatar(top),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name.toUpperCase(),
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              squad.isNotEmpty ? '$pos · $squad' : pos,
+                              style: const TextStyle(color: outlineColor, fontSize: 8),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'PTS (SEASON)',
+                          style: TextStyle(color: outlineColor, fontSize: 7, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text('$pts', style: const TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'WIN RATE (GAMES)',
+                          style: TextStyle(color: outlineColor, fontSize: 7, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text('${(winRate * 100).round()}%', style: const TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: mp > 0 ? winRate : 0,
+                      backgroundColor: Colors.white.withOpacity(0.05),
+                      color: primaryColor,
+                      minHeight: 3,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(child: Text('PERFORMANCE INDEX', style: TextStyle(color: outlineColor, fontSize: 7, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    const SizedBox(width: 4),
-                    const Text('9.4', style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(value: 0.94, backgroundColor: Colors.white.withOpacity(0.05), color: primaryColor, minHeight: 3),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Enroll Athlete Quick Action
-        Expanded(
-          child: GestureDetector(
-            onTap: () {}, // Trigger CreatePlayerFlow
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [primaryColor, Color(0xFFFFDCA3)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.person_add, color: Colors.black, size: 28),
-                  SizedBox(height: 6),
-                  Text('ENROLL\nATHLETE', textAlign: TextAlign.center, style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk', height: 1.1)),
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ),
@@ -515,13 +719,39 @@ class _TeamsTabState extends State<TeamsTab> {
     );
   }
 
-  Widget _buildIntelligenceFeed() {
+  Widget _buildIntelligenceFeed(Map<String, dynamic> dashboard, List<Map<String, dynamic>> teams) {
+    final totalP = _totalPlayersAcross(teams);
+    final battles = (dashboard['upcomingBattles'] as List?) ?? [];
+    final nextBattle = battles.isNotEmpty && battles.first is Map ? Map<String, dynamic>.from(battles.first as Map) : null;
+    final top = _topPerformerFromTeams(teams);
+    final topName = top != null ? (top['username'] ?? top['name'] ?? 'Player').toString() : '';
+
+    final lines = <(String, Color, String)>[
+      (
+        '${teams.length} active squad${teams.length == 1 ? '' : 's'} · $totalP player${totalP == 1 ? '' : 's'} rostered',
+        outlineColor,
+        'LIVE',
+      ),
+      (
+        nextBattle != null
+            ? 'Next: ${nextBattle['location'] ?? 'Battle'} @ ${_formatBattleTime(nextBattle['dateTime'])}'
+            : 'No upcoming battles in the next window.',
+        const Color(0xFF28D8FF),
+        'OPS',
+      ),
+      (
+        top != null ? 'Scoring: $topName leads your squads (PTS from recorded games).' : 'Add athletes and log games to unlock insights.',
+        primaryColor,
+        'INSIGHT',
+      ),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: surfaceHigh, 
+        color: surfaceHigh,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: outlineColor.withValues(alpha: 0.1)),
+        border: Border.all(color: outlineColor.withOpacity(0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -534,9 +764,7 @@ class _TeamsTabState extends State<TeamsTab> {
             ],
           ),
           const SizedBox(height: 16),
-          _feedItem('U19 Elite: Performance analysis ready', const Color(0xFF28D8FF), '2M AGO'),
-          _feedItem('Medical Alert: J. Thompson (Ankle) update', Colors.redAccent, '1H AGO'),
-          _feedItem('Scouting: New prospect matches profile', primaryColor, '5H AGO'),
+          for (final line in lines) _feedItem(line.$1, line.$2, line.$3),
         ],
       ),
     );

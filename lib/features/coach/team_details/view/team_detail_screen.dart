@@ -5,12 +5,14 @@ import 'package:provider/provider.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/core/widgets/dialogues/CreatePlayerDialog.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
+import 'package:ballchart/core/services/api_service.dart';
 import '../../../../core/models/local_academy_models.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamName;
+  final String? teamId;
 
-  const TeamDetailScreen({super.key, required this.teamName});
+  const TeamDetailScreen({super.key, required this.teamName, this.teamId});
 
   @override
   State<TeamDetailScreen> createState() => _TeamDetailScreenState();
@@ -42,13 +44,152 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     super.initState();
     // Load fresh data when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<AcademyProvider>(context, listen: false);
-      if (provider.currentUser?.role == 'admin') {
-        provider.loadAdminOverview(force: true);
-      } else if (['coach', 'assistant_coach', 'head_coach'].contains(provider.currentUser?.role)) {
-        provider.loadCoachDashboard(force: true);
-      }
+      _loadDataWithRetry();
     });
+  }
+
+  Future<void> _loadDataWithRetry({int retryCount = 3}) async {
+    for (int i = 0; i < retryCount; i++) {
+      try {
+        final provider = Provider.of<AcademyProvider>(context, listen: false);
+        if (provider.currentUser?.role == 'admin') {
+          await provider.loadAdminOverview(force: true);
+        } else if (['coach', 'assistant_coach', 'head_coach'].contains(provider.currentUser?.role)) {
+          await provider.loadCoachDashboard(force: true);
+        }
+        break; // Success, exit retry loop
+      } catch (e) {
+        if (i == retryCount - 1) {
+          // Last retry failed, show error
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to load team data: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          // Wait before retrying
+          await Future.delayed(Duration(milliseconds: 1000 * (i + 1)));
+        }
+      }
+    }
+  }
+
+  static String? _refId(dynamic v) {
+    if (v == null) return null;
+    if (v is Map) return v['_id']?.toString();
+    return v.toString();
+  }
+
+  Player _playerFromCoachMap(Map<String, dynamic> p) {
+    final stats = (p['stats'] is Map) ? Map<String, dynamic>.from(p['stats'] as Map) : <String, dynamic>{};
+    final ageText = (p['ageRange'] ?? p['age'] ?? '16').toString();
+    final age = int.tryParse(RegExp(r'\d+').firstMatch(ageText)?.group(0) ?? '16') ?? 16;
+    return Player(
+      id: (p['_id'] ?? p['id'] ?? '').toString(),
+      name: (p['username'] ?? p['name'] ?? 'Unknown Player').toString(),
+      email: (p['email'] ?? p['loginEmail'] ?? (p['user'] is Map ? p['user']['email']?.toString() : null) ?? '').toString(),
+      position: (p['position'] ?? 'Player').toString(),
+      age: age,
+      matchesPlayed: (stats['matchesPlayed'] as num?)?.toInt() ?? 0,
+      wins: (stats['wins'] as num?)?.toInt() ?? 0,
+      points: (stats['points'] as num?)?.toInt() ?? 0,
+      tempPassword: p['tempPassword']?.toString() ??
+          p['password']?.toString() ??
+          (p['credentials'] is Map ? p['credentials']['tempPassword']?.toString() : null),
+      height: p['height']?.toString() ?? 'N/A',
+      weight: p['weight']?.toString() ?? 'N/A',
+      wingspan: p['wingspan']?.toString() ?? 'N/A',
+      classYear: p['classYear']?.toString() ?? 'N/A',
+      isEliteProspect: p['isEliteProspect'] as bool? ?? false,
+      profileImageUrl: () {
+        final raw = p['profileImageUrl']?.toString().trim();
+        if (raw == null || raw.isEmpty) return null;
+        final u = ApiService.resolveMediaUrl(raw);
+        return u.isEmpty ? null : u;
+      }(),
+    );
+  }
+
+  Team? _teamFromDashboardMap(Map<String, dynamic> teamData) {
+    final id = teamData['_id']?.toString() ?? teamData['id']?.toString() ?? '';
+    if (id.isEmpty) return null;
+    final players = <Player>[];
+    for (final p in (teamData['players'] as List? ?? [])) {
+      if (p is Map) {
+        final pl = _playerFromCoachMap(Map<String, dynamic>.from(p));
+        if (pl.id.isNotEmpty) players.add(pl);
+      }
+    }
+    final cv = teamData['colorValue'];
+    return Team(
+      id: id,
+      name: teamData['name']?.toString() ?? widget.teamName,
+      ageGroup: teamData['ageGroup']?.toString() ?? 'Open',
+      colorValue: cv is int ? cv : 0xFFFDB927,
+      logoPath: teamData['logoPath']?.toString(),
+      players: players,
+      coachStaffId: _refId(teamData['coachStaffId']),
+      assistantCoachStaffId: _refId(teamData['assistantCoachStaffId']),
+    );
+  }
+
+  /// Coach dashboard row if present, else academy [Team], plus optional raw map for populated staff names.
+  (Team, Map<String, dynamic>?)? _resolveTeam(AcademyProvider provider) {
+    if (provider.coachDashboard != null) {
+      final teams = (provider.coachDashboard!['teams'] as List? ?? [])
+          .map((e) => e is Map ? Map<String, dynamic>.from(e as Map) : <String, dynamic>{})
+          .where((m) => m.isNotEmpty)
+          .toList();
+
+      Map<String, dynamic>? teamData;
+      if (widget.teamId != null && widget.teamId!.isNotEmpty) {
+        for (final t in teams) {
+          if (t['_id']?.toString() == widget.teamId) {
+            teamData = t;
+            break;
+          }
+        }
+      }
+      teamData ??= () {
+        try {
+          return teams.firstWhere(
+            (t) => (t['name']?.toString().toLowerCase() ?? '') == widget.teamName.toLowerCase(),
+          );
+        } catch (_) {
+          return null;
+        }
+      }();
+
+      if (teamData != null) {
+        final team = _teamFromDashboardMap(teamData);
+        if (team != null) return (team, teamData);
+      }
+    }
+
+    try {
+      final t = provider.academy.teams.firstWhere((x) {
+        if (widget.teamId != null && widget.teamId!.isNotEmpty) return x.id == widget.teamId;
+        return x.name.toLowerCase() == widget.teamName.toLowerCase();
+      });
+      if (t.id.isEmpty) return null;
+      return (t, null);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _leadDisplayName(AcademyProvider provider, Map<String, dynamic>? raw, String key, String? staffId) {
+    if (raw != null) {
+      final v = raw[key];
+      if (v is Map && (v['username'] != null)) return v['username'].toString();
+    }
+    if (staffId != null && staffId.isNotEmpty) {
+      return provider.getStaffById(staffId)?.name ?? 'NOT ASSIGNED';
+    }
+    return 'NOT ASSIGNED';
   }
 
   @override
@@ -57,67 +198,20 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       backgroundColor: _AcademyTheme.bgColor,
       body: Consumer<AcademyProvider>(
         builder: (context, provider, _) {
-          // Try to find team from coach dashboard first, then from academy
-          Team? team;
-          
-          // For coaches, check coach dashboard
-          if (provider.coachDashboard != null) {
-            final teams = (provider.coachDashboard!['teams'] as List? ?? [])
-                .cast<Map>()
-                .map((e) => e.cast<String, dynamic>())
-                .toList();
-            
-            final teamData = teams.firstWhere(
-              (t) => (t['name']?.toString().toLowerCase() ?? '') == widget.teamName.toLowerCase(),
-              orElse: () => {},
-            );
-            
-            if (teamData.isNotEmpty) {
-              // Convert coach dashboard team data to Team model
-              team = Team(
-                id: teamData['_id']?.toString() ?? teamData['id']?.toString() ?? '',
-                name: teamData['name']?.toString() ?? widget.teamName,
-                colorValue: teamData['colorValue'] as int? ?? 0xFFFDB927,
-                players: (teamData['players'] as List? ?? []).map<Player>((p) => 
-                  Player(
-                    id: p['_id']?.toString() ?? p['id']?.toString() ?? '',
-                    name: p['name']?.toString() ?? 'Unknown',
-                    email: p['email']?.toString() ?? '',
-                    position: p['position']?.toString() ?? '',
-                    age: p['age'] ?? 18,
-                  )
-                ).toList(),
-                coachStaffId: teamData['coachStaffId']?.toString(),
-                assistantCoachStaffId: teamData['assistantCoachStaffId']?.toString(),
-              );
-            }
-          }
-          
-          // If not found in coach dashboard, try academy (for admin)
-          if (team == null) {
-            team = provider.academy.teams.firstWhere(
-              (t) => t.name.toLowerCase() == widget.teamName.toLowerCase(),
-              orElse: () => Team(id: '', name: 'NOT FOUND', players: const []),
-            );
-          }
-          
-          if (team.id.isEmpty) {
+          final resolved = _resolveTeam(provider);
+          if (resolved == null) {
             return const Center(child: Text('TEAM NOT FOUND', style: TextStyle(color: Colors.white)));
           }
+          final team = resolved.$1;
+          final teamRaw = resolved.$2;
+          final canAssignLeads = provider.currentUser?.role == 'admin';
 
           final teamColor = Color(team.colorValue);
-          final coach = team.coachStaffId != null ? provider.getStaffById(team.coachStaffId) : null;
-          final assistant = team.assistantCoachStaffId != null ? provider.getStaffById(team.assistantCoachStaffId) : null;
+          final coachName = _leadDisplayName(provider, teamRaw, 'coachStaffId', team.coachStaffId);
+          final asstName = _leadDisplayName(provider, teamRaw, 'assistantCoachStaffId', team.assistantCoachStaffId);
 
           return RefreshIndicator(
-            onRefresh: () async {
-              final provider = Provider.of<AcademyProvider>(context, listen: false);
-              if (provider.currentUser?.role == 'admin') {
-                await provider.loadAdminOverview(force: true);
-              } else if (['coach', 'assistant_coach', 'head_coach'].contains(provider.currentUser?.role)) {
-                await provider.loadCoachDashboard(force: true);
-              }
-            },
+            onRefresh: () => _loadDataWithRetry(),
             color: _AcademyTheme.primaryContainer,
             backgroundColor: _AcademyTheme.surfaceHigh,
             child: CustomScrollView(
@@ -137,12 +231,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         _buildActiveRoster(team.players, team.id),
                         const SizedBox(height: 40),
                         _buildCommandStaff(
-                          coach?.name ?? 'NOT ASSIGNED', 
-                          assistant?.name ?? 'NOT ASSIGNED', 
-                          team.id, 
-                          team.coachStaffId, 
-                          team.assistantCoachStaffId, 
-                          teamColor
+                          coachName,
+                          asstName,
+                          team.id,
+                          team.coachStaffId,
+                          team.assistantCoachStaffId,
+                          teamColor,
+                          canAssignLeads,
                         ),
                         const SizedBox(height: 40),
                         _buildBattleLog(teamColor, provider.academy.battles, team.players),
@@ -158,18 +253,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       ),
       floatingActionButton: Consumer<AcademyProvider>(
         builder: (context, provider, _) {
-          final team = provider.academy.teams.firstWhere(
-            (t) => t.name.toLowerCase() == widget.teamName.toLowerCase(),
-            orElse: () => Team(id: '', name: '', players: const []),
-          );
-          if (team.id.isEmpty) return const SizedBox.shrink();
-          
+          final resolved = _resolveTeam(provider);
+          if (resolved == null) return const SizedBox.shrink();
+          final team = resolved.$1;
           return FloatingActionButton(
+            heroTag: 'team_detail_add_player_fab',
             onPressed: () => _showAddPlayerDialog(context, team.id),
             backgroundColor: Color(team.colorValue),
             child: const Icon(Icons.person_add_rounded, color: Colors.black),
           );
-        }
+        },
       ),
     );
   }
@@ -212,7 +305,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     if (logoPath != null && logoPath.startsWith('data:')) {
       logo = Image.memory(base64Decode(logoPath.split(',').last), fit: BoxFit.contain, width: 80, height: 80);
     } else if (logoPath != null && logoPath.isNotEmpty) {
-      logo = Image.network(logoPath, fit: BoxFit.contain, width: 80, height: 80);
+      final url = ApiService.resolveMediaUrl(logoPath);
+      logo = url.isEmpty
+          ? Icon(Icons.sports_basketball_rounded, color: teamColor, size: 80)
+          : Image.network(
+              url,
+              fit: BoxFit.contain,
+              width: 80,
+              height: 80,
+              errorBuilder: (_, __, ___) => Icon(Icons.sports_basketball_rounded, color: teamColor, size: 80),
+            );
     } else {
       logo = Icon(Icons.sports_basketball_rounded, color: teamColor, size: 80);
     }
@@ -343,7 +445,24 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: _AcademyTheme.surfaceHighest),
-                child: const Center(child: Icon(Icons.person, color: Colors.white10, size: 60)),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: player.profileImageUrl != null && player.profileImageUrl!.isNotEmpty
+                      ? Image.network(
+                          player.profileImageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(child: Icon(Icons.person, color: Colors.white10, size: 60));
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(color: _AcademyTheme.primaryContainer, strokeWidth: 2),
+                            );
+                          },
+                        )
+                      : const Center(child: Icon(Icons.person, color: Colors.white10, size: 60)),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -396,7 +515,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _buildCommandStaff(String head, String asst, String? teamId, String? currentCoachId, String? currentAsstId, Color teamColor) {
+  Widget _buildCommandStaff(
+    String head,
+    String asst,
+    String? teamId,
+    String? currentCoachId,
+    String? currentAsstId,
+    Color teamColor,
+    bool canAssignLeads,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -404,26 +531,37 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('COMMAND STAFF', style: TextStyle(color: teamColor, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: _AcademyTheme.headlineFont)),
-            IconButton(
-              onPressed: () => _showAssignStaffDialog(context, teamId, false, currentCoachId, currentAsstId),
-              icon: Icon(Icons.settings_suggest_rounded, color: teamColor, size: 20),
-              tooltip: 'Assign Staff',
-            ),
+            if (canAssignLeads)
+              IconButton(
+                onPressed: () => _showAssignStaffDialog(context, teamId, false, currentCoachId, currentAsstId),
+                icon: Icon(Icons.settings_suggest_rounded, color: teamColor, size: 20),
+                tooltip: 'Assign Staff',
+              )
+            else
+              const SizedBox(width: 48),
           ],
         ),
         const SizedBox(height: 16),
         Row(
           children: [
-            _staffTile(head, 'HEAD COACH', () => _showAssignStaffDialog(context, teamId, false, currentCoachId, currentAsstId)),
+            _staffTile(
+              head,
+              'HEAD COACH',
+              canAssignLeads ? () => _showAssignStaffDialog(context, teamId, false, currentCoachId, currentAsstId) : null,
+            ),
             const SizedBox(width: 12),
-            _staffTile(asst, 'ASSISTANT', () => _showAssignStaffDialog(context, teamId, true, currentCoachId, currentAsstId)),
+            _staffTile(
+              asst,
+              'ASSISTANT',
+              canAssignLeads ? () => _showAssignStaffDialog(context, teamId, true, currentCoachId, currentAsstId) : null,
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _staffTile(String name, String role, VoidCallback onAssign) {
+  Widget _staffTile(String name, String role, VoidCallback? onAssign) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -435,15 +573,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             Text(role, style: const TextStyle(color: _AcademyTheme.primaryContainer, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 2)),
             const SizedBox(height: 4),
             Text(name.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onAssign,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(border: Border.all(color: _AcademyTheme.primaryContainer.withOpacity(0.3)), borderRadius: BorderRadius.circular(20)),
-                child: const Text('ASSIGN', style: TextStyle(color: _AcademyTheme.primaryContainer, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            if (onAssign != null) ...[
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: onAssign,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(border: Border.all(color: _AcademyTheme.primaryContainer.withOpacity(0.3)), borderRadius: BorderRadius.circular(20)),
+                  child: const Text('ASSIGN', style: TextStyle(color: _AcademyTheme.primaryContainer, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -519,13 +659,24 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   void _showAssignStaffDialog(BuildContext context, String? teamId, bool isAssistant, String? currentCoachId, String? currentAsstId) {
     if (teamId == null) return;
-    
+
     final provider = context.read<AcademyProvider>();
-    final allStaff = provider.academy.staff;
-    
+    if (provider.currentUser?.role != 'admin') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only the academy admin can assign coaches to teams.')),
+      );
+      return;
+    }
+
+    var allStaff = provider.getStaffListForAssignments();
     if (allStaff.isEmpty) {
       provider.loadAdminOverview();
+      allStaff = provider.getStaffListForAssignments();
     }
+
+    final eligible = allStaff.where((s) {
+      return s.id != currentCoachId && s.id != currentAsstId;
+    }).toList();
 
     showModalBottomSheet(
       context: context,
@@ -540,15 +691,22 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             children: [
               Text(isAssistant ? 'CHOOSE ASSISTANT COACH' : 'CHOOSE HEAD COACH', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, fontFamily: _AcademyTheme.headlineFont)),
               const SizedBox(height: 16),
-              const Text('ONLY REGISTERED PERSONNEL ARE DISCOVERABLE', style: TextStyle(color: _AcademyTheme.outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+              const Text('STAFF ALREADY ON THIS TEAM ARE HIDDEN. ADMIN ONLY.', style: TextStyle(color: _AcademyTheme.outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
               const SizedBox(height: 24),
               Flexible(
-                child: ListView.separated(
+                child: eligible.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('No other staff available to assign.', style: TextStyle(color: _AcademyTheme.outline)),
+                        ),
+                      )
+                    : ListView.separated(
                   shrinkWrap: true,
-                  itemCount: allStaff.length,
+                  itemCount: eligible.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final staff = allStaff[index];
+                    final staff = eligible[index];
                     return ListTile(
                       onTap: () async {
                         await provider.assignTeamLeadsInBackend(

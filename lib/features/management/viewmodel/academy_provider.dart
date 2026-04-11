@@ -49,6 +49,12 @@ class AcademyProvider extends ChangeNotifier {
 
   // Set current user from authentication
   void setCurrentUser(UserModel user) {
+    // Reset role-specific caches when session changes to avoid stale/unauthorized refresh calls.
+    _cleanupSocketListeners();
+    _hasLoadedOverview = false;
+    _coachDashboard = null;
+    _playerDashboard = null;
+    _error = null;
     _currentUser = user;
     notifyListeners();
   }
@@ -153,13 +159,18 @@ class AcademyProvider extends ChangeNotifier {
     if (_coachDashboard != null && !force) return;
 
     _isCoachLoading = true;
+    _error = null;
     notifyListeners();
 
     try {
       final response = await _apiService.get('/auth/dashboard/coach');
-      _coachDashboard = Map<String, dynamic>.from(response as Map);
+      if (response is! Map) {
+        throw Exception('Unexpected coach dashboard response');
+      }
+      _coachDashboard = Map<String, dynamic>.from(response);
       _setupSocketListeners();
     } catch (e) {
+      _coachDashboard = null;
       _error = e.toString();
     } finally {
       _isCoachLoading = false;
@@ -187,8 +198,13 @@ class AcademyProvider extends ChangeNotifier {
       print('Loading player dashboard with token: ${token.substring(0, 10)}...');
       final response = await _apiService.get('/auth/dashboard/player');
       print('Player dashboard response received: ${response.runtimeType}');
-      
-      _playerDashboard = Map<String, dynamic>.from(response as Map);
+
+      final map = Map<String, dynamic>.from(response as Map);
+      // Backend returns `profile`; player UI expects `player`.
+      if (map.containsKey('profile')) {
+        map['player'] = map['profile'];
+      }
+      _playerDashboard = map;
       _setupSocketListeners();
       print('Player dashboard loaded successfully');
     } catch (e) {
@@ -254,7 +270,10 @@ class AcademyProvider extends ChangeNotifier {
     socket.on('PLAYER_DELETED', refreshIfMatch);
     
     socket.on('BATTLE_CREATED', (data) {
-       loadAdminOverview(force: true);
+      loadAdminOverview(force: true);
+      if (_coachDashboard != null) {
+        loadCoachDashboard(force: true);
+      }
     });
   }
 
@@ -272,6 +291,30 @@ class AcademyProvider extends ChangeNotifier {
     for (final event in events) {
       socket.off(event);
     }
+  }
+
+  /// Live player row for admin/coach profile screens (biometrics, averages, temp password).
+  Future<Map<String, dynamic>?> fetchPlayerForStaff(String playerId) async {
+    if (playerId.isEmpty) return null;
+    try {
+      final response = await _apiService.get('/auth/player/$playerId');
+      if (response is Map<String, dynamic>) return response;
+      if (response is Map) return Map<String, dynamic>.from(response);
+      return null;
+    } catch (e) {
+      debugPrint('fetchPlayerForStaff: $e');
+      return null;
+    }
+  }
+
+  /// Staff for assign-lead UI: admin overview list, or coach dashboard `staff` when logged in as coach.
+  List<Staff> getStaffListForAssignments() {
+    if (academy.staff.isNotEmpty) return academy.staff;
+    final raw = _coachDashboard?['staff'] as List<dynamic>? ?? [];
+    return raw
+        .whereType<Map>()
+        .map((e) => _mapStaff(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
   Team _mapTeam(Map<String, dynamic> data) {
@@ -295,12 +338,18 @@ class AcademyProvider extends ChangeNotifier {
     final age = int.tryParse(RegExp(r'\d+').firstMatch(ageText)?.group(0) ?? '16') ?? 16;
     final stats = data['stats'] as Map<String, dynamic>? ?? {};
     final averages = data['averages'] as Map<String, dynamic>? ?? {};
-    
+    final rawPic = data['profileImageUrl']?.toString().trim();
+    String? profileImageUrl;
+    if (rawPic != null && rawPic.isNotEmpty) {
+      profileImageUrl = ApiService.resolveMediaUrl(rawPic);
+      if (profileImageUrl.isEmpty) profileImageUrl = null;
+    }
+
     return Player(
       id: (data['_id'] ?? data['id'] ?? '').toString(),
       name: (data['username'] ?? data['name'] ?? '').toString(),
-      email: (data['email'] ?? '').toString(),
-      tempPassword: data['tempPassword']?.toString(),
+      email: (data['email'] ?? data['loginEmail'] ?? data['user']?['email'] ?? '').toString(),
+      tempPassword: data['tempPassword']?.toString() ?? data['password']?.toString(),
       position: (data['position'] ?? 'Guard').toString(),
       age: age,
       matchesPlayed: stats['matchesPlayed'] ?? 0,
@@ -316,6 +365,7 @@ class AcademyProvider extends ChangeNotifier {
       ppg: (averages['ppg'] ?? 0.0).toDouble(),
       apg: (averages['apg'] ?? 0.0).toDouble(),
       rpg: (averages['rpg'] ?? 0.0).toDouble(),
+      profileImageUrl: profileImageUrl,
     );
   }
 
@@ -343,7 +393,9 @@ class AcademyProvider extends ChangeNotifier {
       role: (json['role'] ?? 'coach').toString(),
       customRoleName: json['customRoleName']?.toString(),
       profilePic: json['profilePic']?.toString(),
-      assignedTeamIds: (json['assignedTeams'] as List? ?? []).map((e) => e.toString()).toList(),
+      assignedTeamIds: (json['assignedTeamIds'] as List? ?? json['assignedTeams'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList(),
       permissions: _mapPermissions(json['permissions']),
     );
   }
@@ -393,8 +445,12 @@ class AcademyProvider extends ChangeNotifier {
       return true;
     }
     
-    // For coach roles, check their assigned permissions
+    // For coach roles, prefer permissions from /auth/profile (JWT user), then local staff list
     if (_currentUser!.role == 'coach' || _currentUser!.role == 'assistant_coach') {
+      final profilePerms = _currentUser!.permissions;
+      if (profilePerms != null && profilePerms.isNotEmpty) {
+        return Permissions.fromDynamic(profilePerms).hasPermission(permission);
+      }
       final staff = academy.staff.firstWhere(
         (s) => s.email == _currentUser!.email,
         orElse: () => Staff(
@@ -421,8 +477,12 @@ class AcademyProvider extends ChangeNotifier {
       return Permissions.forRole(_currentUser!.role);
     }
     
-    // For coach roles, get their assigned permissions
+    // For coach roles, prefer profile permissions, then local staff list
     if (_currentUser!.role == 'coach' || _currentUser!.role == 'assistant_coach') {
+      final profilePerms = _currentUser!.permissions;
+      if (profilePerms != null && profilePerms.isNotEmpty) {
+        return Permissions.fromDynamic(profilePerms);
+      }
       final staff = academy.staff.firstWhere(
         (s) => s.email == _currentUser!.email,
         orElse: () => Staff(
@@ -464,6 +524,11 @@ class AcademyProvider extends ChangeNotifier {
   }
 
   void _clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  void clearError() {
     _error = null;
     notifyListeners();
   }
@@ -516,13 +581,19 @@ class AcademyProvider extends ChangeNotifier {
   }
 
   // Helper method to update staff in backend
-  Future<void> updateStaffInBackend(Staff updatedStaff) async {
+  Future<void> updateStaffInBackend(
+    Staff updatedStaff, {
+    bool refreshAfterUpdate = true,
+    bool rethrowOnError = false,
+  }) async {
     try {
       _clearError();
       
       final response = await _apiService.put('/auth/staff/${updatedStaff.id}', {
         'username': updatedStaff.name,
         'email': updatedStaff.email,
+        if (updatedStaff.password != null && updatedStaff.password!.isNotEmpty)
+          'password': updatedStaff.password,
         'role': updatedStaff.role,
         'customRoleName': updatedStaff.customRoleName,
         'assignedTeamIds': updatedStaff.assignedTeamIds,
@@ -544,9 +615,11 @@ class AcademyProvider extends ChangeNotifier {
       updateStaff(updatedStaff);
       _showSuccessMessage('Staff updated successfully!');
       
-      // Refresh data from server to ensure consistency
-      await Future.delayed(const Duration(milliseconds: 500));
-      await loadAdminOverview(force: true);
+      // Refresh data from server when needed (avoid disruptive full refresh for small inline edits)
+      if (refreshAfterUpdate) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        await loadAdminOverview(force: true);
+      }
       
     } catch (e) {
       String errorMessage = e.toString();
@@ -567,7 +640,9 @@ class AcademyProvider extends ChangeNotifier {
       
       _setError('Failed to update staff: $errorMessage');
       
-      // Don't rethrow - let the UI handle the error gracefully
+      if (rethrowOnError) {
+        throw Exception(errorMessage);
+      }
     }
   }
 
@@ -591,7 +666,14 @@ class AcademyProvider extends ChangeNotifier {
         coachStaffId: coachStaffId,
         assistantCoachStaffId: assistantCoachStaffId,
       );
-      
+
+      if (_coachDashboard != null) {
+        loadCoachDashboard(force: true);
+      }
+      if (_hasLoadedOverview) {
+        loadAdminOverview(force: true);
+      }
+
       _setLoading(false);
       _showSuccessMessage('Team leads assigned successfully!');
     } catch (e) {
@@ -777,6 +859,7 @@ class AcademyProvider extends ChangeNotifier {
         },
       });
       
+      final savedPerms = Permissions.fromDynamic(response['permissions']);
       addStaff(
         Staff(
           id: (response['_id'] ?? nextId('s')).toString(),
@@ -785,10 +868,12 @@ class AcademyProvider extends ChangeNotifier {
           password: staff.password,
           role: (response['role'] ?? staff.role).toString(),
           customRoleName: response['customRoleName']?.toString() ?? staff.customRoleName,
-          assignedTeamIds: (response['assignedTeamIds'] as List<dynamic>? ?? staff.assignedTeamIds)
+          assignedTeamIds: (response['assignedTeamIds'] as List<dynamic>? ??
+                  response['assignedTeams'] as List<dynamic>? ??
+                  staff.assignedTeamIds)
               .map((e) => e.toString())
               .toList(),
-          permissions: staff.permissions,
+          permissions: response['permissions'] != null ? savedPerms : staff.permissions,
         ),
       );
       

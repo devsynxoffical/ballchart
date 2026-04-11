@@ -1,24 +1,158 @@
-import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/core/widgets/dialogues/EditAcademyDialog.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
+import 'package:ballchart/core/repositories/profile_repository.dart';
+import 'package:ballchart/core/services/api_service.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
-import 'package:ballchart/features/coach/team_details/view/team_detail_screen.dart';
+import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
+import 'package:ballchart/core/models/user_model.dart';
+import 'package:ballchart/features/staff/service/staff_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isDarkMode = true;
+  bool _notificationsEnabled = true;
+  final ApiService _apiService = ApiService();
 
   static const Color primaryColor = Color(0xFFFFD900);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF201F1F);
   static const Color outlineColor = Color(0xFF9D8F79);
 
+  void _showEnrollPlayerDialog(BuildContext context, AcademyProvider provider) {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    String selectedTeamId = provider.academy.teams.isNotEmpty ? provider.academy.teams.first.id : '';
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: surfaceHigh,
+        title: const Text('Enroll New Player', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Player Name',
+                labelStyle: const TextStyle(color: outlineColor),
+                filled: true,
+                fillColor: bgColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Email',
+                labelStyle: const TextStyle(color: outlineColor),
+                filled: true,
+                fillColor: bgColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: selectedTeamId.isNotEmpty ? selectedTeamId : null,
+              decoration: InputDecoration(
+                labelText: 'Assign to Team',
+                labelStyle: const TextStyle(color: outlineColor),
+                filled: true,
+                fillColor: bgColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              dropdownColor: surfaceHigh,
+              items: provider.academy.teams.map((team) {
+                return DropdownMenuItem<String>(
+                  value: team.id,
+                  child: Text(team.name, style: const TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (value) {
+                selectedTeamId = value ?? '';
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: outlineColor)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty && 
+                  emailController.text.trim().isNotEmpty && 
+                  selectedTeamId.isNotEmpty) {
+                try {
+                  await provider.addPlayerToBackend(
+                    selectedTeamId,
+                    Player(
+                      id: provider.nextId('p'),
+                      name: nameController.text.trim(),
+                      email: emailController.text.trim(),
+                      age: 18,
+                      position: 'Player',
+                    ),
+                    email: emailController.text.trim(),
+                    password: 'temp123', // You might want to generate a random password
+                  );
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${nameController.text} enrolled successfully!'),
+                        backgroundColor: primaryColor,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to enroll player: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+            child: const Text('Enroll', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final profileVm = context.watch<ProfileViewmodel>();
+    final user = profileVm.user;
+
+    // For player role, use only the detailed player profile screen.
+    if (user != null && user.role == 'player') {
+      final player = _resolveCurrentPlayer(context, user);
+      return PlayerDetailScreen(player: player, canEdit: true, showHeader: false);
+    }
+
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
@@ -40,11 +174,15 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     _buildIdentityHeader(user),
                     const SizedBox(height: 32),
-                    _buildAcademyPartnership(context),
+                    if (user.role == 'admin') _buildAcademyPartnership(context),
                     const SizedBox(height: 32),
                     const Text('COMMAND CENTER PROFILE', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                     const SizedBox(height: 16),
-                    _buildBentoGrid(user),
+                    _buildBentoGrid(context, user),
+                    if (user.role == 'player') ...[
+                      const SizedBox(height: 16),
+                      _buildOpenPlayerDetailButton(context, user),
+                    ],
                     const SizedBox(height: 32),
                     const Text('OPERATIONAL SETTINGS', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                     const SizedBox(height: 16),
@@ -60,21 +198,97 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Player _resolveCurrentPlayer(BuildContext context, dynamic user) {
+    final academyProvider = context.read<AcademyProvider>();
+    try {
+      return academyProvider.academy.teams
+          .expand((t) => t.players)
+          .firstWhere((p) => p.email == user.email);
+    } catch (_) {
+      return Player(
+        id: user.id,
+        name: user.username,
+        email: user.email,
+        position: (user.position ?? 'Player').toString(),
+        age: int.tryParse((user.ageRange ?? '18').toString().replaceAll(RegExp(r'[^0-9]'), '')) ?? 18,
+      );
+    }
+  }
+
   Widget _buildIdentityHeader(dynamic user) {
+    final initials = user.username
+        .toString()
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .take(2)
+        .map((e) => e[0].toUpperCase())
+        .join();
+    final role = user.role.toString();
+    final canEditIdentity = role == 'admin' || role.contains('coach');
+    final academyProvider = context.watch<AcademyProvider>();
+    String? networkAvatar;
+    if (role == 'admin') {
+      final logo = academyProvider.academy.logoUrl;
+      if (logo != null && logo.trim().isNotEmpty) {
+        networkAvatar = ApiService.resolveMediaUrl(logo);
+      }
+    } else if (user is UserModel) {
+      final pic = user.profileImageUrl;
+      if (pic != null && pic.trim().isNotEmpty) {
+        networkAvatar = ApiService.resolveMediaUrl(pic);
+      }
+    }
+    if (networkAvatar != null && networkAvatar.isEmpty) networkAvatar = null;
+    final hasNetworkAvatar = networkAvatar != null &&
+        (networkAvatar.startsWith('http://') ||
+            networkAvatar.startsWith('https://') ||
+            networkAvatar.startsWith('data:'));
+
     return Column(
       children: [
         Center(
-          child: Stack(
+          child: GestureDetector(
+            onTap: canEditIdentity ? () => _showProfilePhotoMenu(context, user) : null,
+            child: Stack(
             children: [
               Container(
                 width: 100,
                 height: 100,
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [primaryColor, Color(0xFFFFBA29)])),
-                child: CircleAvatar(radius: 46, backgroundColor: bgColor, backgroundImage: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuCb0bI6coVpoP1nmq-BKt9hjpg6sZbCVWPBjS4xHT90o3Rs_S3Tl_Vn22nn_J-Q0Ep_Y4PhcKb-FAW4J6RayKzeDP68Hg7ip3OdvUrJztJYBqFM7hP1-9WV8OLlyYGV1bJLKv9gCOa5zxnV9Ln22nn_J-Q0Ep_Y4PhcKb-FAW4J6RayKzeDP68Hg7ip3OdvUrJztJYBqFM7hP1-9WV8OLlyYGV1bJLKv9gCOa5zxnV9LnABtDkoiq_Hqhyq7cTEaGk5bKRWNm8AZceSh8oZG7jmsHsdOYs8300l4GkZ1khbKsEJslLRuMjEnLlPDSg_gAPsAtMM2y9hsNd2PgmSvNwHWxIK26axgbQF7plCm23')),
+                child: CircleAvatar(
+                  radius: 46,
+                  backgroundColor: bgColor,
+                  backgroundImage: hasNetworkAvatar ? NetworkImage(networkAvatar!) : null,
+                  child: !hasNetworkAvatar
+                      ? Text(
+                          initials.isEmpty ? 'U' : initials,
+                          style: const TextStyle(color: primaryColor, fontSize: 30, fontWeight: FontWeight.w900),
+                        )
+                      : null,
+                ),
               ),
-              Positioned(right: 2, bottom: 2, child: Container(padding: const EdgeInsets.all(6), decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle, border: Border.fromBorderSide(BorderSide(color: bgColor, width: 3))))),
+              Positioned(
+                right: 2,
+                bottom: 2,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle, border: Border.fromBorderSide(BorderSide(color: bgColor, width: 3))),
+                ),
+              ),
+              if (canEditIdentity)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
+                    child: const Icon(Icons.edit, size: 12, color: primaryColor),
+                  ),
+                ),
             ],
+          ),
           ),
         ),
         const SizedBox(height: 20),
@@ -88,6 +302,9 @@ class ProfileScreen extends StatelessWidget {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final academy = provider.academy;
+        final user = provider.currentUser;
+        final isAdmin = user?.role == 'admin';
+        
         return Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(24), border: Border.all(color: primaryColor.withOpacity(0.1))),
@@ -106,24 +323,28 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_note, color: primaryColor, size: 24),
-                    onPressed: () => _showEditAcademyDialog(context, provider),
-                  ),
+                  if (isAdmin) // Only show edit button for admin
+                    IconButton(
+                      icon: const Icon(Icons.edit_note, color: primaryColor, size: 24),
+                      onPressed: () => _showEditAcademyDialog(context, provider),
+                    ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: _actionBtn(context, 'NEW SQUAD', Icons.add_moderator, () => _showCreateTeamDialog(context, provider)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _actionBtn(context, 'ENROLL PLAYER', Icons.person_add_alt_1, () {}),
-                  ),
-                ],
-              ),
+              // Only show action buttons for admin
+              if (isAdmin) ...[
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _actionBtn(context, 'NEW SQUAD', Icons.add_moderator, () => _showCreateTeamDialog(context, provider)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _actionBtn(context, 'ENROLL PLAYER', Icons.person_add_alt_1, () => _showEnrollPlayerDialog(context, provider)),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         );
@@ -183,36 +404,213 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBentoGrid(dynamic user) {
+  Widget _buildBentoGrid(BuildContext context, dynamic user) {
+    final role = user.role.toString();
+    final experience = (user.experienceLevel ?? 'Not set').toString();
+    final assignedTeams = user.assignedTeams is List ? (user.assignedTeams as List).length.toString() : '0';
+    final achievements = user.achievements is List ? (user.achievements as List).length.toString() : '0';
+    final additional = (user.additionalInfo ?? 'N/A').toString();
+    final position = (user.position ?? 'N/A').toString();
+    final academyProvider = context.watch<AcademyProvider>();
+    final academy = academyProvider.academy;
+
+    if (role == 'admin') {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _bentoCard(
+                  'OWNER NAME',
+                  user.username,
+                  Icons.person_outline,
+                  onTap: () => _showEditProfileDialog(context, user),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _bentoCard(
+                  'EMAIL ADDRESS',
+                  user.email,
+                  Icons.alternate_email,
+                  onTap: () => _showEditProfileDialog(context, user),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _bentoCard(
+                  'ACADEMY NAME',
+                  academy.name,
+                  Icons.shield_outlined,
+                  onTap: () => _showEditAcademyDialog(context, academyProvider),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _bentoCard(
+                  'EXPERIENCE LEVEL',
+                  experience,
+                  Icons.timeline,
+                  onTap: () => _showEditProfileDialog(context, user),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _bentoCard('TOTAL TEAMS', academy.teams.length.toString(), Icons.groups_2_outlined)),
+              const SizedBox(width: 16),
+              Expanded(child: _bentoCard('TOTAL STAFF', academy.staff.length.toString(), Icons.badge_outlined)),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         Row(
           children: [
-            Expanded(child: _bentoCard('EMAIL ADDRESS', user.email, Icons.alternate_email)),
+            Expanded(
+              child: _bentoCard(
+                'EMAIL ADDRESS',
+                user.email,
+                Icons.alternate_email,
+              ),
+            ),
             const SizedBox(width: 16),
-            Expanded(child: _bentoCard('EXPERIENCE', '12 YEARS', Icons.timeline)),
+            Expanded(
+              child: _bentoCard(
+                'EXPERIENCE LEVEL',
+                role.contains('coach') ? experience : position,
+                Icons.timeline,
+                onTap: role.contains('coach') ? () => _showEditCoachDialog(context, user) : null,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _bentoCard('LICENSE ID', 'CQ-9842-X', Icons.badge)),
+            Expanded(
+              child: _bentoCard(
+                'ASSIGNED TEAMS',
+                role.contains('coach') ? assignedTeams : (user.ageRange ?? 'N/A').toString(),
+                Icons.badge,
+                onTap: role.contains('coach') ? () => _showEditCoachDialog(context, user) : null,
+              ),
+            ),
             const SizedBox(width: 16),
-            Expanded(child: _bentoCard('TACTICAL IQ', '94.2', Icons.psychology)),
+            Expanded(
+              child: _bentoCard(
+                role.contains('coach') ? 'ACHIEVEMENTS' : 'GOALS',
+                role.contains('coach') ? achievements : ((user.goals as List?)?.length.toString() ?? '0'),
+                Icons.psychology,
+                onTap: role.contains('coach') ? () => _showEditCoachDialog(context, user) : null,
+              ),
+            ),
           ],
         ),
+        if (role.contains('coach')) ...[
+          const SizedBox(height: 16),
+          _bentoCard(
+            'ADDITIONAL INFO',
+            additional,
+            Icons.sticky_note_2_outlined,
+            onTap: () => _showEditCoachDialog(context, user),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _bentoCard(String title, String value, IconData icon) {
-    return Container(
+  void _showEditCoachDialog(BuildContext context, dynamic user) {
+    final expController = TextEditingController(text: (user.experienceLevel ?? '').toString());
+    final sportsController = TextEditingController(text: ((user.sports as List?) ?? const []).join(', '));
+    final achievementsController = TextEditingController(text: ((user.achievements as List?) ?? const []).join(', '));
+    final infoController = TextEditingController(text: (user.additionalInfo ?? '').toString());
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: surfaceHigh,
+        title: const Text('Edit Coach Details', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildEditField(expController, 'Experience level'),
+              const SizedBox(height: 12),
+              _buildEditField(sportsController, 'Sports (comma separated)'),
+              const SizedBox(height: 12),
+              _buildEditField(achievementsController, 'Achievements (comma separated)'),
+              const SizedBox(height: 12),
+              _buildEditField(infoController, 'Additional information'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: outlineColor))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+            onPressed: () async {
+              final repo = ProfileRepository();
+              await repo.completeProfile({
+                'experienceLevel': expController.text.trim(),
+                'sports': sportsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                'achievements': achievementsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                'additionalInfo': infoController.text.trim(),
+              });
+              if (context.mounted) {
+                Navigator.pop(ctx);
+                await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
+                await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Coach profile updated'), backgroundColor: primaryColor),
+                  );
+                }
+              }
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditField(TextEditingController controller, String label) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: outlineColor),
+        filled: true,
+        fillColor: bgColor,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _bentoCard(String title, String value, IconData icon, {VoidCallback? onTap}) {
+    final content = Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: outlineColor, size: 18),
+          Row(
+            children: [
+              Icon(icon, color: outlineColor, size: 18),
+              const Spacer(),
+              if (onTap != null) const Icon(Icons.edit_outlined, color: primaryColor, size: 16),
+            ],
+          ),
           const SizedBox(height: 16),
           Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
@@ -222,14 +620,267 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: content,
+    );
+  }
+
+  Future<void> _showProfilePhotoMenu(BuildContext context, dynamic user) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: surfaceHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: outlineColor.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: primaryColor),
+              title: const Text('Change profile photo', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: primaryColor),
+              title: const Text('Edit name, email & details', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'photo') {
+      await _pickAndSaveProfilePhoto(context, user);
+    } else if (choice == 'edit') {
+      await _showEditProfileDialog(context, user);
+    }
+  }
+
+  Future<void> _pickAndSaveProfilePhoto(BuildContext context, dynamic user) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null || !context.mounted) return;
+    try {
+      final staff = StaffService();
+      final url = await staff.uploadImage(File(file.path));
+      if (url == null || url.isEmpty) {
+        throw Exception('Upload returned no URL');
+      }
+      final repo = ProfileRepository();
+      final payload = <String, dynamic>{};
+      final r = user.role.toString();
+      if (r == 'admin') {
+        payload['logoUrl'] = url;
+      } else if (r.contains('coach')) {
+        payload['profilePic'] = url;
+      } else if (r == 'player') {
+        payload['profileImageUrl'] = url;
+      } else {
+        payload['profilePic'] = url;
+      }
+      await repo.completeProfile(payload);
+      if (!context.mounted) return;
+      await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
+      final role = user.role.toString();
+      if (role == 'admin') {
+        await context.read<AcademyProvider>().loadAdminOverview(force: true);
+      } else if (role.contains('coach')) {
+        await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile photo updated'), backgroundColor: primaryColor),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update photo: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _showEditProfileDialog(BuildContext context, dynamic user) async {
+    final academyProvider = context.read<AcademyProvider>();
+    String initialImg = '';
+    if (user is UserModel) {
+      if (user.role == 'admin') {
+        initialImg = academyProvider.academy.logoUrl?.trim() ?? '';
+      } else {
+        initialImg = user.profileImageUrl?.trim() ?? '';
+      }
+    }
+    final nameController = TextEditingController(text: user.username.toString());
+    final emailController = TextEditingController(text: user.email.toString());
+    final experienceController = TextEditingController(text: (user.experienceLevel ?? '').toString());
+    final profileImageController = TextEditingController(text: initialImg);
+
+    Future<void> pickAndUploadImage(StateSetter setDialogState) async {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (file == null) return;
+      final uploaded = await _apiService.uploadFile('/upload/image', File(file.path));
+      final url = uploaded['url']?.toString() ?? '';
+      if (url.isNotEmpty) {
+        setDialogState(() => profileImageController.text = url);
+      }
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: surfaceHigh,
+          title: const Text('Edit Profile', style: TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildEditField(nameController, 'Name'),
+                const SizedBox(height: 12),
+                _buildEditField(emailController, 'Email'),
+                const SizedBox(height: 12),
+                _buildEditField(experienceController, 'Experience level'),
+                const SizedBox(height: 12),
+                _buildEditField(profileImageController, 'Profile image URL'),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => pickAndUploadImage(setDialogState),
+                    icon: const Icon(Icons.upload_file, color: primaryColor),
+                    label: const Text('Upload New Picture', style: TextStyle(color: primaryColor)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: outlineColor))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+              onPressed: () async {
+                final repo = ProfileRepository();
+                final payload = <String, dynamic>{
+                  'username': nameController.text.trim(),
+                  'email': emailController.text.trim(),
+                  'experienceLevel': experienceController.text.trim(),
+                };
+                final img = profileImageController.text.trim();
+                if (img.isNotEmpty) {
+                  final r = user.role.toString();
+                  if (r == 'admin') {
+                    payload['logoUrl'] = img;
+                  } else if (r.contains('coach')) {
+                    payload['profilePic'] = img;
+                  } else if (r == 'player') {
+                    payload['profileImageUrl'] = img;
+                  } else {
+                    payload['profilePic'] = img;
+                  }
+                }
+                await repo.completeProfile(payload);
+                if (context.mounted) {
+                  await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
+                  final r = user.role.toString();
+                  if (r == 'admin') {
+                    await context.read<AcademyProvider>().loadAdminOverview(force: true);
+                  } else if (r.contains('coach')) {
+                    await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+                  }
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profile updated'), backgroundColor: primaryColor),
+                  );
+                }
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.black)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOpenPlayerDetailButton(BuildContext context, dynamic user) {
+    return GestureDetector(
+      onTap: () {
+        final academyProvider = context.read<AcademyProvider>();
+        Player? existingPlayer;
+        try {
+          existingPlayer = academyProvider.academy.teams
+              .expand((t) => t.players)
+              .firstWhere((p) => p.email == user.email);
+        } catch (_) {
+          existingPlayer = null;
+        }
+
+        final player = existingPlayer ??
+            Player(
+              id: user.id,
+              name: user.username,
+              email: user.email,
+              position: (user.position ?? 'Player').toString(),
+              age: int.tryParse((user.ageRange ?? '18').toString().replaceAll(RegExp(r'[^0-9]'), '')) ?? 18,
+            );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PlayerDetailScreen(player: player, canEdit: true, showHeader: false)),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: surfaceHigh,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: primaryColor.withOpacity(0.3)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'OPEN DETAILED PLAYER PROFILE',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.6),
+            ),
+            Icon(Icons.arrow_forward_rounded, color: primaryColor),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSystemActions(BuildContext context) {
     return Column(
       children: [
-        _systemRow('DARK MODE OPERATIONAL', Icons.dark_mode, true),
+        _systemRow('DARK MODE OPERATIONAL', Icons.dark_mode, _isDarkMode, (value) {
+          setState(() {
+            _isDarkMode = value;
+          });
+          // TODO: Implement theme switching logic
+        }),
         const SizedBox(height: 12),
-        _systemRow('NOTIFICATIONS ACTIVE', Icons.notifications_active, true),
+        _systemRow('NOTIFICATIONS ACTIVE', Icons.notifications_active, _notificationsEnabled, (value) {
+          setState(() {
+            _notificationsEnabled = value;
+          });
+          // TODO: Implement notification settings logic
+        }),
         const SizedBox(height: 24),
         GestureDetector(
           onTap: () => Provider.of<AuthViewmodel>(context, listen: false).logout(context),
@@ -251,7 +902,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _systemRow(String label, IconData icon, bool val) {
+  Widget _systemRow(String label, IconData icon, bool val, Function(bool) onChanged) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: surfaceHigh.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
@@ -265,7 +916,13 @@ class ProfileScreen extends StatelessWidget {
               Text(label.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
             ],
           ),
-          Switch(value: val, onChanged: (v) {}, activeColor: primaryColor, activeTrackColor: primaryColor.withOpacity(0.2), inactiveTrackColor: Colors.white10),
+          Switch(
+            value: val, 
+            onChanged: onChanged, 
+            activeColor: primaryColor, 
+            activeTrackColor: primaryColor.withOpacity(0.2), 
+            inactiveTrackColor: Colors.white10
+          ),
         ],
       ),
     );

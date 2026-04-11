@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
@@ -13,6 +15,18 @@ class ApiService {
   // Live backend (Railway) - Production ready
   static const String baseUrl = 'https://ballchart-production.up.railway.app/api';
   static const String socketUrl = 'https://ballchart-production.up.railway.app';
+
+  /// Origin without `/api` — for `/uploads/...` paths returned by the API.
+  static String get originUrl => baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
+
+  /// Build a loadable image URL for team logos and media paths from the server.
+  static String resolveMediaUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    final t = path.trim();
+    if (t.startsWith('data:') || t.startsWith('http://') || t.startsWith('https://')) return t;
+    if (t.startsWith('/')) return '$originUrl$t';
+    return '$originUrl/$t';
+  }
   
   // Local backend for development - comment out for production
   // static const String baseUrl = 'http://localhost:5000/api';
@@ -96,8 +110,8 @@ class ApiService {
       if (response.body.isEmpty) return {};
       try {
         return jsonDecode(response.body);
-      } catch (e) {
-        throw Exception('Failed to parse response: ${response.body}');
+      } catch (_) {
+        throw Exception('SERVER_ERROR_PARSE');
       }
     } else {
       final body = response.body;
@@ -107,15 +121,11 @@ class ApiService {
         final decoded = jsonDecode(body);
         throw Exception(decoded['message'] ?? 'Something went wrong');
       } on FormatException {
-        // Non-JSON response (e.g. HTML error pages)
+        // Non-JSON response (e.g. HTML error pages) — never surface raw HTML/URLs to UI.
         if (body.contains('<html')) {
-          final preMatch = RegExp(r'<pre>(.*?)</pre>').firstMatch(body);
-          final titleMatch = RegExp(r'<title>(.*?)</title>').firstMatch(body);
-          if (preMatch != null) throw Exception('Server Error: ${preMatch.group(1)}');
-          if (titleMatch != null) throw Exception('Server Error: ${titleMatch.group(1)}');
-          throw Exception('Server returned HTML Error Page (${response.statusCode})');
+          throw Exception('SERVER_ERROR_${response.statusCode}');
         }
-        throw Exception('Server Error (${response.statusCode}): $body');
+        throw Exception('SERVER_ERROR_${response.statusCode}');
       }
     }
   }
@@ -163,5 +173,66 @@ class ApiService {
   void disconnectSocket() {
     socket?.disconnect();
     socket = null;
+  }
+
+  /// Gallery picks without this often send `application/octet-stream`, which many servers reject.
+  static MediaType _imageMediaTypeForPath(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return MediaType('image', 'png');
+    if (lower.endsWith('.gif')) return MediaType('image', 'gif');
+    if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) {
+      return MediaType('image', 'heic');
+    }
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return MediaType('image', 'jpeg');
+    }
+    return MediaType('image', 'jpeg');
+  }
+
+  Future<Map<String, dynamic>> uploadFile(String endpoint, File file) async {
+    try {
+      String? token = await _storage.read(key: 'jwt_token');
+      
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl$endpoint'),
+      );
+      
+      // Add headers
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      
+      var rawName = file.path.replaceAll(r'\', '/').split('/').last;
+      if (!rawName.contains('.')) {
+        rawName = 'upload.jpg';
+      }
+      final contentType = _imageMediaTypeForPath(rawName);
+
+      var fileStream = file.openRead();
+      var length = await file.length();
+      var multipartFile = http.MultipartFile(
+        'image',
+        fileStream,
+        length,
+        filename: rawName,
+        contentType: contentType,
+      );
+      request.files.add(multipartFile);
+      
+      var response = await request.send().timeout(const Duration(seconds: 30));
+      var responseBody = await response.stream.bytesToString();
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return jsonDecode(responseBody);
+      } else {
+        throw Exception('Upload failed: ${response.statusCode} - $responseBody');
+      }
+    } on TimeoutException {
+      throw Exception('Upload timeout. Please check internet/server and try again.');
+    } catch (e) {
+      throw Exception('Upload error: $e');
+    }
   }
 }

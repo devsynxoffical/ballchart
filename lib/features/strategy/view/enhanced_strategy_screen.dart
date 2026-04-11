@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
-import '../../../core/constants/colors.dart';
 import '../../../core/models/strategy_model.dart';
-import '../../profile/viewmodel/profile_viewmodel.dart';
-import '../viewmodel/strategy_viewmodel.dart';
+import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
+import '../../../core/widgets/dialogues/strategy_creation_options_sheet.dart';
 import '../../../core/widgets/permission_wrapper.dart';
+import '../../profile/viewmodel/profile_viewmodel.dart';
+import '../../tactics/view/tactical_lab_screen.dart';
+import '../viewmodel/strategy_viewmodel.dart';
 
 class EnhancedStrategyScreen extends StatefulWidget {
   const EnhancedStrategyScreen({super.key});
@@ -119,6 +121,15 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                   SizedBox(height: 4),
                   Text('TACTICAL STRATEGY', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
                 ],
+              ),
+              IconButton(
+                tooltip: 'Tactical lab (voice + animation)',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const TacticalLabScreen()),
+                  );
+                },
+                icon: const Icon(Icons.grid_4x4_outlined, color: primaryColor, size: 26),
               ),
               PermissionWrapper(
                 permission: 'createStrategy',
@@ -736,13 +747,48 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
     );
   }
 
-  void _showCreateStrategyDialog(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _showCreateStrategyDialog(BuildContext context) async {
+    final vm = context.read<StrategyViewmodel>();
+    final entry = await showStrategyCreationOptionsSheet(context);
+    if (!context.mounted || entry == null) return;
+
+    await showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: bgColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetCtx) => CreateStrategyDialog(),
+      builder: (dialogCtx) => CreateStrategyDialog(
+        entry: entry,
+        onStrategyCreated:
+            (title, description, category, sourceTypeForApi, plays, imagePath, videoUrl, tags, referenceUrl) async {
+          try {
+            await vm.createStrategy(
+                  title: title,
+                  category: category,
+                  sourceType: sourceTypeForApi,
+                  sourceText: description,
+                  videoUrl: (videoUrl ?? '').trim().isEmpty ? null : videoUrl!.trim(),
+                  tags: tags,
+                  metadata: {
+                    'playSteps': plays,
+                    'revisionState': 'draft',
+                    'creationEntry': entry.name,
+                    if (referenceUrl != null && referenceUrl.trim().isNotEmpty) 'referenceUrl': referenceUrl.trim(),
+                    if (imagePath != null && imagePath.isNotEmpty) 'localDiagramPath': imagePath,
+                  },
+                );
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Strategy created successfully!'), backgroundColor: Colors.green),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to create strategy: $e'), backgroundColor: Colors.red),
+              );
+            }
+          }
+        },
+      ),
     );
   }
 
@@ -915,159 +961,6 @@ class _StrategyDetailDialogState extends State<StrategyDetailDialog> {
         ),
       ),
     );
-  }
-}
-
-class CreateStrategyDialog extends StatefulWidget {
-  const CreateStrategyDialog({super.key});
-
-  @override
-  State<CreateStrategyDialog> createState() => _CreateStrategyDialogState();
-}
-
-class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _videoUrlController = TextEditingController();
-  final _tagsController = TextEditingController();
-  
-  String _selectedCategory = 'general';
-  bool _isPublic = true;
-  bool _submitting = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('CREATE STRATEGY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-            const SizedBox(height: 20),
-            
-            _buildTextField(_titleController, 'Title'),
-            const SizedBox(height: 12),
-            _buildTextField(_descriptionController, 'Description', maxLines: 3),
-            const SizedBox(height: 12),
-            _buildTextField(_videoUrlController, 'Video URL'),
-            const SizedBox(height: 12),
-            _buildTextField(_tagsController, 'Tags (comma separated)'),
-            const SizedBox(height: 12),
-            
-            _buildCategoryDropdown(),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Checkbox(
-                  value: _isPublic,
-                  onChanged: (value) => setState(() => _isPublic = value ?? false),
-                  activeColor: const Color(0xFFFFD900),
-                ),
-                const Text('Make public', style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _submitting ? null : _submitStrategy,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFD900),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.all(16),
-                ),
-                child: Text(_submitting ? 'CREATING...' : 'CREATE STRATEGY'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1}) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF9D8F79)),
-        filled: true,
-        fillColor: const Color(0xFF201F1F),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      ),
-    );
-  }
-
-  Widget _buildCategoryDropdown() {
-    return Consumer<StrategyViewmodel>(
-      builder: (context, vm, _) {
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF201F1F),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedCategory,
-              isExpanded: true,
-              items: ['general', ...vm.categories].map((category) {
-                return DropdownMenuItem<String>(
-                  value: category,
-                  child: Text(category, style: const TextStyle(color: Colors.white)),
-                );
-              }).toList(),
-              onChanged: (value) => setState(() => _selectedCategory = value!),
-              dropdownColor: const Color(0xFF1C1B1B),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _submitStrategy() async {
-    if (_titleController.text.isEmpty || _videoUrlController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in required fields'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    setState(() => _submitting = true);
-    
-    try {
-      final tags = _tagsController.text
-          .split(',')
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toList();
-      
-      await context.read<StrategyViewmodel>().createStrategy(
-        title: _titleController.text,
-        category: _selectedCategory,
-        sourceType: 'video',
-        sourceText: _descriptionController.text,
-        videoUrl: _videoUrlController.text,
-        tags: tags,
-        isPublic: _isPublic,
-      );
-      
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create strategy: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      setState(() => _submitting = false);
-    }
   }
 }
 

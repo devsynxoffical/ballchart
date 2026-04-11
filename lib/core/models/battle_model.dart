@@ -1,3 +1,5 @@
+import 'tactical/tactical_schema.dart';
+
 class BattleModel {
   final String id;
   final String location;
@@ -79,6 +81,26 @@ class BattleModel {
   bool get isFinished => status == 'finished';
   bool get isPending => status == 'pending';
   bool get isCancelled => status == 'cancelled';
+
+  /// Paused is signaled via [metadata] until the API adds a first-class field.
+  bool get isPausedSession => metadata?['sessionPhase']?.toString() == 'paused';
+
+  BattleSessionPhase get sessionPhase =>
+      battlePhaseFromModel(status: status, metadata: metadata);
+
+  String get statusDisplayLabel {
+    switch (sessionPhase) {
+      case BattleSessionPhase.scheduled:
+        return 'SCHEDULED';
+      case BattleSessionPhase.live:
+        return 'LIVE';
+      case BattleSessionPhase.paused:
+        return 'PAUSED';
+      case BattleSessionPhase.finished:
+        return isCancelled ? 'CANCELLED' : 'FINISHED';
+    }
+  }
+
   int get availableSpots => maxParticipants - participants.length;
 }
 

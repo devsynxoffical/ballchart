@@ -132,17 +132,10 @@ class _ManagementScreenState extends State<ManagementScreen> {
                 name: staffData['name'] ?? '',
                 email: staffData['email'] ?? '',
                 password: staffData['password'] ?? '',
-                role: (staffData['role'] ?? 'coach').toString().toLowerCase(),
-                customRoleName: staffData['customRoleName'],
+                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+                customRoleName: staffData['customRoleName']?.toString(),
                 assignedTeamIds: const [],
-                permissions: Permissions(
-                  createPlayer: true,
-                  readPlayer: true,
-                  updatePlayer: true,
-                  deletePlayer: false,
-                  createTeam: false,
-                  manageStaff: false,
-                ),
+                permissions: Permissions.fromDynamic(staffData['permissions']),
               ),
             );
             if (context.mounted) {

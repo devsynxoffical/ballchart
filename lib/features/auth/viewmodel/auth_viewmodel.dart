@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/user_friendly_errors.dart';
 import '../../../core/widgets/custom_dialog.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../routes/routes_names.dart';
@@ -45,14 +46,15 @@ class AuthViewmodel extends ChangeNotifier {
         preferredRole: preferredRole,
       );
       Provider.of<ProfileViewmodel>(context, listen: false).setUser(user);
+      Provider.of<AcademyProvider>(context, listen: false).setCurrentUser(user);
       _setLoading(false);
 
       if (user.role == 'admin') {
         final academyProvider = Provider.of<AcademyProvider>(context, listen: false);
-        academyProvider.setCurrentUser(user);
-        if (user.teamName != null && user.teamName!.isNotEmpty) {
+        final academyName = (user.academyName ?? user.teamName ?? '').trim();
+        if (academyName.isNotEmpty) {
           academyProvider.updateAcademyProfile(
-            academyName: user.teamName!,
+            academyName: academyName,
             logoUrl: academyProvider.academy.logoUrl,
             ownerName: user.username,
             ownerEmail: user.email,
@@ -70,13 +72,15 @@ class AuthViewmodel extends ChangeNotifier {
       }
     } catch (e) {
       _setLoading(false);
-      _errorMessage = e.toString();
+      final copy = resolveAuthDialogCopy(e, isSignup: false);
+      _errorMessage = copy.message;
       notifyListeners();
+      if (!context.mounted) return;
       showDialog(
         context: context,
-        builder: (context) => CustomDialog(
-          title: 'Login Failed',
-          message: e.toString().replaceAll('Exception: ', ''),
+        builder: (ctx) => CustomDialog(
+          title: copy.title,
+          message: copy.message,
           isSuccess: false,
         ),
       );
@@ -119,13 +123,15 @@ class AuthViewmodel extends ChangeNotifier {
 
     } catch (e) {
       _setLoading(false);
-      _errorMessage = e.toString();
+      final copy = resolveAuthDialogCopy(e, isSignup: true);
+      _errorMessage = copy.message;
       notifyListeners();
+      if (!context.mounted) return;
       showDialog(
         context: context,
-        builder: (context) => CustomDialog(
-          title: 'Signup Failed',
-          message: e.toString().replaceAll('Exception: ', ''),
+        builder: (ctx) => CustomDialog(
+          title: copy.title,
+          message: copy.message,
           isSuccess: false,
         ),
       );

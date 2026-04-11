@@ -21,6 +21,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
 
   Staff? _selectedStaff;
   bool _isDetailPasswordVisible = false;
+  final Set<String> _updatingPermissionKeys = <String>{};
 
   String _safeProfilePic(String? url, String name) {
     if (url != null && url.startsWith('http')) return url;
@@ -74,6 +75,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'staff_fab',
         onPressed: () => _showAddStaffDialog(context),
         backgroundColor: primaryColor,
         elevation: 10,
@@ -99,16 +101,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
     if (staff.isEmpty) {
       return const Center(child: Text('NO PERSONNEL DATA FOUND', style: TextStyle(color: outlineColor, fontSize: 10, letterSpacing: 1)));
     }
-
-    // Sort staff: Admin/Head Coach first, then others
-    final sortedStaff = List<Staff>.from(staff);
-    sortedStaff.sort((a, b) {
-      if (a.role.toLowerCase().contains('admin') || a.role.toLowerCase().contains('head')) return -1;
-      return 1;
-    });
-
-    final rootStaff = sortedStaff.first;
-    final otherStaff = sortedStaff.skip(1).toList();
+    final staffList = List<Staff>.from(staff);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,22 +114,67 @@ class _StaffListScreenState extends State<StaffListScreen> {
           ],
         ),
         const SizedBox(height: 24),
-        InkWell(
-          onTap: () => setState(() => _selectedStaff = rootStaff),
-          borderRadius: BorderRadius.circular(20),
-          child: _buildRootNode(rootStaff.name, _safeProfilePic(rootStaff.profilePic, rootStaff.name), rootStaff.role),
-        ),
-        if (otherStaff.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 40),
-            child: Column(
-              children: otherStaff.map((s) => InkWell(
-                onTap: () => setState(() => _selectedStaff = s),
-                borderRadius: BorderRadius.circular(12),
-                child: _buildChildNode(s.name, _safeProfilePic(s.profilePic, s.name), s.role),
-              )).toList(),
+        ...staffList.map((s) {
+          final isSelected = _selectedStaff?.id == s.id;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              onTap: () => setState(() => _selectedStaff = s),
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? surfaceHigh : surfaceContainer,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isSelected ? primaryColor.withOpacity(0.35) : outlineColor.withOpacity(0.14),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundImage: NetworkImage(_safeProfilePic(s.profilePic, s.name)),
+                      backgroundColor: surfaceContainer,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            s.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24 / 2,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Space Grotesk',
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            s.role.toUpperCase().replaceAll('_', ' '),
+                            style: TextStyle(
+                              color: isSelected ? primaryColor : outlineColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      isSelected ? Icons.lock : Icons.circle_outlined,
+                      size: 18,
+                      color: outlineColor,
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+          );
+        }),
       ],
     );
   }
@@ -328,120 +366,139 @@ class _StaffListScreenState extends State<StaffListScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          _permissionSwitch('Create Players', 'Authorize roster additions', p.createPlayer, (v) async {
-            p.createPlayer = v;
-            await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Update Vital Data', 'Modify player stats & drills', p.updatePlayer, (v) async {
-             p.updatePlayer = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Delete Records', 'Permanent removal authority', p.deletePlayer, (v) async {
-             p.deletePlayer = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Create Teams', 'Expand academy structure', p.createTeam, (v) async {
-             p.createTeam = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Manage Personnel', 'Add/Edit other staff members', p.manageStaff, (v) async {
-             p.manageStaff = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Create Battles', 'Schedule new match events', p.createBattle, (v) async {
-             p.createBattle = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Manage Battles', 'Control match parameters', p.manageBattle, (v) async {
-             p.manageBattle = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Create Strategy', 'Develop playbooks', p.createStrategy, (v) async {
-             p.createStrategy = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
-          _permissionSwitch('Manage Strategy', 'Direct strategic operations', p.manageStrategy, (v) async {
-             p.manageStrategy = v;
-             await provider.updateStaffInBackend(_selectedStaff!);
-          }),
+          _permissionSwitch('createPlayer', 'Create Players', 'Authorize roster additions', p.createPlayer, (v) => _updatePermission(provider, 'createPlayer', v)),
+          _permissionSwitch('updatePlayer', 'Update Vital Data', 'Modify player stats & drills', p.updatePlayer, (v) => _updatePermission(provider, 'updatePlayer', v)),
+          _permissionSwitch('deletePlayer', 'Delete Records', 'Permanent removal authority', p.deletePlayer, (v) => _updatePermission(provider, 'deletePlayer', v)),
+          _permissionSwitch('createTeam', 'Create Teams', 'Expand academy structure', p.createTeam, (v) => _updatePermission(provider, 'createTeam', v)),
+          _permissionSwitch('manageStaff', 'Manage Personnel', 'Add/Edit other staff members', p.manageStaff, (v) => _updatePermission(provider, 'manageStaff', v)),
+          _permissionSwitch('createBattle', 'Create Battles', 'Schedule new match events', p.createBattle, (v) => _updatePermission(provider, 'createBattle', v)),
+          _permissionSwitch('manageBattle', 'Manage Battles', 'Control match parameters', p.manageBattle, (v) => _updatePermission(provider, 'manageBattle', v)),
+          _permissionSwitch('createStrategy', 'Create Strategy', 'Develop playbooks', p.createStrategy, (v) => _updatePermission(provider, 'createStrategy', v)),
+          _permissionSwitch('manageStrategy', 'Manage Strategy', 'Direct strategic operations', p.manageStrategy, (v) => _updatePermission(provider, 'manageStrategy', v)),
         ],
       ),
     );
   }
 
-  Widget _permissionSwitch(String title, String sub, bool value, Future<void> Function(bool) onChanged) {
-    bool _localValue = value;
-    bool _isUpdating = false;
-    return StatefulBuilder(
-      builder: (context, setLocalState) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text(sub, style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-              Switch(
-                value: _localValue,
-                onChanged: _isUpdating ? null : (v) async {
-                  setLocalState(() {
-                    _localValue = v;
-                    _isUpdating = true;
-                  });
-                  
-                  try {
-                    await onChanged(v);
-                    // Success - keep the new value
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('$title updated successfully'),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    // Error - rollback the change
-                    setLocalState(() => _localValue = !v);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to update $title: ${e.toString().replaceAll('Exception: ', '')}'),
-                          backgroundColor: Colors.redAccent,
-                          duration: const Duration(seconds: 3),
-                          action: SnackBarAction(
-                            label: 'Retry',
-                            textColor: Colors.white,
-                            onPressed: () {
-                              // Retry the same action
-                              onChanged(_localValue);
-                            },
-                          ),
-                        ),
-                      );
-                    }
-                  } finally {
-                    setLocalState(() => _isUpdating = false);
-                  }
-                },
-                activeColor: primaryColor,
-                activeTrackColor: primaryColor.withOpacity(0.3),
-                inactiveThumbColor: outlineColor,
-                inactiveTrackColor: surfaceHigh,
-              ),
-            ],
+  Widget _permissionSwitch(
+    String key,
+    String title,
+    String sub,
+    bool value,
+    Future<void> Function(bool) onChanged,
+  ) {
+    final isUpdating = _updatingPermissionKeys.contains(key);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(sub, style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
-        );
-      }
+          Switch(
+            value: value,
+            onChanged: isUpdating ? null : onChanged,
+            activeColor: primaryColor,
+            activeTrackColor: primaryColor.withOpacity(0.3),
+            inactiveThumbColor: outlineColor,
+            inactiveTrackColor: surfaceHigh,
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _updatePermission(AcademyProvider provider, String key, bool value) async {
+    if (_selectedStaff == null) return;
+    final previous = _selectedStaff!.permissions.toMap();
+
+    void apply(bool nextValue) {
+      switch (key) {
+        case 'createPlayer':
+          _selectedStaff!.permissions.createPlayer = nextValue;
+          break;
+        case 'updatePlayer':
+          _selectedStaff!.permissions.updatePlayer = nextValue;
+          break;
+        case 'deletePlayer':
+          _selectedStaff!.permissions.deletePlayer = nextValue;
+          break;
+        case 'createTeam':
+          _selectedStaff!.permissions.createTeam = nextValue;
+          break;
+        case 'manageStaff':
+          _selectedStaff!.permissions.manageStaff = nextValue;
+          break;
+        case 'createBattle':
+          _selectedStaff!.permissions.createBattle = nextValue;
+          if (!nextValue) {
+            _selectedStaff!.permissions.manageBattle = false;
+          }
+          break;
+        case 'manageBattle':
+          _selectedStaff!.permissions.manageBattle = nextValue;
+          if (nextValue) {
+            _selectedStaff!.permissions.createBattle = true;
+          }
+          break;
+        case 'createStrategy':
+          _selectedStaff!.permissions.createStrategy = nextValue;
+          if (!nextValue) {
+            _selectedStaff!.permissions.manageStrategy = false;
+          }
+          break;
+        case 'manageStrategy':
+          _selectedStaff!.permissions.manageStrategy = nextValue;
+          if (nextValue) {
+            _selectedStaff!.permissions.createStrategy = true;
+          }
+          break;
+      }
+    }
+
+    setState(() {
+      _updatingPermissionKeys.add(key);
+      apply(value);
+    });
+
+    try {
+      await provider.updateStaffInBackend(
+        _selectedStaff!,
+        refreshAfterUpdate: false,
+        rethrowOnError: true,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Permission updated'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _selectedStaff!.permissions = Permissions.fromMap(previous);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update permission: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingPermissionKeys.remove(key));
+      }
+    }
   }
 
   Widget _buildActiveProfiles(AcademyProvider provider) {
@@ -523,17 +580,10 @@ class _StaffListScreenState extends State<StaffListScreen> {
                 name: staffData['name'] ?? '',
                 email: staffData['email'] ?? '',
                 password: staffData['password'] ?? '',
-                role: (staffData['role'] ?? 'coach').toString().toLowerCase(),
-                customRoleName: staffData['customRoleName'],
+                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+                customRoleName: staffData['customRoleName']?.toString(),
                 assignedTeamIds: const [],
-                permissions: Permissions(
-                  createPlayer: true,
-                  readPlayer: true,
-                  updatePlayer: true,
-                  deletePlayer: false,
-                  createTeam: false,
-                  manageStaff: false,
-                ),
+                permissions: Permissions.fromDynamic(staffData['permissions']),
               ),
             );
             if (context.mounted) {

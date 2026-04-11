@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:ballchart/core/constants/colors.dart';
@@ -10,7 +11,14 @@ import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 
 class CreateTeamDialog extends StatefulWidget {
-  final Function(String name, String ageGroup, Color color, String? logoPath, String? coachId, String? assistantId)? onTeamCreated;
+  final FutureOr<void> Function(
+    String name,
+    String ageGroup,
+    Color color,
+    String? logoPath,
+    String? coachId,
+    String? assistantId,
+  )? onTeamCreated;
 
   const CreateTeamDialog({super.key, this.onTeamCreated});
 
@@ -38,6 +46,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
   final ImagePicker _imagePicker = ImagePicker();
   String? _selectedCoachId;
   String? _selectedAssistantId;
+  bool _isSubmitting = false;
 
   final List<Map<String, String>> _tiers = [
     {'label': 'U-12', 'sub': 'Foundation'},
@@ -399,24 +408,36 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            onPressed: () {
-              if (_nameController.text.isNotEmpty && widget.onTeamCreated != null) {
-                widget.onTeamCreated!(
-                  _nameController.text,
-                  _selectedTier,
-                  _selectedColor,
-                  _logoDataUri,
-                  _selectedCoachId,
-                  _selectedAssistantId,
-                );
-              }
-            },
+            onPressed: _isSubmitting
+                ? null
+                : () async {
+                    if (_nameController.text.isEmpty || widget.onTeamCreated == null) return;
+                    setState(() => _isSubmitting = true);
+                    try {
+                      await widget.onTeamCreated!(
+                        _nameController.text,
+                        _selectedTier,
+                        _selectedColor,
+                        _logoDataUri,
+                        _selectedCoachId,
+                        _selectedAssistantId,
+                      );
+                    } finally {
+                      if (mounted) setState(() => _isSubmitting = false);
+                    }
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: _selectedColor,
               foregroundColor: _selectedColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: const Text('INITIALIZE SQUAD', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2)),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('INITIALIZE SQUAD', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2)),
           ),
         ),
         const SizedBox(height: 12),

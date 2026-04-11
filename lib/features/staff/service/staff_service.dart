@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
 import '../../../core/services/api_service.dart';
 
 class StaffService {
@@ -8,6 +10,7 @@ class StaffService {
     required String email,
     required String password,
     required String role,
+    Map<String, bool>? permissions,
     String? teamId,
   }) async {
     try {
@@ -16,11 +19,21 @@ class StaffService {
         'email': email,
         'password': password,
         'role': role,
+        if (permissions != null) 'permissions': permissions,
         if (teamId != null) 'teamId': teamId,
       });
       return response;
     } catch (e) {
       rethrow;
+    }
+  }
+
+  Future<String?> uploadImage(File imageFile) async {
+    try {
+      final response = await _apiService.uploadFile('/upload/image', imageFile);
+      return response['url'] as String?;
+    } catch (e) {
+      throw Exception('Failed to upload image: $e');
     }
   }
 
@@ -34,6 +47,7 @@ class StaffService {
     String? ageRange,
     String? height,
     String? weight,
+    String? profileImageUrl,
   }) async {
     try {
       final response = await _apiService.post('/auth/player/create', {
@@ -46,6 +60,7 @@ class StaffService {
         if (ageRange != null && ageRange.isNotEmpty) 'ageRange': ageRange,
         'height': height,
         'weight': weight,
+        if (profileImageUrl != null) 'profileImageUrl': profileImageUrl,
       });
       return response;
     } catch (e) {

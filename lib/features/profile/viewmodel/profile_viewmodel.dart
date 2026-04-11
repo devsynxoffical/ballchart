@@ -16,7 +16,7 @@ class ProfileViewmodel extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   Future<void> loadProfile({bool forceRefresh = false}) async {
-    if (_isLoading) return;
+    if (_isLoading && !forceRefresh) return;
     if (_user != null && !forceRefresh) return;
     
     _setLoading(true);

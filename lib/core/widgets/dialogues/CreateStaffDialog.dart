@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:async';
+import 'dart:io';
 import 'package:ballchart/core/constants/colors.dart';
 import 'package:ballchart/features/staff/service/staff_service.dart';
 
 class CreateStaffDialog extends StatefulWidget {
   final String initialRole;
-  final Function(Map<String, String> staff)? onStaffCreated;
+  final FutureOr<void> Function(Map<String, dynamic> staff)? onStaffCreated;
 
   const CreateStaffDialog({
     super.key,
@@ -24,19 +27,26 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
   final TextEditingController _customRoleController = TextEditingController();
 
   final StaffService _staffService = StaffService();
+  final ImagePicker _imagePicker = ImagePicker();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isSuccess = false;
   String? _errorMessage;
+  String? _profileImagePath;
 
   late String _selectedRole;
   final List<String> _roles = ['Coach', 'Assistant Coach', 'Custom'];
   
   final Map<String, bool> _permissions = {
     'createPlayer': true,
-    'modifyProfile': true,
-    'deleteProfile': false,
-    'manageTeams': true,
+    'updatePlayer': true,
+    'deletePlayer': false,
+    'createTeam': true,
+    'manageStaff': false,
+    'createBattle': false,
+    'manageBattle': false,
+    'createStrategy': false,
+    'manageStrategy': false,
   };
 
   static const Color primaryGold = Color(0xFFFFDCA3);
@@ -57,14 +67,39 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
   void _applyRoleDefaults(String role) {
     if (role == 'Coach') {
       _permissions['createPlayer'] = true;
-      _permissions['modifyProfile'] = true;
-      _permissions['deleteProfile'] = false;
-      _permissions['manageTeams'] = true;
+      _permissions['updatePlayer'] = true;
+      _permissions['deletePlayer'] = false;
+      _permissions['createTeam'] = true;
+      _permissions['manageStaff'] = false;
+      _permissions['createBattle'] = true;
+      _permissions['manageBattle'] = true;
+      _permissions['createStrategy'] = true;
+      _permissions['manageStrategy'] = true;
     } else if (role == 'Assistant Coach') {
       _permissions['createPlayer'] = true;
-      _permissions['modifyProfile'] = false;
-      _permissions['deleteProfile'] = false;
-      _permissions['manageTeams'] = false;
+      _permissions['updatePlayer'] = false;
+      _permissions['deletePlayer'] = false;
+      _permissions['createTeam'] = false;
+      _permissions['manageStaff'] = false;
+      _permissions['createBattle'] = false;
+      _permissions['manageBattle'] = false;
+      _permissions['createStrategy'] = false;
+      _permissions['manageStrategy'] = false;
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() {
+          _profileImagePath = image.path;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to pick image: $e';
+      });
     }
   }
 
@@ -96,21 +131,20 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
     });
 
     try {
-      await _staffService.createStaff(
-        name: name,
-        email: email,
-        password: password,
-        role: _selectedRole.toLowerCase().replaceAll(' ', '_'),
-      );
-
-      if (!mounted) return;
-      
-      widget.onStaffCreated?.call({
+      final roleKey = _selectedRole.toLowerCase().replaceAll(' ', '_');
+      final perms = Map<String, bool>.from(_permissions);
+      perms['readPlayer'] = perms['readPlayer'] ?? true;
+      await widget.onStaffCreated?.call({
         'name': name,
         'email': email,
         'password': password,
-        'role': _selectedRole,
+        'role': roleKey,
+        if (roleKey == 'custom' && _customRoleController.text.trim().isNotEmpty)
+          'customRoleName': _customRoleController.text.trim(),
+        'permissions': perms,
       });
+
+      if (!mounted) return;
 
       setState(() {
         _isLoading = false;
@@ -184,6 +218,8 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
           _buildProgressIndicator(),
           const SizedBox(height: 32),
           _buildSectionHeader('CORE CREDENTIALS'),
+          const SizedBox(height: 16),
+          _buildProfilePhotoSection(),
           const SizedBox(height: 16),
           _buildTextField('FULL NAME', 'e.g. MARCUS STERLING', _nameController),
           const SizedBox(height: 12),
@@ -424,13 +460,23 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
           decoration: BoxDecoration(color: surfaceContainer, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.05))),
           child: Column(
             children: [
-              _buildPermissionToggle('Create Player', 'Add new athletes to roster', _permissions['createPlayer']!),
+              _buildPermissionToggle('Create Player', 'Add new athletes to roster', 'createPlayer'),
               const Divider(color: Colors.white10, height: 1),
-              _buildPermissionToggle('Modify Profile', 'Edit stats and bio data', _permissions['modifyProfile']!),
+              _buildPermissionToggle('Modify Profile', 'Edit stats and bio data', 'updatePlayer'),
               const Divider(color: Colors.white10, height: 1),
-              _buildPermissionToggle('Delete Profile', 'Permanent removal of entities', _permissions['deleteProfile']!),
+              _buildPermissionToggle('Delete Profile', 'Permanent removal of entities', 'deletePlayer'),
               const Divider(color: Colors.white10, height: 1),
-              _buildPermissionToggle('Manage Teams', 'Shift personnel between units', _permissions['manageTeams']!),
+              _buildPermissionToggle('Manage Teams', 'Shift personnel between units', 'createTeam'),
+              const Divider(color: Colors.white10, height: 1),
+              _buildPermissionToggle('Manage Staff', 'Control academy personnel', 'manageStaff'),
+              const Divider(color: Colors.white10, height: 1),
+              _buildPermissionToggle('Create Battle', 'Plan match operations', 'createBattle'),
+              const Divider(color: Colors.white10, height: 1),
+              _buildPermissionToggle('Manage Battle', 'Oversee live battles', 'manageBattle'),
+              const Divider(color: Colors.white10, height: 1),
+              _buildPermissionToggle('Create Strategy', 'Author strategic plays', 'createStrategy'),
+              const Divider(color: Colors.white10, height: 1),
+              _buildPermissionToggle('Manage Strategy', 'Implement academy strategy', 'manageStrategy'),
             ],
           ),
         ),
@@ -438,7 +484,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
     );
   }
 
-  Widget _buildPermissionToggle(String title, String sub, bool value) {
+  Widget _buildPermissionToggle(String title, String sub, String key) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -452,9 +498,8 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
             ],
           ),
           Switch(
-            value: value,
+            value: _permissions[key] ?? false,
             onChanged: (v) {
-              String key = title.substring(0, 1).toLowerCase() + title.substring(1).replaceAll(' ', '');
               setState(() => _permissions[key] = v);
             },
             activeColor: primaryContainer,
@@ -482,6 +527,64 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
         child: _isLoading 
           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
           : const Text('CREATE ACCOUNT', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _buildProfilePhotoSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: surfaceHigh,
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(color: primaryContainer.withOpacity(0.3), width: 2),
+              ),
+              child: _profileImagePath != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(40),
+                      child: Image.file(
+                        File(_profileImagePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.person, color: outline, size: 32);
+                        },
+                      ),
+                    )
+                  : const Icon(Icons.add_a_photo, color: outline, size: 32),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Profile Photo',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to upload photo',
+            style: TextStyle(
+              color: outline.withOpacity(0.7),
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }

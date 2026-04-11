@@ -6,9 +6,11 @@ import '../home/view/home_screen.dart';
 import '../profile/view/profile_screen.dart';
 import '../strategy/view/enhanced_strategy_screen.dart';
 import '../coach/home/view/coach_home_screen.dart';
+import '../player/view/player_home_screen.dart';
 import '../management/view/management_screen.dart';
 import 'package:provider/provider.dart';
 import '../profile/viewmodel/profile_viewmodel.dart';
+import '../management/viewmodel/academy_provider.dart';
 
 
 class AppNavigator extends StatefulWidget {
@@ -34,8 +36,13 @@ class _AppNavigatorState extends State<AppNavigator> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final profileVm = context.read<ProfileViewmodel>();
       profileVm.loadProfile(forceRefresh: true).then((_) {
-        final resolvedRole = profileVm.user?.role;
-        if (!mounted || resolvedRole == null || resolvedRole.isEmpty) return;
+        final u = profileVm.user;
+        if (!mounted) return;
+        if (u != null) {
+          context.read<AcademyProvider>().setCurrentUser(u);
+        }
+        final resolvedRole = u?.role;
+        if (resolvedRole == null || resolvedRole.isEmpty) return;
         if (resolvedRole != _effectiveRole) {
           setState(() {
             _effectiveRole = resolvedRole;
@@ -51,9 +58,12 @@ class _AppNavigatorState extends State<AppNavigator> {
     final role = _effectiveRole;
     final bool isHC = role == 'head_coach';
     final List<Widget> screens = [
-      (role == 'coach' || role == 'head_coach' || role == 'assistant_coach')
-          ? const CoachHomeScreen()
-          : const HomeScreen(),
+      if (role == 'coach' || role == 'head_coach' || role == 'assistant_coach')
+        const CoachHomeScreen()
+      else if (role == 'player')
+        const PlayerHomeScreen()
+      else
+        const HomeScreen(),
     ];
 
     if (isHC) {
@@ -103,11 +113,13 @@ class _AppNavigatorState extends State<AppNavigator> {
       onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
         
+        // If not on first tab, navigate to first tab (home)
         if (_currentIndex != 0) {
           setState(() {
             _currentIndex = 0;
           });
         } else {
+          // If on first tab, show exit dialog
           final shouldExit = await _showExitDialog(context);
           if (shouldExit == true) {
             SystemNavigator.pop();
