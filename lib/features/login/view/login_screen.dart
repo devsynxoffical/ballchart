@@ -181,10 +181,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ],
                               ),
                               alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.sports_basketball,
-                                color: bgColor,
-                                size: 45,
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'basketball_icon.png',
+                                  width: 72,
+                                  height: 72,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 24),

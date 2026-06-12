@@ -182,10 +182,14 @@ class _SplashScreenState extends State<SplashScreen> {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.query_stats,
-                          color: bgColor,
-                          size: 70,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.asset(
+                            'basketball_icon.png',
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),

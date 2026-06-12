@@ -133,7 +133,10 @@ class _BasketballCourtPainter extends CustomPainter {
     drawEnd(north: false);
 
     _drawLabelBox(canvas, w * 0.04, h * 0.02, 'DEFENSE', Colors.black87, Colors.white);
-    _drawLabelBox(canvas, w * 0.04, h * 0.92, 'OFFENSE', const Color(0xFF3D405B), Colors.white);
+    _drawLabelBox(canvas, w * 0.04, h * 0.90, 'OFFENSE', const Color(0xFF3D405B), Colors.white);
+    _drawLabelBox(canvas, w * 0.04, h * 0.96, 'COACHING BOARD', Colors.black87, Colors.white);
+    _drawLabelBox(canvas, w * 0.55, h * 0.96, 'FULL COURT', const Color(0xFF3D405B), Colors.white);
+    _drawLabelBox(canvas, w * 0.36, midY - 8, 'BALLCHART', const Color(0xFF3D405B), Colors.white);
 
     if (currentStep != null && progress > 0.0 && frame.startOffenseNorm != null && frame.targetOffenseNorm != null) {
       final pathPaint = Paint()

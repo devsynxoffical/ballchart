@@ -78,6 +78,8 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/header.png
+    - assets/images/logo.png
     - basketball_icon.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
