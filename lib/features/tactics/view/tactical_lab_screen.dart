@@ -77,13 +77,29 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       ]
     },
     {
-      'name': 'Fast Break Slam',
+      'name': 'Fast Break Lane Fill',
       'steps': [
         const PlayStep(id: '1', kind: PlayStepKind.pass, actorSlot: 1, targetSlot: 3),
-        const PlayStep(id: '2', kind: PlayStepKind.cut, actorSlot: 3, toNorm: Offset(0.5, 0.1)),
+        const PlayStep(id: '2', kind: PlayStepKind.cut, actorSlot: 3, toNorm: Offset(0.5, 0.88)),
         const PlayStep(id: '3', kind: PlayStepKind.shoot, actorSlot: 3),
       ]
-    }
+    },
+    {
+      'name': 'Horns Pick & Roll',
+      'steps': [
+        const PlayStep(id: '1', kind: PlayStepKind.screen, actorSlot: 5, targetSlot: 1),
+        const PlayStep(id: '2', kind: PlayStepKind.roll, actorSlot: 5, toNorm: Offset(0.5, 0.82)),
+        const PlayStep(id: '3', kind: PlayStepKind.pass, actorSlot: 1, targetSlot: 5),
+      ]
+    },
+    {
+      'name': 'Zone Overload Skip',
+      'steps': [
+        const PlayStep(id: '1', kind: PlayStepKind.cut, actorSlot: 2, toNorm: Offset(0.88, 0.72)),
+        const PlayStep(id: '2', kind: PlayStepKind.pass, actorSlot: 1, targetSlot: 2),
+        const PlayStep(id: '3', kind: PlayStepKind.shoot, actorSlot: 2),
+      ]
+    },
   ];
   bool _isPlayerMode = false;
   Map<String, dynamic>? _activePlaybook;
@@ -439,8 +455,8 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     double minAt = 40.0; 
     for (int i = 0; i < 5; i++) {
       final p = _playback.frame.offenseNorm[i];
-      final px = p.dy * w;
-      final py = p.dx * h;
+      final px = p.dx * w;
+      final py = p.dy * h;
       final dist = (Offset(px, py) - local).distance;
       if (dist < minAt) {
         minAt = dist;
@@ -462,9 +478,10 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   void _onPointerMove(PointerMoveEvent event, double w, double h) {
     if (_draggingSlot == null) return;
     final local = event.localPosition;
-    final normX = (local.dy / h).clamp(0.0, 1.0);
-    final normY = (local.dx / w).clamp(0.0, 1.0);
-    final norm = Offset(normX, normY);
+    final norm = Offset(
+      (local.dx / w).clamp(0.0, 1.0),
+      (local.dy / h).clamp(0.0, 1.0),
+    );
     _playback.updateOffenseDragLive(_draggingSlot!, norm);
     _maybeRecordDragKeyframe(_draggingSlot!, norm, force: false);
   }

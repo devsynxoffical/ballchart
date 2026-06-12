@@ -23,21 +23,27 @@ List<TacticalSuggestion> suggestNextActions({
 
   // Suggesting complete flows as requested by the user
   out.add(TacticalSuggestion(
-    title: 'Strong Side Clear-out',
-    reason: 'Create space for Player $ballOwnerSlot to drive by clearing the paint.',
-    sampleCommand: 'Player 5 move to the basket then player $ballOwnerSlot pass to 2 then player 2 shoot',
+    title: 'Strong-side clear-out',
+    reason: 'Empty the strong-side block so P$ballOwnerSlot can attack the rim.',
+    sampleCommand: 'Player 5 move to corner then player $ballOwnerSlot drive to paint then player $ballOwnerSlot pass to 2 then player 2 shoot',
   ));
 
   out.add(TacticalSuggestion(
-    title: 'Pick and Roll Flow',
-    reason: 'Use a high screen to force defensive help and find the open cutter.',
-    sampleCommand: 'Player 4 move to player $ballOwnerSlot then player $ballOwnerSlot move close to goal then player 4 shoot',
+    title: 'High pick-and-roll',
+    reason: 'Set a ball screen at the top and roll to the rim for a lob or kick-out.',
+    sampleCommand: 'Player 5 screen player $ballOwnerSlot then player 5 roll to basket then player $ballOwnerSlot pass to 5',
   ));
 
   out.add(const TacticalSuggestion(
-    title: 'Fast Break Transition',
-    reason: 'Push the tempo immediately to catch the defense before they set up.',
-    sampleCommand: 'Player 1 pass to player 3 then player 3 move to basket then player 3 shoot',
+    title: 'Transition lane fill',
+    reason: 'Fill the wide lane in transition before the defense recovers.',
+    sampleCommand: 'Player 1 pass to player 3 then player 3 cut to basket then player 3 shoot',
+  ));
+
+  out.add(const TacticalSuggestion(
+    title: 'Zone skip pass',
+    reason: 'Shift the zone with a dribble, then skip to the weak-side corner three.',
+    sampleCommand: 'Player 2 move to wing then player 1 pass to 2 then player 2 shoot',
   ));
 
   return out;

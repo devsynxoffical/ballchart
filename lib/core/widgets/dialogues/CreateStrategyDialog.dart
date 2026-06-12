@@ -13,7 +13,7 @@ import '../../models/tactical/tactical_schema.dart';
 class CreateStrategyDialog extends StatefulWidget {
   final StrategyCreationEntry entry;
 
-  /// [categoryId] is UI bucket (offense/defense/transition/special).
+  /// [categoryId] is UI bucket (offense/defense/transition/inbound).
   /// [sourceTypeForApi] is normalized for the API: `video`, `diagram`, or `text`.
   final Future<void> Function(
     String title,
@@ -60,20 +60,22 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
     {'id': 'offense', 'name': 'OFFENSE', 'icon': Icons.sports_basketball, 'color': primaryColor},
     {'id': 'defense', 'name': 'DEFENSE', 'icon': Icons.shield, 'color': Colors.red},
     {'id': 'transition', 'name': 'TRANSITION', 'icon': Icons.swap_horiz, 'color': Colors.blue},
-    {'id': 'special', 'name': 'SPECIAL', 'icon': Icons.star, 'color': Colors.purple},
+    {'id': 'inbound', 'name': 'INBOUND / ATO', 'icon': Icons.sports_basketball, 'color': Colors.purple},
   ];
 
   final List<String> _commonPlays = [
-    'Pick and Roll',
-    'Isolation',
-    'Fast Break',
-    'Zone Defense',
-    'Man to Man',
-    'Press Break',
-    'Post Up',
-    'Three Point Play',
-    'Drive and Kick',
-    'High Post',
+    'Horns pick-and-roll',
+    'Spread ball screen',
+    'Floppy / stagger',
+    'DHO (dribble hand-off)',
+    'Spain pick-and-roll',
+    'Zone 2-3 overload',
+    'Man-to-man shell',
+    'Full-court press',
+    'Press break',
+    'Transition lane fill',
+    'BLOB baseline',
+    'SLOB sideline',
   ];
 
   final List<String> _suggestedTags = [
@@ -113,8 +115,8 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
         return 'defense';
       case 'transition':
         return 'general';
-      case 'special':
-        return 'drills';
+      case 'inbound':
+        return 'inbound';
       default:
         return 'general';
     }

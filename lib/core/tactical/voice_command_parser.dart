@@ -110,7 +110,7 @@ ParsedCoachCommand parseCoachCommand(String input) {
         intent: CoachIntent.runNamedPlay,
         confidence: name.length > 2 ? 0.82 : 0.55,
         entities: {'playName': name},
-        alternatives: name.length < 3 ? ['Run fast break alpha', 'Run horns set'] : const [],
+        alternatives: name.length < 3 ? ['Run horns pick and roll', 'Run transition lane'] : const [],
         raw: input,
       );
     }
@@ -326,25 +326,33 @@ List<Token> _tokenize(String input) {
       continue;
     }
 
-    // 4. Areas
-    if (w == 'basket' || w == 'hoop' || w == 'rim' || w == 'goal') {
-      tokens.add(const Token(TokenType.area, Offset(0.5, 0.08)));
+    // 4. Basketball court areas (offense attacks south hoop, y → 1)
+    if (w == 'basket' || w == 'hoop' || w == 'rim' || w == 'bucket') {
+      tokens.add(const Token(TokenType.area, Offset(0.5, 0.90)));
       continue;
     }
     if (w == 'wing') {
-      tokens.add(const Token(TokenType.area, Offset(0.8, 0.3))); // Default right wing
+      tokens.add(const Token(TokenType.area, Offset(0.82, 0.70)));
       continue;
     }
     if (w == 'corner') {
-      tokens.add(const Token(TokenType.area, Offset(0.9, 0.1)));
+      tokens.add(const Token(TokenType.area, Offset(0.92, 0.88)));
       continue;
     }
-    if (w == 'top' || w == 'point' || w == 'key') {
-      tokens.add(const Token(TokenType.area, Offset(0.5, 0.4)));
+    if (w == 'elbow') {
+      tokens.add(const Token(TokenType.area, Offset(0.72, 0.68)));
       continue;
     }
-    if (w == 'paint' || w == 'block') {
-      tokens.add(const Token(TokenType.area, Offset(0.5, 0.2)));
+    if (w == 'top' || w == 'point') {
+      tokens.add(const Token(TokenType.area, Offset(0.5, 0.72)));
+      continue;
+    }
+    if (w == 'key' || w == 'paint' || w == 'block' || w == 'low') {
+      tokens.add(const Token(TokenType.area, Offset(0.5, 0.85)));
+      continue;
+    }
+    if (w == 'short') {
+      tokens.add(const Token(TokenType.area, Offset(0.18, 0.78)));
       continue;
     }
   }

@@ -13,9 +13,9 @@ enum StrategyPlayCategory {
   offense,
   defense,
   transition,
-  specialTeams,
   inbound,
   press,
+  situational,
 }
 
 /// Atomic step in a playbook sequence (future: ties to animation nodes).

@@ -149,6 +149,15 @@ class CourtSlots {
     final o = formationOffsets(f);
     return o[slotToIndex(slot).clamp(0, o.length - 1)];
   }
+
+  /// Map normalized court coords (x = sideline, y = north→south) to canvas pixels.
+  static Offset normToPixel(Offset norm, Size size) =>
+      Offset(norm.dx * size.width, norm.dy * size.height);
+
+  static Offset pixelToNorm(Offset pixel, Size size) => Offset(
+        (pixel.dx / size.width).clamp(0.0, 1.0),
+        (pixel.dy / size.height).clamp(0.0, 1.0),
+      );
 }
 
 /// Ball state: which 1-based slot possesses the rock.
