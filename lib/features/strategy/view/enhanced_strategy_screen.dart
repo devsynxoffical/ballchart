@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
@@ -127,13 +128,13 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                   children: [
                     Text('PLAYBOOK INTELLIGENCE', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                     SizedBox(height: 4),
-                    Text('TACTICAL STRATEGY', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
+                    Text('BASKETBALL PLAYBOOK', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
                   ],
                 ),
               ),
               if (isStaff) ...[
                 IconButton(
-                  tooltip: 'Strategy KPI targets (formation & drills)',
+                  tooltip: 'Playbook KPI targets (set recognition & drills)',
                   onPressed: () => showStrategyKpisSheet(context),
                   icon: const Icon(Icons.tune, color: primaryColor, size: 26),
                 ),
@@ -218,7 +219,12 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                   Expanded(
                     child: _buildFilterDropdown(
                       'Category',
-                      ['all', ...vm.categories],
+                      [
+                        {'value': 'all', 'label': 'All'},
+                        ...vm.categories.map(
+                          (c) => {'value': c, 'label': BasketballStrategy.categoryLabel(c)},
+                        ),
+                      ],
                       _selectedCategory,
                       (value) {
                         _selectedCategory = value;
@@ -228,6 +234,7 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                           vm.setCategory(value);
                         }
                       },
+                      isMap: true,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -510,7 +517,7 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(strategy.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                Text(strategy.category, style: const TextStyle(color: outlineColor, fontSize: 12)),
+                Text(BasketballStrategy.categoryLabel(strategy.category), style: const TextStyle(color: outlineColor, fontSize: 12)),
               ],
             ),
           ),
@@ -591,7 +598,7 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      strategy.category,
+                      BasketballStrategy.categoryLabel(strategy.category),
                       style: const TextStyle(color: primaryColor, fontSize: 10),
                     ),
                     const Spacer(),
@@ -658,7 +665,7 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${strategy.category} • ${strategy.createdByName}',
+                  '${BasketballStrategy.categoryLabel(strategy.category)} • ${strategy.createdByName}',
                   style: const TextStyle(color: outlineColor, fontSize: 12),
                 ),
                 const SizedBox(height: 8),

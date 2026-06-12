@@ -1,3 +1,4 @@
+import '../constants/basketball_strategy.dart';
 import '../models/strategy_model.dart';
 import '../services/api_service.dart';
 
@@ -107,13 +108,27 @@ class StrategyRepository {
   }
 
   Future<List<String>> getCategories() async {
-    final response = await _apiService.get('/strategies/categories');
-    return (response as List?)?.map((e) => e.toString()).toList() ?? [];
+    try {
+      final response = await _apiService.get('/strategies/categories');
+      final fromApi = (response as List?)?.map((e) => e.toString()).toList() ?? [];
+      if (fromApi.isNotEmpty) {
+        return {...BasketballStrategy.categories, ...fromApi}.toList();
+      }
+    } catch (_) {
+      /* fall through */
+    }
+    return List<String>.from(BasketballStrategy.categories);
   }
 
   Future<List<String>> getTags() async {
-    final response = await _apiService.get('/strategies/tags');
-    return (response as List?)?.map((e) => e.toString()).toList() ?? [];
+    try {
+      final response = await _apiService.get('/strategies/tags');
+      final fromApi = (response as List?)?.map((e) => e.toString()).toList() ?? [];
+      if (fromApi.isNotEmpty) return fromApi;
+    } catch (_) {
+      /* fall through */
+    }
+    return List<String>.from(BasketballStrategy.suggestedTags);
   }
 
   Future<List<StrategyModel>> getMyStrategies() async {

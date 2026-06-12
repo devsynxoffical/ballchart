@@ -37,15 +37,15 @@ extension StrategyCreationEntryX on StrategyCreationEntry {
   String get subtitle {
     switch (this) {
       case StrategyCreationEntry.fullPlaybook:
-        return 'Name, description, diagram, optional clip, key plays';
+        return 'Half-court set, diagram, film, and key basketball reads';
       case StrategyCreationEntry.videoFirst:
-        return 'Lead with a clip URL, add notes and plays';
+        return 'Game film or drill clip, then coaching points';
       case StrategyCreationEntry.diagramFirst:
-        return 'Start from a whiteboard image, add details';
+        return 'Half-court board image, then reads and counters';
       case StrategyCreationEntry.textOnly:
-        return 'Written breakdown without requiring video';
+        return 'Written breakdown of a basketball set or coverage';
       case StrategyCreationEntry.linkLibrary:
-        return 'Hudl, article, or doc link + summary';
+        return 'Hudl / scouting link with summary for your squad';
     }
   }
 

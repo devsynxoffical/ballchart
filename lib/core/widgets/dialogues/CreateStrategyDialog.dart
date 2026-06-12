@@ -7,6 +7,7 @@ import 'strategy_creation_entry.dart';
 import '../../../features/tactics/view/tactical_lab_screen.dart';
 import '../../tactical/tactical_entities.dart';
 import '../../tactical/voice_command_parser.dart';
+import '../../constants/basketball_strategy.dart';
 import '../../tactical/tactical_ai_suggestions.dart';
 import '../../models/tactical/tactical_schema.dart';
 
@@ -63,31 +64,9 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
     {'id': 'inbound', 'name': 'INBOUND / ATO', 'icon': Icons.sports_basketball, 'color': Colors.purple},
   ];
 
-  final List<String> _commonPlays = [
-    'Horns pick-and-roll',
-    'Spread ball screen',
-    'Floppy / stagger',
-    'DHO (dribble hand-off)',
-    'Spain pick-and-roll',
-    'Zone 2-3 overload',
-    'Man-to-man shell',
-    'Full-court press',
-    'Press break',
-    'Transition lane fill',
-    'BLOB baseline',
-    'SLOB sideline',
-  ];
+  final List<String> _commonPlays = BasketballStrategy.commonPlays;
 
-  final List<String> _suggestedTags = [
-    'transition',
-    'half court',
-    'zone',
-    'press',
-    'ATO',
-    'BLOB',
-    'SLOB',
-    'shooting',
-  ];
+  final List<String> _suggestedTags = BasketballStrategy.suggestedTags;
 
   bool _looksLikeHttpUrl(String value) {
     final t = value.trim();
@@ -107,20 +86,7 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
         host.contains('tiktok.com');
   }
 
-  String _mapCategoryForApi(String id) {
-    switch (id) {
-      case 'offense':
-        return 'offense';
-      case 'defense':
-        return 'defense';
-      case 'transition':
-        return 'general';
-      case 'inbound':
-        return 'inbound';
-      default:
-        return 'general';
-    }
-  }
+  String _mapCategoryForApi(String id) => BasketballStrategy.normalizeCategory(id);
 
   String _computeSourceTypeForApi() {
     final v = _videoUrlController.text.trim();
@@ -199,7 +165,7 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
   @override
   Widget build(BuildContext context) {
     final headerHint = widget.entry == StrategyCreationEntry.fullPlaybook
-        ? 'Design your winning playbook'
+        ? 'Basketball playbook — half-court sets, ATO, and transition'
         : widget.entry.subtitle;
 
     return Dialog(
@@ -338,8 +304,8 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
                                     const SizedBox(height: 8),
                                     Text(
                                       widget.entry == StrategyCreationEntry.diagramFirst
-                                        ? 'Tap to add whiteboard / screenshot'
-                                        : 'Tap to add diagram (optional)',
+                                        ? 'Tap to add half-court diagram / screenshot'
+                                        : 'Tap to add court diagram (optional)',
                                       style: TextStyle(color: outlineColor, fontSize: 12),
                                     ),
                                   ],

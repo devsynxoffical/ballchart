@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
@@ -501,7 +502,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(strategy.category.toUpperCase(), style: const TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  Text(BasketballStrategy.categoryLabel(strategy.category).toUpperCase(), style: const TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
                   if (showAssignedBadge) ...[
                     const SizedBox(height: 5),
                     Container(
@@ -562,7 +563,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
       children: [
         Expanded(
           child: _analyticsCard(
-            'FORMATION ENGAGEMENT',
+            'SET RECOGNITION',
             _pctLabel(_formationKpi),
             Icons.insights,
             const Color(0xFF28D8FF),
@@ -613,7 +614,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
 
   Widget _playbookItem(StrategyModel s) {
     final hasVideo = _strategyHasVideo(s);
-    final subtitle = '${s.category.toUpperCase()} • ${s.sourceType.toUpperCase()}'
+    final subtitle = '${BasketballStrategy.categoryLabel(s.category).toUpperCase()} • ${s.sourceType.toUpperCase()}'
         '${hasVideo ? ' • VIDEO' : ''}';
     final meta = s.metadata ?? const <String, dynamic>{};
     final hasAssignment = (meta['assignedTeamId'] ?? '').toString().trim().isNotEmpty ||

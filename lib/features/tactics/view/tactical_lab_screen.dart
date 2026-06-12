@@ -867,7 +867,20 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
         backgroundColor: _bg,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: Text(_isPlayerMode ? 'PLAYBOOK LIBRARY' : 'TACTICAL LAB', style: const TextStyle(fontFamily: 'Space Grotesk', fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _isPlayerMode ? 'PLAYBOOK LIBRARY' : 'TACTICAL LAB',
+              style: const TextStyle(fontFamily: 'Space Grotesk', fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 16),
+            ),
+            if (!_isPlayerMode)
+              const Text(
+                'Basketball court · 5v5',
+                style: TextStyle(color: _outline, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+              ),
+          ],
+        ),
         actions: [
           if (widget.returnOnSave)
             TextButton.icon(

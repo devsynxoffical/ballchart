@@ -186,8 +186,8 @@ ScenarioSummary interpretScenario(String raw, ParsedCoachCommand parsed) {
         headline: 'Set play: “$name”',
         phase: 'set_play',
         bullets: [
-          'Teams align in a scripted formation; first look is often a wing or pin-down.',
-          'If denied, flow into secondary action (handoff or Spain pick).',
+          'Basketball set play: players align in a named look (e.g. Horns, Box, 1-4).',
+          'First read is often a wing pin-down or ball screen; counter with DHO or Spain P&R.',
         ],
       );
     case CoachIntent.markTurnover:

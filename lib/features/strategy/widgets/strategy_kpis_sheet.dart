@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
 
-/// Staff: set Formation engagement % and Drill completion % (stored on academy training catalog).
+/// Staff: set play recognition % and drill completion % (stored on academy training catalog).
 Future<void> showStrategyKpisSheet(BuildContext context) async {
   await showModalBottomSheet<void>(
     context: context,
@@ -145,7 +145,7 @@ class _StrategyKpisBodyState extends State<_StrategyKpisBody> {
                   style: TextStyle(color: outline.withValues(alpha: 0.95), fontSize: 13, height: 1.35),
                 ),
                 const SizedBox(height: 24),
-                Text('Formation engagement — ${_formation.round()}%', style: const TextStyle(color: primary, fontWeight: FontWeight.w700)),
+                Text('Set recognition — ${_formation.round()}%', style: const TextStyle(color: primary, fontWeight: FontWeight.w700)),
                 Slider(
                   value: _formation,
                   min: 0,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/repositories/strategy_repository.dart';
 
@@ -90,8 +91,8 @@ class StrategyViewmodel extends ChangeNotifier {
         _repository.getCategories(),
         _repository.getTags(),
       ]);
-      _categories = futures[0];
-      _tags = futures[1];
+      _categories = {...BasketballStrategy.categories, ...futures[0]}.toList();
+      _tags = {...BasketballStrategy.suggestedTags, ...futures[1]}.toList();
       notifyListeners();
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');

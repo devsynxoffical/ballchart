@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/tactical/tactical_entities.dart';
 import '../../../core/services/api_service.dart';
@@ -169,7 +170,7 @@ class StrategyDetailScreen extends StatelessWidget {
                     border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
-                    strategy.category.toUpperCase(),
+                    BasketballStrategy.categoryLabel(strategy.category).toUpperCase(),
                     style: const TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
                   ),
                 ),
@@ -430,7 +431,7 @@ class StrategyDetailScreen extends StatelessWidget {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'HoopStar Strategy: ${strategy.title}\nCategory: ${strategy.category}',
+        text: 'HoopStar Strategy: ${strategy.title}\nCategory: ${BasketballStrategy.categoryLabel(strategy.category)}',
         subject: 'Coaching Strategy: ${strategy.title}',
       );
     } catch (e) {
