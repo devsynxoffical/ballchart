@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ballchart/core/models/notification_model.dart';
 import 'package:ballchart/core/repositories/notification_repository.dart';
+import 'package:ballchart/features/messaging/view/conversations_list_screen.dart';
 
 /// Opens the notifications bottom sheet (used from academy dashboard, coach home, player home).
 Future<void> showNotificationPanel(BuildContext context) {
@@ -277,7 +278,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
                   shape: BoxShape.circle,
                 ),
               ),
-        onTap: () => _markAsRead(notification),
+        onTap: () => _onNotificationTap(notification),
       ),
     );
   }
@@ -332,6 +333,17 @@ class _NotificationPanelState extends State<NotificationPanel> {
       return '${difference.inDays}d ago';
     } else {
       return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+    }
+  }
+
+  Future<void> _onNotificationTap(NotificationModel notification) async {
+    await _markAsRead(notification);
+    if (!mounted) return;
+    if (notification.type == 'message_received') {
+      Navigator.pop(context);
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const ConversationsListScreen()),
+      );
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/models/battle_model.dart';
 import '../../../features/battle/viewmodel/battle_viewmodel.dart';
+import '../../../features/management/viewmodel/academy_provider.dart';
 
 /// Richer "schedule session" flow: title, format, roster size, notes, quick time presets.
 /// Use [scaffoldMessenger] from the screen that opened the sheet (not the sheet context) for snackbars after close.
@@ -89,7 +90,7 @@ Future<void> showCreateBattleSheet(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                       children: [
                         const Text(
-                          'SCHEDULE BATTLE',
+                          'SCHEDULE GAME',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -304,6 +305,7 @@ Future<void> showCreateBattleSheet(
                             return;
                           }
                           final vm = context.read<BattleViewmodel>();
+                          final academyVm = context.read<AcademyProvider>();
                           final tags = tagState.entries.where((e) => e.value).map((e) => e.key.toLowerCase()).toList();
                           Navigator.pop(context);
                           try {
@@ -337,6 +339,8 @@ Future<void> showCreateBattleSheet(
                                 metadata: meta,
                               );
                             }
+                            await vm.loadBattles();
+                            await academyVm.loadCoachDashboard(force: true);
                             scaffoldMessenger.showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -352,9 +356,9 @@ Future<void> showCreateBattleSheet(
                             );
                           }
                         },
-                        child: const Text(
-                          'CREATE SESSION',
-                          style: TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                        child: Text(
+                          editing ? 'SAVE CHANGES' : 'SCHEDULE GAME',
+                          style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                         ),
                       ),
                     ),

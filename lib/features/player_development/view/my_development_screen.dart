@@ -108,8 +108,12 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
       await Share.shareXFiles([XFile(file.path)], text: 'Player development report');
     } catch (e) {
       if (mounted) {
+        final raw = e.toString().replaceAll('Exception: ', '');
+        final friendly = raw.contains('404') || raw.contains('not found')
+            ? 'No report for this month yet. Complete training sessions and ask your coach to publish your period report.'
+            : raw;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(friendly), backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -567,7 +571,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
-                        'RELENTLESS',
+                        'CORE',
                         style: TextStyle(color: PlayerDevelopmentTheme.primaryColor, fontSize: 8, fontWeight: FontWeight.w900),
                       ),
                     ),

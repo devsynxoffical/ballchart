@@ -55,7 +55,7 @@ class _BattleScreenState extends State<BattleScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Failed to load battle data: ${e.toString().replaceAll('Exception: ', '')}'),
+                content: Text('Failed to load games: ${e.toString().replaceAll('Exception: ', '')}'),
                 backgroundColor: Colors.red,
                 duration: const Duration(seconds: 5),
                 action: SnackBarAction(
@@ -95,7 +95,7 @@ class _BattleScreenState extends State<BattleScreen> {
             children: [
               CircularProgressIndicator(color: primaryColor),
               SizedBox(height: 16),
-              Text('Loading Battles...', style: TextStyle(color: Colors.white70)),
+              Text('Loading games...', style: TextStyle(color: Colors.white70)),
             ],
           ),
         ),
@@ -115,7 +115,7 @@ class _BattleScreenState extends State<BattleScreen> {
                 const Icon(Icons.error_outline, color: Colors.red, size: 64),
                 const SizedBox(height: 16),
                 Text(
-                  'Error Loading Battles',
+                  'Error Loading Games',
                   style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -255,9 +255,9 @@ class _BattleScreenState extends State<BattleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('BATTLE ARENA', style: TextStyle(color: primaryColor.withOpacity(0.85), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
+            Text('GAME CENTER', style: TextStyle(color: primaryColor.withOpacity(0.85), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
             const SizedBox(height: 8),
-            const Text('No battles yet', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
+            const Text('No games yet', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
             const SizedBox(height: 8),
             Text(
               'Schedule a match with + to see live status and execution here.',
@@ -309,7 +309,7 @@ class _BattleScreenState extends State<BattleScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  featured.isPending ? 'NEXT UP' : (isLive || isPaused ? 'ACTIVE STADIUM' : 'BATTLE'),
+                  featured.isPending ? 'NEXT UP' : (isLive || isPaused ? 'ACTIVE GAME' : 'GAME'),
                   style: TextStyle(color: primaryColor.withOpacity(0.95), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2.0),
                 ),
                 const SizedBox(height: 4),
@@ -401,7 +401,7 @@ class _BattleScreenState extends State<BattleScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           onPressed: () => onOpenHub(featured),
-                          child: const Text('COMMAND CENTER', style: TextStyle(color: Color(0xFF422D00), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                          child: const Text('GAME HUB', style: TextStyle(color: Color(0xFF422D00), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                         ),
                       ),
                     ),
@@ -550,9 +550,9 @@ class _BattleScreenState extends State<BattleScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('BATTLE REPOSITORY', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
+                  Text('GAME SCHEDULE', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
                   SizedBox(height: 4),
-                  Text('OPERATIONAL LOGS & SCHEDULING', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
+                  Text('UPCOMING & PAST GAMES', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
                 ],
               ),
               Icon(Icons.tune, color: outlineColor),
@@ -566,7 +566,7 @@ class _BattleScreenState extends State<BattleScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
-              vm.battles.isEmpty ? 'No battles scheduled.' : 'No battles match this filter.',
+              vm.battles.isEmpty ? 'No games scheduled.' : 'No games match this filter.',
               style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 13),
             ),
           )
@@ -652,13 +652,28 @@ class _BattleScreenState extends State<BattleScreen> {
               ],
             )
           else
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: outlineColor.withOpacity(0.3)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              onPressed: () => _openBattleHub(vm, b),
-              child: Text(b.statusDisplayLabel, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (b.isPending)
+                  IconButton(
+                    tooltip: 'Edit game',
+                    onPressed: () => showCreateBattleSheet(
+                      context,
+                      scaffoldMessenger: ScaffoldMessenger.of(context),
+                      existing: b,
+                    ),
+                    icon: const Icon(Icons.edit_outlined, color: outlineColor, size: 20),
+                  ),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: outlineColor.withOpacity(0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  onPressed: () => _openBattleHub(vm, b),
+                  child: Text(b.statusDisplayLabel, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                ),
+              ],
             ),
         ],
       ),

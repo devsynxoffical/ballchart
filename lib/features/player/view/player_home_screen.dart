@@ -210,7 +210,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(0, Icons.home_outlined, Icons.home, 'HOME'),
-              _buildNavItem(1, Icons.sports_basketball_outlined, Icons.sports_basketball, 'BATTLE'),
+              _buildNavItem(1, Icons.sports_basketball_outlined, Icons.sports_basketball, 'GAMES'),
               _buildNavItem(2, Icons.psychology_outlined, Icons.psychology, 'STRATEGY'),
               _buildNavItem(3, Icons.person_outline, Icons.person, 'PROFILE'),
             ],

@@ -28,6 +28,14 @@ class _StaffListScreenState extends State<StaffListScreen> {
     return 'https://picsum.photos/seed/$name/100/100';
   }
 
+  String _staffRoleLabel(Staff s) {
+    final role = s.role.toLowerCase();
+    if (role == 'custom' && s.customRoleName != null && s.customRoleName!.trim().isNotEmpty) {
+      return s.customRoleName!.trim().toUpperCase();
+    }
+    return s.role.toUpperCase().replaceAll('_', ' ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,8 +71,6 @@ class _StaffListScreenState extends State<StaffListScreen> {
                   ] else ...[
                     _buildSelectStaffPlaceholder(),
                   ],
-                  const SizedBox(height: 48),
-                  _buildActiveProfiles(provider),
                   const SizedBox(height: 48),
                   _buildOnboardCard(),
                   const SizedBox(height: 120),
@@ -109,7 +115,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('ORGANIZATIONAL HIERARCHY', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+            const Text('STAFF ROSTER', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
             Text('${staff.length} STAFF MEMBERS', style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
           ],
         ),
@@ -153,7 +159,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            s.role.toUpperCase().replaceAll('_', ' '),
+                            _staffRoleLabel(s),
                             style: TextStyle(
                               color: isSelected ? primaryColor : outlineColor,
                               fontSize: 10,
@@ -265,7 +271,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(_selectedStaff!.name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
-                    Text(_selectedStaff!.role.toUpperCase(), style: const TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    Text(_staffRoleLabel(_selectedStaff!), style: const TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                     Text(_selectedStaff!.email, style: const TextStyle(color: outlineColor, fontSize: 12)),
                   ],
                 ),
@@ -371,8 +377,8 @@ class _StaffListScreenState extends State<StaffListScreen> {
           _permissionSwitch('deletePlayer', 'Delete Records', 'Permanent removal authority', p.deletePlayer, (v) => _updatePermission(provider, 'deletePlayer', v)),
           _permissionSwitch('createTeam', 'Create Teams', 'Expand academy structure', p.createTeam, (v) => _updatePermission(provider, 'createTeam', v)),
           _permissionSwitch('manageStaff', 'Manage Personnel', 'Add/Edit other staff members', p.manageStaff, (v) => _updatePermission(provider, 'manageStaff', v)),
-          _permissionSwitch('createBattle', 'Create Battles', 'Schedule new match events', p.createBattle, (v) => _updatePermission(provider, 'createBattle', v)),
-          _permissionSwitch('manageBattle', 'Manage Battles', 'Control match parameters', p.manageBattle, (v) => _updatePermission(provider, 'manageBattle', v)),
+          _permissionSwitch('createBattle', 'Create Games', 'Schedule new match events', p.createBattle, (v) => _updatePermission(provider, 'createBattle', v)),
+          _permissionSwitch('manageBattle', 'Manage Games', 'Control match parameters', p.manageBattle, (v) => _updatePermission(provider, 'manageBattle', v)),
           _permissionSwitch('createStrategy', 'Create Strategy', 'Develop playbooks', p.createStrategy, (v) => _updatePermission(provider, 'createStrategy', v)),
           _permissionSwitch('manageStrategy', 'Manage Strategy', 'Direct strategic operations', p.manageStrategy, (v) => _updatePermission(provider, 'manageStrategy', v)),
         ],
@@ -499,44 +505,6 @@ class _StaffListScreenState extends State<StaffListScreen> {
         setState(() => _updatingPermissionKeys.remove(key));
       }
     }
-  }
-
-  Widget _buildActiveProfiles(AcademyProvider provider) {
-    final staff = provider.academy.staff;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('ACTIVE PROFILES', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-        const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: staff.take(5).map((s) => InkWell(
-              onTap: () => setState(() => _selectedStaff = s),
-              borderRadius: BorderRadius.circular(40),
-              child: _profileCircle(s.name, s.profilePic ?? 'https://picsum.photos/seed/${s.name}/100/100', s.id == _selectedStaff?.id),
-            )).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _profileCircle(String name, String img, bool isActive) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 20),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: isActive ? primaryColor : Colors.transparent, width: 2.5)),
-            child: CircleAvatar(radius: 28, backgroundImage: NetworkImage(_safeProfilePic(img, name)), backgroundColor: surfaceContainer, child: img.contains('ui-avatars') ? Icon(Icons.person, color: Colors.white, size: 28) : null),
-          ),
-          const SizedBox(height: 8),
-          Text(name.toUpperCase(), style: TextStyle(color: isActive ? primaryColor : Colors.white, fontSize: 10, fontWeight: isActive ? FontWeight.w900 : FontWeight.bold)),
-        ],
-      ),
-    );
   }
 
   Widget _buildOnboardCard() {

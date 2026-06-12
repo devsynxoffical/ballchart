@@ -6,7 +6,7 @@ import 'package:ballchart/features/battle/viewmodel/battle_viewmodel.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/features/tactics/view/tactical_lab_screen.dart';
 
-/// Command center + play-by-play for one battle (join, roster, tactical lab).
+/// Game hub + play-by-play for one scheduled game (join, roster, tactical lab).
 Future<void> showBattleHubBottomSheet(
   BuildContext context, {
   required BattleModel battle,
@@ -68,7 +68,7 @@ class _BattleHubContent extends StatelessWidget {
           unselectedLabelColor: outlineColor,
           indicatorColor: primaryColor,
           tabs: const [
-            Tab(text: 'COMMAND CENTER'),
+            Tab(text: 'GAME HUB'),
             Tab(text: 'PLAY-BY-PLAY'),
           ],
         ),
@@ -177,7 +177,7 @@ class _BattleHubContent extends StatelessWidget {
               }
             },
             icon: const Icon(Icons.how_to_reg),
-            label: const Text('JOIN THIS BATTLE', style: TextStyle(fontWeight: FontWeight.w900)),
+            label: const Text('JOIN THIS GAME', style: TextStyle(fontWeight: FontWeight.w900)),
           ),
         if (battle.isJoined && battle.isPending)
           OutlinedButton.icon(
@@ -188,7 +188,7 @@ class _BattleHubContent extends StatelessWidget {
             ),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Leave battle will be available in a future update.')),
+                const SnackBar(content: Text('Leave game will be available in a future update.')),
               );
             },
             icon: const Icon(Icons.logout),
@@ -233,7 +233,7 @@ class _BattleHubContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Play-by-play events (scores, fouls, key moments) will stream here when the battle is live and logging is enabled.',
+          'Play-by-play events (scores, fouls, key moments) will stream here when the game is live and logging is enabled.',
           style: TextStyle(color: outlineColor.withValues(alpha: 0.95), fontSize: 13, height: 1.45),
         ),
         const SizedBox(height: 24),
@@ -244,7 +244,7 @@ class _BattleHubContent extends StatelessWidget {
           _fakeEvent('Result', battle.result!, 'Final'),
         const SizedBox(height: 24),
         Text(
-          'Tip: use Command Center → Join, then open Tactical Lab to rehearse plays for this matchup.',
+          'Tip: use Game Hub → Join, then open Tactical Lab to rehearse plays for this matchup.',
           style: TextStyle(color: outlineColor.withValues(alpha: 0.75), fontSize: 12, fontStyle: FontStyle.italic),
         ),
       ],

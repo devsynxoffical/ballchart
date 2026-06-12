@@ -570,7 +570,7 @@ class PlayerStatsTabState extends State<PlayerStatsTab> {
         children: [
           Expanded(child: _miniStat('Games', '$mp')),
           Expanded(child: _miniStat('Wins', '$wins')),
-          Expanded(child: _miniStat('Battle pts', '$pts')),
+          Expanded(child: _miniStat('Game pts', '$pts')),
         ],
       ),
     );

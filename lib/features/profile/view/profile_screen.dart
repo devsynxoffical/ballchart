@@ -161,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           builder: (context, viewModel, _) {
             if (viewModel.isLoading) return const Center(child: CircularProgressIndicator(color: primaryColor));
             final user = viewModel.user;
-            if (user == null) return const Center(child: Text('TERMINAL OFFLINE', style: TextStyle(color: outlineColor)));
+            if (user == null) return const Center(child: Text('Not signed in', style: TextStyle(color: outlineColor)));
 
             return RefreshIndicator(
               onRefresh: () async {
@@ -272,10 +272,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundColor: bgColor,
                   backgroundImage: hasNetworkAvatar ? NetworkImage(networkAvatar!) : null,
                   child: !hasNetworkAvatar
-                      ? Text(
-                          initials.isEmpty ? 'U' : initials,
-                          style: const TextStyle(color: primaryColor, fontSize: 30, fontWeight: FontWeight.w900),
-                        )
+                      ? (role == 'admin'
+                          ? Image.asset('basketball_icon.png', fit: BoxFit.cover)
+                          : Text(
+                              initials.isEmpty ? 'U' : initials,
+                              style: const TextStyle(color: primaryColor, fontSize: 30, fontWeight: FontWeight.w900),
+                            ))
                       : null,
                 ),
               ),
@@ -417,7 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildBentoGrid(BuildContext context, dynamic user) {
     final role = user.role.toString();
     final experience = (user.experienceLevel ?? 'Not set').toString();
-    final assignedTeams = user.assignedTeams is List ? (user.assignedTeams as List).length.toString() : '0';
+    final assignedTeams = _assignedTeamsDisplay(user, academyProvider);
     final achievements = user.achievements is List ? (user.achievements as List).length.toString() : '0';
     final additional = (user.additionalInfo ?? 'N/A').toString();
     final position = (user.position ?? 'N/A').toString();
@@ -539,56 +541,135 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showEditCoachDialog(BuildContext context, dynamic user) {
+  String _assignedTeamsDisplay(dynamic user, AcademyProvider academyProvider) {
+    final ids = user is UserModel
+        ? (user.assignedTeamIds ?? user.assignedTeams ?? const <String>[])
+        : (user.assignedTeamIds is List
+            ? List<String>.from(user.assignedTeamIds as List)
+            : (user.assignedTeams is List ? List<String>.from(user.assignedTeams as List) : const <String>[]));
+    if (ids.isEmpty) return 'None';
+
+    final dashboard = academyProvider.coachDashboard;
+    final rawTeams = dashboard?['allTeams'] as List? ?? dashboard?['teams'] as List? ?? academyProvider.academy.teams;
+    final names = <String>[];
+    for (final id in ids) {
+      final match = rawTeams.cast<dynamic>().where((t) {
+        if (t is Team) return t.id == id;
+        if (t is Map) return (t['_id'] ?? t['id'] ?? '').toString() == id;
+        return false;
+      }).toList();
+      if (match.isNotEmpty) {
+        final t = match.first;
+        names.add(t is Team ? t.name : (t as Map)['name']?.toString() ?? id);
+      } else {
+        names.add(id);
+      }
+    }
+    return names.join(', ');
+  }
+
+  void _showEditCoachDialog(BuildContext context, dynamic user) async {
+    final academyProvider = context.read<AcademyProvider>();
+    await academyProvider.loadCoachDashboard(force: true);
+
     final expController = TextEditingController(text: (user.experienceLevel ?? '').toString());
     final sportsController = TextEditingController(text: ((user.sports as List?) ?? const []).join(', '));
     final achievementsController = TextEditingController(text: ((user.achievements as List?) ?? const []).join(', '));
     final infoController = TextEditingController(text: (user.additionalInfo ?? '').toString());
 
+    final initialIds = user is UserModel
+        ? Set<String>.from(user.assignedTeamIds ?? user.assignedTeams ?? const <String>[])
+        : Set<String>.from(
+            user.assignedTeamIds is List
+                ? user.assignedTeamIds as List
+                : (user.assignedTeams is List ? user.assignedTeams as List : const <String>[]),
+          );
+
+    final dashboard = academyProvider.coachDashboard;
+    final academyTeams = (dashboard?['allTeams'] as List? ?? dashboard?['teams'] as List? ?? [])
+        .map((t) => Map<String, dynamic>.from(t as Map))
+        .toList();
+
+    if (!context.mounted) return;
+
+    final selectedTeamIds = Set<String>.from(initialIds);
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: surfaceHigh,
-        title: const Text('Edit Coach Details', style: TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildEditField(expController, 'Experience level'),
-              const SizedBox(height: 12),
-              _buildEditField(sportsController, 'Sports (comma separated)'),
-              const SizedBox(height: 12),
-              _buildEditField(achievementsController, 'Achievements (comma separated)'),
-              const SizedBox(height: 12),
-              _buildEditField(infoController, 'Additional information'),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: surfaceHigh,
+          title: const Text('Edit Coach Details', style: TextStyle(color: Colors.white)),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildEditField(expController, 'Experience level'),
+                const SizedBox(height: 12),
+                _buildEditField(sportsController, 'Sports (comma separated)'),
+                const SizedBox(height: 12),
+                _buildEditField(achievementsController, 'Achievements (comma separated)'),
+                const SizedBox(height: 12),
+                _buildEditField(infoController, 'Additional information'),
+                const SizedBox(height: 16),
+                const Text('ASSIGNED TEAMS', style: TextStyle(color: outlineColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                const SizedBox(height: 8),
+                if (academyTeams.isEmpty)
+                  const Text('No academy teams available yet.', style: TextStyle(color: outlineColor, fontSize: 12))
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: academyTeams.map((team) {
+                      final id = (team['_id'] ?? team['id'] ?? '').toString();
+                      final name = (team['name'] ?? 'Team').toString();
+                      final selected = selectedTeamIds.contains(id);
+                      return FilterChip(
+                        label: Text(name),
+                        selected: selected,
+                        onSelected: (v) => setDialogState(() {
+                          if (v) {
+                            selectedTeamIds.add(id);
+                          } else {
+                            selectedTeamIds.remove(id);
+                          }
+                        }),
+                        selectedColor: primaryColor.withOpacity(0.35),
+                        checkmarkColor: primaryColor,
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: outlineColor))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-            onPressed: () async {
-              final repo = ProfileRepository();
-              await repo.completeProfile({
-                'experienceLevel': expController.text.trim(),
-                'sports': sportsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-                'achievements': achievementsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-                'additionalInfo': infoController.text.trim(),
-              });
-              if (context.mounted) {
-                Navigator.pop(ctx);
-                await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
-                await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: outlineColor))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+              onPressed: () async {
+                final repo = ProfileRepository();
+                await repo.completeProfile({
+                  'experienceLevel': expController.text.trim(),
+                  'sports': sportsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                  'achievements': achievementsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                  'additionalInfo': infoController.text.trim(),
+                  'assignedTeamIds': selectedTeamIds.toList(),
+                });
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Coach profile updated'), backgroundColor: primaryColor),
-                  );
+                  Navigator.pop(ctx);
+                  await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
+                  await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Coach profile updated'), backgroundColor: primaryColor),
+                    );
+                  }
                 }
-              }
-            },
-            child: const Text('Save', style: TextStyle(color: Colors.black)),
-          ),
-        ],
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.black)),
+            ),
+          ],
+        ),
       ),
     );
   }

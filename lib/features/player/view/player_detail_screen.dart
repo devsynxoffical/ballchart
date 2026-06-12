@@ -1173,7 +1173,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('BATTLE PERFORMANCE', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
+                  Text('GAME PERFORMANCE', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
                   Text('CAREER STATS', style: TextStyle(color: primaryContainer, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
                 ],
               ),
@@ -1245,14 +1245,14 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('RECENT BATTLES', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
+                    Text('RECENT GAMES', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
                     const SizedBox(height: 16),
                     if (!isOwnProfile)
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(color: surfaceContainer.withOpacity(0.3), borderRadius: BorderRadius.circular(12)),
                         child: Center(
-                          child: Text('Battle history available for own profile only', style: TextStyle(color: outline, fontSize: 14, fontFamily: bodyFont)),
+                          child: Text('Game history available for own profile only', style: TextStyle(color: outline, fontSize: 14, fontFamily: bodyFont)),
                         ),
                       )
                     else if (battleStats?['recentBattles'] != null && battleStats?['recentBattles'].isNotEmpty == true)
@@ -1482,13 +1482,15 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               TextField(
                 controller: jerseyController,
                 decoration: InputDecoration(
-                  labelText: 'Jersey Number',
+                  labelText: 'Jersey Number (00–99)',
                   labelStyle: TextStyle(color: outline),
                   enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: outline)),
                   focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: primaryContainer)),
                 ),
                 style: const TextStyle(color: Colors.white),
                 keyboardType: TextInputType.number,
+                maxLength: 2,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 16),
               TextField(
@@ -1558,6 +1560,13 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final jersey = jerseyController.text.trim();
+              if (jersey.isNotEmpty && (jersey.length > 2 || int.tryParse(jersey) == null)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Jersey number must be 1–2 digits (00–99).'), backgroundColor: Colors.redAccent),
+                );
+                return;
+              }
               try {
                 final profileRepository = ProfileRepository();
                 await profileRepository.completeProfile({
@@ -1565,7 +1574,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                   'weight': weightController.text,
                   'wingspan': wingspanController.text,
                   'position': positionController.text,
-                  'jerseyNumber': jerseyController.text,
+                  'jerseyNumber': jersey,
                   'classYear': classYearController.text,
                   'scoutingNotes': scoutingNotesController.text,
                   'profileImageUrl': profileImageController.text.trim().isEmpty ? null : profileImageController.text.trim(),

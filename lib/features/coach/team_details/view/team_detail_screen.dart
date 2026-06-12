@@ -706,13 +706,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('BATTLE LOG', style: TextStyle(color: teamColor, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: _AcademyTheme.headlineFont)),
+            Text('GAME LOG', style: TextStyle(color: teamColor, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: _AcademyTheme.headlineFont)),
             const Text('RECENT SQUADS', style: TextStyle(color: _AcademyTheme.outline, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
           ],
         ),
         const SizedBox(height: 16),
         if (teamBattles.isEmpty)
-          const Center(child: Text('NO RECENT BATTLES', style: TextStyle(color: _AcademyTheme.outline, fontSize: 12)))
+          const Center(child: Text('NO RECENT GAMES', style: TextStyle(color: _AcademyTheme.outline, fontSize: 12)))
         else
           ...teamBattles.take(3).map((battle) {
             final isWin = battle.result?.contains('WIN') ?? false;

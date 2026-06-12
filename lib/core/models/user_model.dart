@@ -20,6 +20,7 @@ class UserModel {
   final String? teamName;
   final String? academyName;
   final List<String>? assignedTeams;
+  final List<String>? assignedTeamIds;
   // Player specific
   final String? position;
   final String? ageRange;
@@ -47,6 +48,7 @@ class UserModel {
     this.teamName,
     this.academyName,
     this.assignedTeams,
+    this.assignedTeamIds,
     this.position,
     this.ageRange,
     this.goals,
@@ -84,6 +86,9 @@ class UserModel {
           : (resolvedTeamName ?? resolvedAcademyName),
       academyName: resolvedAcademyName,
       assignedTeams: json['assignedTeams'] != null ? List<String>.from(json['assignedTeams']) : null,
+      assignedTeamIds: json['assignedTeamIds'] != null
+          ? List<String>.from(json['assignedTeamIds'])
+          : (json['assignedTeams'] != null ? List<String>.from(json['assignedTeams']) : null),
       position: json['position'],
       ageRange: json['ageRange'],
       goals: json['goals'] != null ? List<String>.from(json['goals']) : null,
@@ -110,6 +115,7 @@ class UserModel {
       'academyName': teamName,
       'resolvedAcademyName': academyName,
       'assignedTeams': assignedTeams,
+      'assignedTeamIds': assignedTeamIds,
       'permissions': permissions,
       'position': position,
       'ageRange': ageRange,

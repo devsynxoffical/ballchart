@@ -237,7 +237,7 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
                           return opts.contains(_focus) ? _focus : opts.first;
                         }(),
                         dropdownColor: CoachTrainingAssignmentScreen.surfaceHigh,
-                        decoration: _inputDecoration('Development area (Relentless)'),
+                        decoration: _inputDecoration('Development area'),
                         items: RelentlessProgram.mergedFocusOptions(_catalog!.focusAreas)
                             .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(color: Colors.white))))
                             .toList(),

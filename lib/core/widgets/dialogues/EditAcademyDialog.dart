@@ -180,7 +180,7 @@ class _EditAcademyDialogState extends State<EditAcademyDialog> {
                     ? (_logoDataUri!.startsWith('data:')
                         ? Image.memory(base64Decode(_logoDataUri!.split(',')[1]), fit: BoxFit.cover)
                         : Image.network(_logoDataUri!, fit: BoxFit.cover))
-                    : const Icon(Icons.add_photo_alternate_rounded, color: _AcademyTheme.outline, size: 30),
+                    : Image.asset('basketball_icon.png', fit: BoxFit.cover),
               ),
             ),
             Positioned(

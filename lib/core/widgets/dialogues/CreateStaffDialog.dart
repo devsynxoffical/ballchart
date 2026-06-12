@@ -35,7 +35,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
   String? _profileImagePath;
 
   late String _selectedRole;
-  final List<String> _roles = ['Coach', 'Assistant Coach', 'Custom'];
+  final List<String> _roles = ['Coach', 'Assistant Coach', 'Other role'];
   
   final Map<String, bool> _permissions = {
     'createPlayer': true,
@@ -60,7 +60,11 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedRole = widget.initialRole.contains('Assistant') ? 'Assistant Coach' : (widget.initialRole.contains('Custom') ? 'Custom' : 'Coach');
+    _selectedRole = widget.initialRole.contains('Assistant')
+        ? 'Assistant Coach'
+        : (widget.initialRole.toLowerCase().contains('custom') || widget.initialRole.toLowerCase().contains('other')
+            ? 'Other role'
+            : 'Coach');
     _applyRoleDefaults(_selectedRole);
   }
 
@@ -131,7 +135,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
     });
 
     try {
-      final roleKey = _selectedRole.toLowerCase().replaceAll(' ', '_');
+      final roleKey = _selectedRole == 'Other role' ? 'custom' : _selectedRole.toLowerCase().replaceAll(' ', '_');
       final perms = Map<String, bool>.from(_permissions);
       perms['readPlayer'] = perms['readPlayer'] ?? true;
       await widget.onStaffCreated?.call({
@@ -230,9 +234,9 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
           _buildSectionHeader('SELECT DESIGNATION'),
           const SizedBox(height: 16),
           ..._roles.map((role) => _buildRoleCard(role)),
-          if (_selectedRole == 'Custom') ...[
+          if (_selectedRole == 'Other role') ...[
             const SizedBox(height: 16),
-            _buildTextField('CUSTOM ROLE NAME', 'e.g. Skills coach', _customRoleController),
+            _buildTextField('ROLE TITLE', 'e.g. Skills coach', _customRoleController),
           ],
           const SizedBox(height: 32),
           _buildTacticalPermissions(),
@@ -433,7 +437,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
                     Text(
                       role == 'Coach'
                           ? 'Head coaching role'
-                          : (role == 'Assistant Coach' ? 'Assistant coaching role' : 'Custom role name & permissions'),
+                          : (role == 'Assistant Coach' ? 'Assistant coaching role' : 'Set a role title and access rights'),
                       style: const TextStyle(color: outline, fontSize: 9),
                     ),
                   ],

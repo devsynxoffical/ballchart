@@ -219,12 +219,6 @@ class _TeamsTabState extends State<TeamsTab> {
                   'You haven\'t been assigned to any team yet. Contact your academy admin to get team assignments.',
                   style: const TextStyle(color: outlineColor, fontSize: 14),
                 ),
-              ] else ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Teams under your command',
-                  style: const TextStyle(color: outlineColor, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
               ],
               const SizedBox(height: 24),
 
@@ -816,7 +810,7 @@ class _TeamsTabState extends State<TeamsTab> {
         'OPS',
       ),
       (
-        top != null ? 'Scoring: $topName leads your squads (PTS from recorded games).' : 'Add athletes and log games to unlock insights.',
+        top != null ? 'Scoring: $topName leads your squads (PTS from recorded games).' : 'Add players and log games to unlock insights.',
         primaryColor,
         'INSIGHT',
       ),
