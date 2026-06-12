@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import 'package:ballchart/features/login/viewmodel/login_viewmodel.dart';
+import 'package:ballchart/core/legal/app_legal_urls.dart';
 import '../../../routes/routes_names.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -147,9 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: primaryColor.withOpacity(0.2), width: 1),
                         ),
                         image: const DecorationImage(
-                          image: NetworkImage(
-                            'https://lh3.googleusercontent.com/aida-public/AB6AXuArwTihCPFSse9dnPMKztWluEOEHMSHTZ-N3YSAEpP9hJWsMh8xQkWfZvK_JqFcW-KzhPCecuCO9MBxYT313tII7QnyQ270opmvRTIQy0EKnEg6V1fdyWCV8AYn4boy089yqN9Rf5HZ1BAHz_EvlaaV7UgLXC_8FlgR00Ww2E3SCZR5dIrHJe0e_w9GVm3dy8Wl8J-QtuCikQHLVINIzYn3l_VawN2bZSNwvKWeDob1jSxXqoXynwWVra49-msRBZZvrBzJDUlo5tj7',
-                          ),
+                          image: AssetImage('assets/images/header.png'),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -395,6 +394,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 20),
+                          AppLegalUrls.inlineTextButtons(context),
                           const SizedBox(height: 40),
                         ],
                       ),

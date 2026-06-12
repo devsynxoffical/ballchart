@@ -46,7 +46,7 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>BallChart uses the microphone for tactical voice commands.</string>
+	<string>BallChart uses the microphone for tactical voice commands, voice notes in chat, and saving coach explanations.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>BallChart uses speech recognition to turn voice into tactical commands.</string>
 </dict>

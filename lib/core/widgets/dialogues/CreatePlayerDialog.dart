@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:ballchart/features/staff/service/staff_service.dart';
@@ -150,7 +151,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
             const SizedBox(height: 32),
             Row(
               children: [
-                Expanded(child: _buildInput('JERSEY NUMBER', '#07', _numberController)),
+                Expanded(child: _buildJerseyInput()),
                 const SizedBox(width: 24),
                 Expanded(child: _buildPositionDropdown()),
               ],
@@ -208,9 +209,34 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('UPLOAD ATHLETE PROFILE IMAGE', style: TextStyle(color: _AcademyTheme.outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+          const Text('UPLOAD PLAYER PROFILE IMAGE', style: TextStyle(color: _AcademyTheme.outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
         ],
       ),
+    );
+  }
+
+  Widget _buildJerseyInput() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('JERSEY NUMBER', style: TextStyle(color: _AcademyTheme.primary, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        TextField(
+          controller: _numberController,
+          keyboardType: TextInputType.number,
+          inputFormatters: const [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(2),
+          ],
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            hintText: '07',
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.1)),
+            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _AcademyTheme.surfaceHighest, width: 2)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _AcademyTheme.primaryContainer, width: 2)),
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ],
     );
   }
 

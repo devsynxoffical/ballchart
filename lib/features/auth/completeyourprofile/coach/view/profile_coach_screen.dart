@@ -98,7 +98,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreenCoach> {
                     runSpacing: 10,
                     children: [
                       _sport('Basketball', Icons.sports_basketball, vm),
-                      _sport('Football', Icons.sports_soccer, vm),
                       _sport('Volleyball', Icons.sports_volleyball, vm),
                       _sport('Cricket', Icons.sports_cricket, vm),
                       _sport('Baseball', Icons.sports_baseball, vm),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ballchart/core/widgets/notification_panel.dart';
+import 'package:ballchart/features/messaging/view/conversations_list_screen.dart';
 import '../../../profile/viewmodel/profile_viewmodel.dart';
-import '../../../management/viewmodel/academy_provider.dart';
 import '../../../battle/view/battle_screen.dart';
 import '../../../strategy/view/enhanced_strategy_screen.dart';
 import '../../../profile/view/profile_screen.dart';
@@ -141,6 +142,24 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Messages',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const ConversationsListScreen()),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline, color: primaryColor, size: 26),
+          ),
+          IconButton(
+            tooltip: 'Notifications',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            onPressed: () => showNotificationPanel(context),
+            icon: const Icon(Icons.notifications_none_rounded, color: primaryColor, size: 26),
           ),
           // Status Indicator
           Container(

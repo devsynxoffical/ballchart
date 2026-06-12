@@ -91,7 +91,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
       children: [
         Text('Staff Portal', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
         SizedBox(height: 4),
-        Text('COMMAND CENTER • HIERARCHY & PERMISSIONS', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+        Text('STAFF • ACCESS RIGHTS', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
       ],
     );
   }
@@ -110,7 +110,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('ORGANIZATIONAL HIERARCHY', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-            Text('${staff.length} NODES ACTIVE', style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
+            Text('${staff.length} STAFF MEMBERS', style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 24),
@@ -362,7 +362,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
             children: [
               Icon(Icons.key, color: primaryColor),
               SizedBox(width: 12),
-              Text('Live Permissions', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
+              Text('Access rights', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
             ],
           ),
           const SizedBox(height: 24),

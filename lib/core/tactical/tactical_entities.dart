@@ -8,27 +8,37 @@ class PlayStep {
   final PlayStepKind kind;
   /// 1-based slot index on court (see [CourtSlots]).
   final int actorSlot;
+  final bool isDefense;
   final int? targetSlot;
+  final bool targetIsDefense;
   final String? note;
   /// Normalized destination override (optional).
   final Offset? toNorm;
+  /// Milliseconds for on-court animation of this step; null uses engine default (voice commands).
+  final int? animationDurationMs;
 
   const PlayStep({
     required this.id,
     required this.kind,
     required this.actorSlot,
+    this.isDefense = false,
     this.targetSlot,
+    this.targetIsDefense = false,
     this.note,
     this.toNorm,
+    this.animationDurationMs,
   });
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'kind': kind.name,
         'actorSlot': actorSlot,
+        'isDefense': isDefense,
         if (targetSlot != null) 'targetSlot': targetSlot,
+        if (targetSlot != null) 'targetIsDefense': targetIsDefense,
         if (note != null) 'note': note,
         if (toNorm != null) 'toNorm': {'dx': toNorm!.dx, 'dy': toNorm!.dy},
+        if (animationDurationMs != null) 'animationDurationMs': animationDurationMs,
       };
 
   factory PlayStep.fromJson(Map<String, dynamic> j) {
@@ -47,9 +57,12 @@ class PlayStep {
         orElse: () => PlayStepKind.other,
       ),
       actorSlot: (j['actorSlot'] as num?)?.toInt() ?? 1,
+      isDefense: j['isDefense'] == true,
       targetSlot: (j['targetSlot'] as num?)?.toInt(),
+      targetIsDefense: j['targetIsDefense'] == true,
       note: j['note']?.toString(),
       toNorm: tn,
+      animationDurationMs: (j['animationDurationMs'] as num?)?.toInt(),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/features/coach/team_details/view/team_detail_screen.dart';
+import 'package:ballchart/features/player_development/view/coach_training_assignment_screen.dart';
+import 'package:ballchart/core/models/battle_model.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/services/api_service.dart';
 import '../../../../management/viewmodel/academy_provider.dart';
@@ -224,6 +226,9 @@ class _TeamsTabState extends State<TeamsTab> {
                   style: const TextStyle(color: outlineColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
+              const SizedBox(height: 24),
+
+              _buildAssignTrainingEntry(),
               const SizedBox(height: 32),
 
               // Active Squads Section
@@ -235,7 +240,7 @@ class _TeamsTabState extends State<TeamsTab> {
                     style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
                   ),
                   Text(
-                    'SWIPE TO DRILL DOWN',
+                    'TAP A TEAM FOR DETAILS',
                     style: TextStyle(color: outlineColor.withOpacity(0.5), fontSize: 9, fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -261,6 +266,75 @@ class _TeamsTabState extends State<TeamsTab> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildAssignTrainingEntry() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => const CoachTrainingAssignmentScreen(),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: surfaceHigh,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: primaryColor.withOpacity(0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.fitness_center_rounded, color: primaryColor, size: 26),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'ASSIGN TRAINING',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Space Grotesk',
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Pick player, focus & drill — players earn points when they complete sessions.',
+                        style: TextStyle(color: outlineColor.withOpacity(0.95), fontSize: 12, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: primaryColor, size: 28),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -505,7 +579,7 @@ class _TeamsTabState extends State<TeamsTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'NEXT BATTLE',
+                    'NEXT GAME',
                     style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk'),
                   ),
                   const SizedBox(height: 8),
@@ -533,13 +607,15 @@ class _TeamsTabState extends State<TeamsTab> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      next != null ? 'LOCATION' : '',
+                      next != null ? 'GAME' : '',
                       style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      next != null ? (next['location']?.toString() ?? 'TBA') : '—',
+                      next != null ? BattleModel.titleFromMap(next) : '—',
                       textAlign: TextAlign.end,
                       style: const TextStyle(color: primaryColor, fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -561,7 +637,7 @@ class _TeamsTabState extends State<TeamsTab> {
                 child: Text(
                   next != null
                       ? 'Scheduled ${_formatBattleTime(next['dateTime'])}'
-                      : 'When your academy schedules a battle, it will appear here.',
+                      : 'When your academy schedules a game, it will appear here.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.w600),
                 ),
@@ -734,8 +810,8 @@ class _TeamsTabState extends State<TeamsTab> {
       ),
       (
         nextBattle != null
-            ? 'Next: ${nextBattle['location'] ?? 'Battle'} @ ${_formatBattleTime(nextBattle['dateTime'])}'
-            : 'No upcoming battles in the next window.',
+            ? 'Next: ${BattleModel.titleFromMap(nextBattle)} @ ${_formatBattleTime(nextBattle['dateTime'])}'
+            : 'No upcoming games in the next window.',
         const Color(0xFF28D8FF),
         'OPS',
       ),

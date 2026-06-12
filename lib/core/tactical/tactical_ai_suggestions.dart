@@ -21,32 +21,23 @@ List<TacticalSuggestion> suggestNextActions({
 }) {
   final out = <TacticalSuggestion>[];
 
-  if (recentEvents.any((e) => e.contains('turnover'))) {
-    out.add(const TacticalSuggestion(
-      title: 'Reset to half-court',
-      reason: 'After a turnover, spacing often collapses; reset to 2-3 zone or horns.',
-      sampleCommand: 'Switch to 2-3 zone',
-    ));
-  }
+  // Suggesting complete flows as requested by the user
+  out.add(TacticalSuggestion(
+    title: 'Strong Side Clear-out',
+    reason: 'Create space for Player $ballOwnerSlot to drive by clearing the paint.',
+    sampleCommand: 'Player 5 move to the basket then player $ballOwnerSlot pass to 2 then player 2 shoot',
+  ));
 
-  if (formation == FormationPreset.fastBreak) {
-    out.add(const TacticalSuggestion(
-      title: 'Pitch ahead',
-      reason: 'Fast break alignment rewards early lane fill and quick pass.',
-      sampleCommand: 'Player 1 pass to Player 2',
-    ));
-  } else {
-    out.add(TacticalSuggestion(
-      title: 'Probe weak side',
-      reason: 'Ball is with Player $ballOwnerSlot; reverse or skip to shift the help line.',
-      sampleCommand: 'Player $ballOwnerSlot pass to Player ${ballOwnerSlot % 5 + 1}',
-    ));
-  }
+  out.add(TacticalSuggestion(
+    title: 'Pick and Roll Flow',
+    reason: 'Use a high screen to force defensive help and find the open cutter.',
+    sampleCommand: 'Player 4 move to player $ballOwnerSlot then player $ballOwnerSlot move close to goal then player 4 shoot',
+  ));
 
   out.add(const TacticalSuggestion(
-    title: 'Call set play',
-    reason: 'Late-clock: use a named set to get a clean look.',
-    sampleCommand: 'Run fast break alpha',
+    title: 'Fast Break Transition',
+    reason: 'Push the tempo immediately to catch the defense before they set up.',
+    sampleCommand: 'Player 1 pass to player 3 then player 3 move to basket then player 3 shoot',
   ));
 
   return out;
@@ -55,14 +46,12 @@ List<TacticalSuggestion> suggestNextActions({
 String explainPlayStep(PlayStep step) {
   switch (step.kind) {
     case PlayStepKind.pass:
-      return 'Because the defense shifts to the strong side, reversing the ball stresses the help.';
-    case PlayStepKind.screen:
-      return 'The screen forces a switch or hedge, opening a driving lane.';
+      return 'Moving the ball stresses the defense and creates open shooting windows.';
     case PlayStepKind.cut:
-      return 'Cutting when the defender ball-watches creates a back-door window.';
+      return 'Cutting behind the defense catches defenders off-balance.';
     case PlayStepKind.shoot:
-      return 'Shot quality improves when feet are set after the drive kick.';
+      return 'Finalizing the play with a high-percentage look at the rim.';
     default:
-      return 'Tactical timing depends on defender positioning and ball pressure.';
+      return 'Tactical execution requires perfect timing and spatial awareness.';
   }
 }

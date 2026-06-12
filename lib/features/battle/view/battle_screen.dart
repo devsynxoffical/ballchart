@@ -4,8 +4,10 @@ import '../viewmodel/battle_viewmodel.dart';
 import '../../../core/models/battle_model.dart';
 import '../../../core/models/tactical/tactical_schema.dart';
 import '../../../core/widgets/dialogues/create_battle_sheet.dart';
+import '../../management/viewmodel/academy_provider.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
 import '../../tactics/view/tactical_lab_screen.dart';
+import '../widgets/battle_hub_sheet.dart';
 
 enum _BattleListFilter { all, scheduled, live, paused, finished }
 
@@ -80,8 +82,8 @@ class _BattleScreenState extends State<BattleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileVm = context.watch<ProfileViewmodel>();
     final battleVm = context.watch<BattleViewmodel>();
+    final academyVm = context.watch<AcademyProvider>();
 
     // Show loading state
     if (battleVm.isLoading && battleVm.battles.isEmpty) {
@@ -140,9 +142,7 @@ class _BattleScreenState extends State<BattleScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      floatingActionButton: (profileVm.user?.role == 'coach' || 
-          profileVm.user?.role == 'head_coach' || 
-          profileVm.user?.role == 'admin')
+      floatingActionButton: academyVm.hasPermission('createBattle')
           ? FloatingActionButton(
               heroTag: 'battle_fab',
               backgroundColor: primaryColor,
@@ -187,7 +187,7 @@ class _BattleScreenState extends State<BattleScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              _buildLiveBattleHero(battleVm),
+              _buildLiveBattleHero(battleVm, onOpenHub: (b) => _openBattleHub(battleVm, b)),
               const SizedBox(height: 32),
               _buildExecutionTimelinePlaceholder(),
               const SizedBox(height: 40),
@@ -216,6 +216,10 @@ class _BattleScreenState extends State<BattleScreen> {
     return pending.isNotEmpty ? pending.first : (battles.isNotEmpty ? battles.first : null);
   }
 
+  void _openBattleHub(BattleViewmodel vm, BattleModel b) {
+    showBattleHubBottomSheet(context, battle: b, battleVm: vm);
+  }
+
   String _formatBattleWhen(DateTime d) {
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')} '
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
@@ -237,7 +241,7 @@ class _BattleScreenState extends State<BattleScreen> {
     }
   }
 
-  Widget _buildLiveBattleHero(BattleViewmodel vm) {
+  Widget _buildLiveBattleHero(BattleViewmodel vm, {required void Function(BattleModel) onOpenHub}) {
     final featured = _featuredBattle(vm.battles);
     if (featured == null) {
       return Container(
@@ -310,7 +314,7 @@ class _BattleScreenState extends State<BattleScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  featured.location.toUpperCase().isEmpty ? 'LOCATION TBD' : featured.location.toUpperCase(),
+                  featured.displayTitle.toUpperCase(),
                   style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk'),
                 ),
               ],
@@ -396,7 +400,7 @@ class _BattleScreenState extends State<BattleScreen> {
                             shadowColor: Colors.transparent,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          onPressed: () {},
+                          onPressed: () => onOpenHub(featured),
                           child: const Text('COMMAND CENTER', style: TextStyle(color: Color(0xFF422D00), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                         ),
                       ),
@@ -409,7 +413,7 @@ class _BattleScreenState extends State<BattleScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                         ),
-                        onPressed: () {},
+                        onPressed: () => onOpenHub(featured),
                         child: const Text('PLAY-BY-PLAY', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                       ),
                     ),
@@ -569,19 +573,31 @@ class _BattleScreenState extends State<BattleScreen> {
         else
           ...rows.map((b) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _battleDataRow(b),
+                child: _battleDataRow(b, vm),
               )),
       ],
     );
   }
 
-  Widget _battleDataRow(BattleModel b) {
+  Widget _battleDataRow(BattleModel b, BattleViewmodel vm) {
     final accent = _accentForBattle(b);
     final iconText = b.statusDisplayLabel.length > 3 ? b.statusDisplayLabel.substring(0, 3) : b.statusDisplayLabel;
     final subtitle = '${_formatBattleWhen(b.dateTime)} • ${b.battleType.toUpperCase()}';
     final score = b.isFinished && b.result != null && b.result!.isNotEmpty ? b.result : null;
 
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openBattleHub(vm, b),
+        onLongPress: b.isPending
+            ? () => showCreateBattleSheet(
+                  context,
+                  scaffoldMessenger: ScaffoldMessenger.of(context),
+                  existing: b,
+                )
+            : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: surfaceContainer,
@@ -612,7 +628,7 @@ class _BattleScreenState extends State<BattleScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        b.location.isEmpty ? 'Battle ${b.id.substring(0, b.id.length > 6 ? 6 : b.id.length)}' : b.location,
+                        b.displayTitle,
                         style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk'),
                       ),
                       const SizedBox(height: 4),
@@ -641,10 +657,12 @@ class _BattleScreenState extends State<BattleScreen> {
                 side: BorderSide(color: outlineColor.withOpacity(0.3)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
-              onPressed: () {},
+              onPressed: () => _openBattleHub(vm, b),
               child: Text(b.statusDisplayLabel, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
             ),
         ],
+      ),
+        ),
       ),
     );
   }

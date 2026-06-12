@@ -26,8 +26,9 @@ TacticalValidationResult validatePlaybook(TacticalPlaybook book) {
 
     switch (st.kind) {
       case PlayStepKind.pass:
+      case PlayStepKind.handoff:
         if (st.actorSlot == st.targetSlot) {
-          errs.add('Step ${i + 1}: pass needs two different players.');
+          errs.add('Step ${i + 1}: ${st.kind.name} needs two different players.');
         }
         if (st.actorSlot != ball) {
           errs.add('Step ${i + 1}: ball is with Player $ball, not ${st.actorSlot}.');
@@ -44,6 +45,13 @@ TacticalValidationResult validatePlaybook(TacticalPlaybook book) {
       case PlayStepKind.dribble:
       case PlayStepKind.switchDefense:
       case PlayStepKind.inbound:
+      case PlayStepKind.flare:
+      case PlayStepKind.staggerScreen:
+      case PlayStepKind.pickAndRoll:
+      case PlayStepKind.roll:
+      case PlayStepKind.pop:
+      case PlayStepKind.drive:
+      case PlayStepKind.spacing:
       case PlayStepKind.other:
         break;
     }

@@ -7,11 +7,13 @@ import 'package:provider/provider.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/models/battle_model.dart';
 import 'package:ballchart/core/repositories/profile_repository.dart';
+import 'package:ballchart/core/services/api_service.dart';
+import 'package:ballchart/core/legal/app_legal_urls.dart';
+import 'package:ballchart/core/widgets/delete_account_dialog.dart';
 import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/features/staff/service/staff_service.dart';
-import 'package:ballchart/core/services/api_service.dart';
 
 class PlayerDetailScreen extends StatefulWidget {
   final Player player;
@@ -187,9 +189,38 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         _buildPerformanceStats(),
         _buildBattleStats(),
         _buildScoutingNotes(),
+        _buildLegalAndDeleteSection(context),
         _buildLogoutSection(context),
         const SizedBox(height: 120),
       ],
+    );
+  }
+
+  Widget _buildLegalAndDeleteSection(BuildContext context) {
+    return Consumer<AcademyProvider>(
+      builder: (context, provider, _) {
+        if (!_isOwnProfile(provider)) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(child: AppLegalUrls.inlineTextButtons(context)),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: () => showDeleteAccountDialog(context),
+                icon: const Icon(Icons.delete_forever_outlined, color: Colors.white70, size: 20),
+                label: const Text('DELETE MY ACCOUNT', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -481,7 +512,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final dashboard = provider.playerDashboard;
-        final error = provider.error;
+        final error = provider.playerDashboardError ?? provider.error;
         final isOwnProfile = _isOwnProfile(provider);
         
         // Admin/coach: live data from GET /auth/player/:id
@@ -529,7 +560,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      error.replaceAll('Failed to load player dashboard: ', ''),
+                      error,
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
@@ -776,7 +807,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final dashboard = provider.playerDashboard;
-        final error = provider.error;
         final isOwnProfile = _isOwnProfile(provider);
         
         if (!isOwnProfile) {
@@ -803,8 +833,8 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           );
         }
         
-        if (error != null) {
-          return const SizedBox.shrink(); // Don't show biometrics if there's an error
+        if (provider.playerDashboardError != null) {
+          return const SizedBox.shrink(); // Don't show biometrics if dashboard failed
         }
 
         final playerData = _asStringMap(dashboard?['player']);
@@ -1068,11 +1098,18 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         final isOwnProfile = _isOwnProfile(provider);
         
         if (!isOwnProfile) {
+          if (_staffPlayerLoading) {
+            return const Padding(
+              padding: EdgeInsets.fromLTRB(24, 32, 24, 16),
+              child: Center(child: CircularProgressIndicator(color: primaryContainer)),
+            );
+          }
+          final teamLabel = _staffStr('teamName', 'UNASSIGNED');
           return _buildBattleContent(
             totalBattles: _staffStatInt('matchesPlayed', widget.player.matchesPlayed),
             wins: _staffStatInt('wins', widget.player.wins),
             points: _staffStatInt('points', widget.player.points),
-            teamName: 'N/A',
+            teamName: teamLabel.isEmpty ? 'UNASSIGNED' : teamLabel,
             isOwnProfile: false,
             battleStats: null,
           );
@@ -1094,12 +1131,22 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         final playerData = _asStringMap(dashboard['player']);
         final stats = _asStringMap(playerData['stats']).isNotEmpty ? _asStringMap(playerData['stats']) : playerData;
         final battleStats = _asStringMap(playerData['battleStats']);
+        final teamObj = dashboard['team'];
+        var resolvedTeam = 'UNASSIGNED';
+        if (teamObj is Map) {
+          final n = _asStringMap(teamObj)['name']?.toString().trim();
+          if (n != null && n.isNotEmpty) resolvedTeam = n;
+        }
+        if (resolvedTeam == 'UNASSIGNED') {
+          final pn = playerData['teamName']?.toString().trim();
+          if (pn != null && pn.isNotEmpty) resolvedTeam = pn;
+        }
         
         return _buildBattleContent(
           totalBattles: battleStats['totalBattles'] ?? widget.player.matchesPlayed,
           wins: battleStats['wins'] ?? widget.player.wins,
           points: battleStats['totalPoints'] ?? stats['points'] ?? widget.player.points,
-          teamName: playerData['teamName'] ?? 'UNASSIGNED',
+          teamName: resolvedTeam,
           isOwnProfile: true,
           battleStats: battleStats,
         );
@@ -1301,7 +1348,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
       builder: (context, provider, _) {
         final isOwnProfile = _isOwnProfile(provider);
         final dashboard = (isOwnProfile ? provider.playerDashboard : {'player': {}}) ?? {'player': {}};
-        final error = provider.error;
         
         if (isOwnProfile && (provider.isPlayerLoading || provider.playerDashboard == null)) {
           return const Padding(
@@ -1310,7 +1356,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           );
         }
         
-        if (error != null && error.contains('player dashboard')) {
+        if (isOwnProfile && provider.playerDashboardError != null) {
           return const SizedBox.shrink(); // Don't show scouting notes if there's an error
         }
 

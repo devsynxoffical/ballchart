@@ -4,7 +4,8 @@ import '../../../core/services/api_service.dart';
 
 class TeamService {
   final ApiService _apiService = ApiService();
-  final String _baseUrl = 'https://ballchart-production.up.railway.app/teams'; // Updated to production
+  /// Same host as [ApiService.baseUrl] — `/api/teams` on Railway.
+  String get _teamsBaseUrl => '${ApiService.baseUrl}/teams';
 
   Future<List<Map<String, dynamic>>> getManagedTeams() async {
     // Demo implementation

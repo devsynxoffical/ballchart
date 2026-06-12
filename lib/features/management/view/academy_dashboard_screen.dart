@@ -12,8 +12,16 @@ import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/staff/view/staff_list_screen.dart';
 import 'package:ballchart/features/profile/view/profile_screen.dart';
+import 'package:ballchart/features/messaging/view/conversations_list_screen.dart';
+import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/features/coach/team_details/view/team_detail_screen.dart';
+
+String _teamDivisionLabel(String ageGroup) {
+  final raw = ageGroup.trim().toUpperCase().replaceAll('U-', 'U').replaceAll(' ', '');
+  if (raw.isEmpty || raw == 'OPEN') return 'Open Division';
+  return '$raw Division';
+}
 
 class AcademyDashboardScreen extends StatefulWidget {
   const AcademyDashboardScreen({super.key});
@@ -38,6 +46,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncAcademyUserFromProfile();
       // Load data with error handling
       _loadDataWithRetry();
       
@@ -48,6 +57,16 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
         _academyProvider!.addListener(_onProviderChanged);
       });
     });
+  }
+
+  /// Session restore (e.g. via Splash) can leave [AcademyProvider.currentUser] null; permissions stay false.
+  void _syncAcademyUserFromProfile() {
+    if (!mounted) return;
+    final profileUser = context.read<ProfileViewmodel>().user;
+    final academy = context.read<AcademyProvider>();
+    if (profileUser != null && academy.currentUser == null) {
+      academy.setCurrentUser(profileUser);
+    }
   }
 
   void _onProviderChanged() {
@@ -204,7 +223,16 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
       ),
       actions: [
         IconButton(
-          onPressed: () => _showNotificationPanel(context),
+          tooltip: 'Messages',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ConversationsListScreen()),
+            );
+          },
+          icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+        ),
+        IconButton(
+          onPressed: () => showNotificationPanel(context),
           icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
         ),
         const SizedBox(width: 8),
@@ -212,17 +240,10 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     );
   }
 
-  void _showNotificationPanel(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => const NotificationPanel(),
-    );
-  }
-
   Widget _buildBody(AcademyProvider provider) {
-    if (provider.isLoading) {
+    // Only block the whole screen until the first admin overview succeeds. Mutations (create team,
+    // staff, etc.) and refreshes still set [isLoading] but must not hide Tactical Actions.
+    if (provider.isLoading && !provider.hasLoadedAdminOverview) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -509,7 +530,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                         width: double.infinity,
                         decoration: const BoxDecoration(
                           image: DecorationImage(
-                            image: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuDPY34_QG5bqJqZE3j-hcQI-u-R1zO01EkX9LyD9wdtsCB1VSxkXMTdmhbngClXIrCTayekJDJYCAK2ZypZs8hTfouCofqcjdZLO2_HiDLFZfMyrFU5Q3QF7rZZ6vvHEFOjPz-Jd0x_YQSusRc-mYDSFvaZtp_EGKZj1_f2ilE3tL83f85UmiEEyVQhW03P9YQ_Q-bjon4ZLPA3byU8JW4GHofIBTgC9bUBf7tYXkpHNzY-yGhw2skeD8o8OhJ7d5Q78P3vp2il0Klq'),
+                            image: AssetImage('assets/images/header.png'),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -610,15 +631,15 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: primaryColor.withOpacity(0.2), width: 2),
-                image: DecorationImage(
-                  image: NetworkImage('https://ui-avatars.com/api/?name=${topPlayer.name}&background=random'),
-                  fit: BoxFit.cover,
+            CircleAvatar(
+              radius: 32,
+              backgroundColor: surfaceHigh,
+              child: Text(
+                topPlayer.name.trim().isNotEmpty ? topPlayer.name.trim()[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
                 ),
               ),
             ),
@@ -851,7 +872,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(team.name.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Space Grotesk')),
-                      Text('${team.ageGroup} DIVISION • ${team.players.length} PLAYERS', style: const TextStyle(color: outlineColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      Text('${_teamDivisionLabel(team.ageGroup)} • ${team.players.length} PLAYERS', style: const TextStyle(color: outlineColor, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
                     ],
                   ),
                 ),

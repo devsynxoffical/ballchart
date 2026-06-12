@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -59,13 +60,49 @@ class ApiService {
     }
   }
 
-  Future<dynamic> get(String endpoint) async {
+  Future<dynamic> get(String endpoint, {Duration timeout = const Duration(seconds: 60)}) async {
     try {
       final headers = await _getHeaders();
       final response = await http
           .get(
             Uri.parse('$baseUrl$endpoint'),
             headers: headers,
+          )
+          .timeout(timeout);
+      return _processResponse(response);
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check internet/server and try again.');
+    }
+  }
+
+  /// Raw bytes (e.g. PDF). Does not JSON-decode the body.
+  Future<Uint8List> getBytes(String endpoint) async {
+    final headers = await _getHeaders();
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl$endpoint'),
+          headers: headers,
+        )
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+    try {
+      final decoded = jsonDecode(response.body);
+      throw Exception(decoded['message'] ?? 'Download failed');
+    } on FormatException {
+      throw Exception('SERVER_ERROR_${response.statusCode}');
+    }
+  }
+
+  Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: headers,
+            body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 30));
       return _processResponse(response);
@@ -190,7 +227,25 @@ class ApiService {
     return MediaType('image', 'jpeg');
   }
 
-  Future<Map<String, dynamic>> uploadFile(String endpoint, File file) async {
+  static MediaType _audioMediaTypeForPath(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.mp3')) return MediaType('audio', 'mpeg');
+    if (lower.endsWith('.wav')) return MediaType('audio', 'wav');
+    if (lower.endsWith('.ogg')) return MediaType('audio', 'ogg');
+    if (lower.endsWith('.webm')) return MediaType('audio', 'webm');
+    if (lower.endsWith('.caf')) return MediaType('audio', 'x-caf');
+    return MediaType('audio', 'mp4');
+  }
+
+  Future<Map<String, dynamic>> uploadAudio(File file) async {
+    return uploadFile('/upload/audio', file, fieldName: 'audio');
+  }
+
+  Future<Map<String, dynamic>> uploadFile(
+    String endpoint,
+    File file, {
+    String fieldName = 'image',
+  }) async {
     try {
       String? token = await _storage.read(key: 'jwt_token');
       
@@ -208,12 +263,14 @@ class ApiService {
       if (!rawName.contains('.')) {
         rawName = 'upload.jpg';
       }
-      final contentType = _imageMediaTypeForPath(rawName);
+      final contentType = fieldName == 'audio'
+          ? _audioMediaTypeForPath(rawName)
+          : _imageMediaTypeForPath(rawName);
 
       var fileStream = file.openRead();
       var length = await file.length();
       var multipartFile = http.MultipartFile(
-        'image',
+        fieldName,
         fileStream,
         length,
         filename: rawName,
@@ -234,5 +291,13 @@ class ApiService {
     } catch (e) {
       throw Exception('Upload error: $e');
     }
+  }
+
+  Future<Map<String, dynamic>> parseVoiceCommand(String command) async {
+    final response = await post('/tactical/parse-command', {'command': command});
+    if (response is Map) {
+      return Map<String, dynamic>.from(response);
+    }
+    throw Exception('Invalid response format from parser');
   }
 }

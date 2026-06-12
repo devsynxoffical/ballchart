@@ -230,6 +230,10 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
           _buildSectionHeader('SELECT DESIGNATION'),
           const SizedBox(height: 16),
           ..._roles.map((role) => _buildRoleCard(role)),
+          if (_selectedRole == 'Custom') ...[
+            const SizedBox(height: 16),
+            _buildTextField('CUSTOM ROLE NAME', 'e.g. Skills coach', _customRoleController),
+          ],
           const SizedBox(height: 32),
           _buildTacticalPermissions(),
           const SizedBox(height: 32),
@@ -426,7 +430,12 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(role, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text(role == 'Coach' ? 'Strategic Ops & Management' : (role == 'Assistant Coach' ? 'Tactical Support & Oversight' : 'Modular Permission Set'), style: const TextStyle(color: outline, fontSize: 9)),
+                    Text(
+                      role == 'Coach'
+                          ? 'Head coaching role'
+                          : (role == 'Assistant Coach' ? 'Assistant coaching role' : 'Custom role name & permissions'),
+                      style: const TextStyle(color: outline, fontSize: 9),
+                    ),
                   ],
                 ),
               ),
@@ -447,12 +456,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('TACTICAL PERMISSIONS', style: TextStyle(color: primaryGold, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: const Color(0xFF14D7FF).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text('${_selectedRole.toUpperCase()} DEFAULTS', style: const TextStyle(color: Color(0xFF14D7FF), fontSize: 8, fontWeight: FontWeight.bold)),
-            ),
+            const Text('ACCESS RIGHTS', style: TextStyle(color: primaryGold, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
           ],
         ),
         const SizedBox(height: 16),
@@ -460,7 +464,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
           decoration: BoxDecoration(color: surfaceContainer, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.05))),
           child: Column(
             children: [
-              _buildPermissionToggle('Create Player', 'Add new athletes to roster', 'createPlayer'),
+              _buildPermissionToggle('Create Player', 'Add new players to roster', 'createPlayer'),
               const Divider(color: Colors.white10, height: 1),
               _buildPermissionToggle('Modify Profile', 'Edit stats and bio data', 'updatePlayer'),
               const Divider(color: Colors.white10, height: 1),
@@ -470,9 +474,9 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
               const Divider(color: Colors.white10, height: 1),
               _buildPermissionToggle('Manage Staff', 'Control academy personnel', 'manageStaff'),
               const Divider(color: Colors.white10, height: 1),
-              _buildPermissionToggle('Create Battle', 'Plan match operations', 'createBattle'),
+              _buildPermissionToggle('Create Game', 'Schedule games and scrimmages', 'createBattle'),
               const Divider(color: Colors.white10, height: 1),
-              _buildPermissionToggle('Manage Battle', 'Oversee live battles', 'manageBattle'),
+              _buildPermissionToggle('Manage Game', 'Edit and oversee scheduled games', 'manageBattle'),
               const Divider(color: Colors.white10, height: 1),
               _buildPermissionToggle('Create Strategy', 'Author strategic plays', 'createStrategy'),
               const Divider(color: Colors.white10, height: 1),

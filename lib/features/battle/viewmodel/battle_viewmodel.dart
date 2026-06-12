@@ -176,6 +176,41 @@ class BattleViewmodel extends ChangeNotifier {
     }
   }
 
+  Future<void> updateBattle(
+    String id, {
+    String? location,
+    DateTime? dateTime,
+    String? battleType,
+    int? maxParticipants,
+    String? description,
+    List<String>? tags,
+    Map<String, dynamic>? metadata,
+  }) async {
+    _setLoading(true);
+    try {
+      final updated = await _repository.updateBattle(
+        id,
+        location: location,
+        dateTime: dateTime,
+        battleType: battleType,
+        maxParticipants: maxParticipants,
+        description: description,
+        tags: tags,
+        metadata: metadata,
+      );
+      final index = _battles.indexWhere((b) => b.id == id);
+      if (index != -1) {
+        _battles[index] = updated;
+      }
+      _setLoading(false);
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _setLoading(false);
+      rethrow;
+    }
+  }
+
   // Battle actions
   Future<void> joinBattle(String id) async {
     try {

@@ -1,25 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/models/battle_model.dart';
 import '../../../features/battle/viewmodel/battle_viewmodel.dart';
 
 /// Richer "schedule session" flow: title, format, roster size, notes, quick time presets.
 /// Use [scaffoldMessenger] from the screen that opened the sheet (not the sheet context) for snackbars after close.
+/// Pass [existing] to edit a scheduled game.
 Future<void> showCreateBattleSheet(
   BuildContext context, {
   required ScaffoldMessengerState scaffoldMessenger,
+  BattleModel? existing,
 }) async {
+  final editing = existing != null;
   const primaryColor = Color(0xFFFFD900);
   const bgColor = Color(0xFF131313);
   const surfaceHigh = Color(0xFF2A2A2A);
   const outlineColor = Color(0xFF9D8F79);
 
-  final titleCtrl = TextEditingController();
-  final locationCtrl = TextEditingController();
-  final notesCtrl = TextEditingController();
-  DateTime sessionTime = DateTime.now().add(const Duration(hours: 2));
-  String battleType = 'scrimmage_5v5';
-  int maxParticipants = 10;
+  final titleCtrl = TextEditingController(text: existing?.metadata?['sessionTitle']?.toString() ?? '');
+  final locationCtrl = TextEditingController(text: existing?.location ?? '');
+  final notesCtrl = TextEditingController(text: existing?.description ?? '');
+  DateTime sessionTime = existing?.dateTime ?? DateTime.now().add(const Duration(hours: 2));
+  String battleType = existing?.battleType ?? 'scrimmage_5v5';
+  int maxParticipants = existing?.maxParticipants ?? 10;
   final tagState = <String, bool>{
     'League': false,
     'Scrimmage': true,
@@ -303,24 +307,42 @@ Future<void> showCreateBattleSheet(
                           final tags = tagState.entries.where((e) => e.value).map((e) => e.key.toLowerCase()).toList();
                           Navigator.pop(context);
                           try {
-                            await vm.createBattle(
-                              location: locationCtrl.text.trim(),
-                              dateTime: sessionTime,
-                              battleType: battleType,
-                              maxParticipants: maxParticipants,
-                              description: [
-                                if (titleCtrl.text.trim().isNotEmpty) 'Title: ${titleCtrl.text.trim()}',
-                                if (notesCtrl.text.trim().isNotEmpty) notesCtrl.text.trim(),
-                              ].join('\n'),
-                              tags: tags,
-                              metadata: {
-                                'sessionTitle': titleCtrl.text.trim(),
-                                'formatLabel': formats.firstWhere((e) => e['id'] == battleType, orElse: () => formats[0])['label'],
-                              },
-                            );
+                            final meta = {
+                              'sessionTitle': titleCtrl.text.trim(),
+                              'formatLabel': formats.firstWhere((e) => e['id'] == battleType, orElse: () => formats[0])['label'],
+                            };
+                            final description = [
+                              if (titleCtrl.text.trim().isNotEmpty) 'Title: ${titleCtrl.text.trim()}',
+                              if (notesCtrl.text.trim().isNotEmpty) notesCtrl.text.trim(),
+                            ].join('\n');
+                            if (editing) {
+                              await vm.updateBattle(
+                                existing.id,
+                                location: locationCtrl.text.trim(),
+                                dateTime: sessionTime,
+                                battleType: battleType,
+                                maxParticipants: maxParticipants,
+                                description: description,
+                                tags: tags,
+                                metadata: meta,
+                              );
+                            } else {
+                              await vm.createBattle(
+                                location: locationCtrl.text.trim(),
+                                dateTime: sessionTime,
+                                battleType: battleType,
+                                maxParticipants: maxParticipants,
+                                description: description,
+                                tags: tags,
+                                metadata: meta,
+                              );
+                            }
                             scaffoldMessenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Battle scheduled', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                              SnackBar(
+                                content: Text(
+                                  editing ? 'Game updated' : 'Game scheduled',
+                                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                                ),
                                 backgroundColor: primaryColor,
                               ),
                             );

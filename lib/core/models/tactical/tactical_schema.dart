@@ -27,6 +27,14 @@ enum PlayStepKind {
   dribble,
   switchDefense,
   inbound,
+  flare,
+  staggerScreen,
+  handoff,
+  pickAndRoll,
+  roll,
+  pop,
+  drive,
+  spacing,
   other,
 }
 

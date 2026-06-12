@@ -1,85 +1,116 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ballchart/core/constants/relentless_program.dart';
+import 'package:ballchart/core/models/development_models.dart';
+import 'package:ballchart/core/repositories/development_repository.dart';
 import 'package:ballchart/core/services/api_service.dart';
+import 'package:ballchart/features/player_development/view/my_development_screen.dart';
+import 'package:ballchart/features/player_development/view/training_completion_report_screen.dart';
 import '../../management/viewmodel/academy_provider.dart';
 
 class PlayerStatsTab extends StatefulWidget {
   const PlayerStatsTab({super.key});
 
   @override
-  State<PlayerStatsTab> createState() => _PlayerStatsTabState();
+  PlayerStatsTabState createState() => PlayerStatsTabState();
 }
 
-class _PlayerStatsTabState extends State<PlayerStatsTab> {
-  // BallChart Redesign Tokens - Same as Admin Panel
+class PlayerStatsTabState extends State<PlayerStatsTab> {
   static const Color primaryColor = Color(0xFFFFD900);
-  static const Color bgColor = Color(0xFF131313);
   static const Color surfaceContainer = Color(0xFF201F1F);
   static const Color surfaceHigh = Color(0xFF2A2A2A);
-  static const Color surfaceHighest = Color(0xFF353534);
   static const Color outlineColor = Color(0xFF9D8F79);
+
+  final DevelopmentRepository _devRepo = DevelopmentRepository();
+
+  int _trainingDevPoints = 0;
+  int _pendingTraining = 0;
+  TrainingAssignmentDto? _lastCompletedTraining;
+  bool _trainingLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Load data when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDataWithRetry();
     });
   }
 
+  /// Called when switching back to the HOME tab so points stay up to date.
+  Future<void> refreshTrainingSummary() async {
+    await _loadTrainingSummary();
+  }
+
   Future<void> _loadDataWithRetry({int retryCount = 3}) async {
-    for (int i = 0; i < retryCount; i++) {
-      try {
-        await context.read<AcademyProvider>().loadPlayerDashboard();
-        break; // Success, exit retry loop
-      } catch (e) {
-        if (i == retryCount - 1) {
-          // Last retry failed, show error
-          if (mounted) {
-            String errorMessage = e.toString();
-            
-            // Handle specific error cases
-            if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
-              errorMessage = 'Authentication failed. Please log in again.';
-            } else if (errorMessage.contains('403') || errorMessage.contains('Forbidden')) {
-              errorMessage = 'Access denied. You do not have permission to view player data.';
-            } else if (errorMessage.contains('Cannot read properties of undefined')) {
-              errorMessage = 'Connection error. Please check your internet connection.';
-            } else if (errorMessage.contains('Network')) {
-              errorMessage = 'Network error. Please check your connection and try again.';
-            } else if (errorMessage.contains('timeout')) {
-              errorMessage = 'Request timeout. Please try again.';
-            } else {
-              errorMessage = errorMessage.replaceAll('Exception: ', '');
-            }
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to load player data: $errorMessage'),
-                backgroundColor: Colors.redAccent,
-                duration: const Duration(seconds: 5),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  textColor: Colors.white,
-                  onPressed: () => _loadDataWithRetry(),
-                ),
-              ),
-            );
-          }
-        } else {
-          // Wait before retrying
-          await Future.delayed(Duration(milliseconds: 1000 * (i + 1)));
-        }
+    final academy = context.read<AcademyProvider>();
+    for (var i = 0; i < retryCount; i++) {
+      await academy.loadPlayerDashboard(force: i > 0);
+      if (!mounted) return;
+      final p = context.read<AcademyProvider>();
+      if (p.playerDashboard != null) {
+        await _loadTrainingSummary();
+        return;
+      }
+      if (i < retryCount - 1) {
+        await Future.delayed(Duration(seconds: 1 + i));
       }
     }
+  }
+
+  Future<void> _loadTrainingSummary() async {
+    if (!mounted) return;
+    setState(() => _trainingLoading = true);
+    try {
+      final points = await _devRepo.fetchMyPoints();
+      final list = await _devRepo.fetchMyAssignments();
+      if (!mounted) return;
+      TrainingAssignmentDto? lastDone;
+      for (final a in list) {
+        if (a.status != 'completed') continue;
+        if (lastDone == null) {
+          lastDone = a;
+          continue;
+        }
+        final ca = a.completedAt;
+        final cb = lastDone.completedAt;
+        if (ca != null && (cb == null || ca.isAfter(cb))) {
+          lastDone = a;
+        }
+      }
+      setState(() {
+        _trainingDevPoints = points;
+        _pendingTraining = list.where((a) => a.status == 'pending').length;
+        _lastCompletedTraining = lastDone;
+        _trainingLoading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _trainingLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openTraining() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const MyDevelopmentScreen()),
+    );
+    if (mounted) await _loadTrainingSummary();
+  }
+
+  void _openReport(TrainingAssignmentDto a) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => TrainingCompletionReportScreen(assignment: a),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AcademyProvider>(
       builder: (context, provider, child) {
-        // Show loading state
         if (provider.isPlayerLoading) {
           return const SizedBox(
             height: 400,
@@ -89,15 +120,15 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
                 children: [
                   CircularProgressIndicator(color: primaryColor),
                   SizedBox(height: 16),
-                  Text('Loading Player Dashboard...', style: TextStyle(color: Colors.white70)),
+                  Text('Loading your dashboard…', style: TextStyle(color: Colors.white70)),
                 ],
               ),
             ),
           );
         }
 
-        // Show error state
-        if (provider.error != null) {
+        final err = provider.playerDashboardError;
+        if (err != null) {
           return SizedBox(
             height: 400,
             child: Center(
@@ -124,18 +155,18 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
                             child: const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
                           ),
                           const SizedBox(height: 20),
-                          Text(
-                            'Error Loading Data',
-                            style: const TextStyle(
-                              color: Colors.white, 
-                              fontSize: 20, 
+                          const Text(
+                            'Couldn\'t load dashboard',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
                               fontWeight: FontWeight.w900,
                               fontFamily: 'Space Grotesk',
                             ),
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            provider.error!,
+                            err,
                             style: const TextStyle(color: outlineColor, fontSize: 14),
                             textAlign: TextAlign.center,
                           ),
@@ -154,7 +185,7 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
                               child: const Text(
                                 'RETRY',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w900, 
+                                  fontWeight: FontWeight.w900,
                                   letterSpacing: 2,
                                   fontSize: 13,
                                 ),
@@ -171,13 +202,12 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
           );
         }
 
-        // Show empty state
         if (provider.playerDashboard == null) {
           return const SizedBox(
             height: 400,
             child: Center(
               child: Text(
-                'No player data available',
+                'No dashboard data yet',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
@@ -186,50 +216,238 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
 
         final dashboard = provider.playerDashboard!;
         final playerData = dashboard['player'] as Map<String, dynamic>? ?? {};
+        final battleStats = _asStringMap(dashboard['battleStats']);
 
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Player Performance Header
-              const Text(
-                'PLAYER PERFORMANCE // 04.24',
-                style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'ATHLETE OVERVIEW',
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
-              ),
-              const SizedBox(height: 24),
-              _buildPlayerIdentityRow(playerData),
-              const SizedBox(height: 32),
-
-              // Player Stats Cards
-              _buildPlayerStatsRow(playerData),
-              const SizedBox(height: 24),
-              
-              // Performance Chart
-              _buildPerformanceChart(playerData),
-              const SizedBox(height: 24),
-              
-              // Recent Games
-              _buildRecentGames(playerData),
-              const SizedBox(height: 40),
-            ],
+        return RefreshIndicator(
+          color: primaryColor,
+          onRefresh: () async {
+            await provider.loadPlayerDashboard(force: true);
+            await _loadTrainingSummary();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'PLAYER PERFORMANCE // ${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().day.toString().padLeft(2, '0')}',
+                  style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'PLAYER OVERVIEW',
+                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk'),
+                ),
+                const SizedBox(height: 24),
+                _buildPlayerIdentityRow(playerData),
+                const SizedBox(height: 24),
+                _buildTrainingAssignmentsCard(),
+                const SizedBox(height: 32),
+                _buildPlayerStatsRow(playerData),
+                const SizedBox(height: 24),
+                _buildBattleSummary(battleStats),
+                const SizedBox(height: 24),
+                _buildRecentGames(playerData, battleStats),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  Widget _buildTrainingAssignmentsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surfaceHigh,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primaryColor.withOpacity(0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.assignment_turned_in_rounded, color: primaryColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TRAINING & ASSIGNMENTS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Space Grotesk',
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      RelentlessProgram.subtitle,
+                      style: TextStyle(
+                        color: outlineColor.withOpacity(0.9),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_trainingLoading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Development points',
+                      style: TextStyle(color: outlineColor.withOpacity(0.95), fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$_trainingDevPoints',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Space Grotesk',
+                      ),
+                    ),
+                    Text(
+                      'From completed coach assignments',
+                      style: TextStyle(color: outlineColor.withOpacity(0.8), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: surfaceContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '$_pendingTraining',
+                      style: const TextStyle(color: primaryColor, fontSize: 20, fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      'pending',
+                      style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_lastCompletedTraining != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.greenAccent.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.35)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Last completed · +${_lastCompletedTraining!.pointsValue} pts',
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${_lastCompletedTraining!.focusArea} · ${_lastCompletedTraining!.drillName}',
+                    style: TextStyle(color: outlineColor.withOpacity(0.95), fontSize: 12),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: primaryColor,
+                        side: const BorderSide(color: primaryColor),
+                      ),
+                      onPressed: () => _openReport(_lastCompletedTraining!),
+                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                      label: const Text('View completion PDF'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: _openTraining,
+              icon: const Icon(Icons.fitness_center_rounded),
+              label: const Text('OPEN MY TRAINING', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _asStringMap(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return raw.map((k, v) => MapEntry(k.toString(), v));
+    return {};
+  }
+
   Widget _buildPlayerIdentityRow(Map<String, dynamic> playerData) {
     final raw = playerData['profileImageUrl']?.toString().trim();
     final url = (raw != null && raw.isNotEmpty) ? ApiService.resolveMediaUrl(raw) : '';
     final hasImg = url.isNotEmpty && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:'));
-    final name = (playerData['username'] ?? 'Athlete').toString();
+    final name = (playerData['username'] ?? 'Player').toString();
     final pos = (playerData['position'] ?? '').toString();
     final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'P';
 
@@ -305,9 +523,9 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
         border: Border.all(color: color.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2), 
-            blurRadius: 10, 
-            offset: const Offset(0, 4)
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -316,8 +534,8 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
           Text(
             value,
             style: TextStyle(
-              color: color, 
-              fontSize: 24, 
+              color: color,
+              fontSize: 24,
               fontWeight: FontWeight.w900,
               fontFamily: 'Space Grotesk',
             ),
@@ -326,8 +544,8 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
           Text(
             label,
             style: const TextStyle(
-              color: outlineColor, 
-              fontSize: 12, 
+              color: outlineColor,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
               letterSpacing: 1,
             ),
@@ -337,62 +555,47 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
     );
   }
 
-  Widget _buildPerformanceChart(Map<String, dynamic> playerData) {
+  Widget _buildBattleSummary(Map<String, dynamic> battleStats) {
+    final mp = battleStats['matchesPlayed'] ?? battleStats['matches'] ?? 0;
+    final wins = battleStats['wins'] ?? 0;
+    final pts = battleStats['points'] ?? battleStats['totalPoints'] ?? 0;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: surfaceHigh,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: outlineColor.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2), 
-            blurRadius: 10, 
-            offset: const Offset(0, 4)
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: outlineColor.withOpacity(0.12)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          const Text(
-            'PERFORMANCE TREND',
-            style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: surfaceContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: Text(
-                'Performance Chart\n(Coming Soon)',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: outlineColor, fontSize: 14),
-              ),
-            ),
-          ),
+          Expanded(child: _miniStat('Games', '$mp')),
+          Expanded(child: _miniStat('Wins', '$wins')),
+          Expanded(child: _miniStat('Battle pts', '$pts')),
         ],
       ),
     );
   }
 
-  Widget _buildRecentGames(Map<String, dynamic> playerData) {
+  Widget _miniStat(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(color: outlineColor, fontSize: 11, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _buildRecentGames(Map<String, dynamic> playerData, Map<String, dynamic> battleStats) {
+    final raw = battleStats['recentGames'] ?? playerData['recentGames'];
+    final List<dynamic> games = raw is List ? raw : const [];
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: surfaceHigh,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: outlineColor.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2), 
-            blurRadius: 10, 
-            offset: const Offset(0, 4)
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,50 +605,61 @@ class _PlayerStatsTabState extends State<PlayerStatsTab> {
             style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
           ),
           const SizedBox(height: 16),
-          _buildGameItem('VS Kings', 'W', '24 PTS, 8 AST, 6 REB'),
-          _buildGameItem('VS Eagles', 'L', '18 PTS, 5 AST, 4 REB'),
-          _buildGameItem('VS Lions', 'W', '22 PTS, 7 AST, 5 REB'),
+          if (games.isEmpty)
+            Text(
+              'No recent games yet. Stats will appear here after official games.',
+              style: TextStyle(color: outlineColor.withOpacity(0.95), fontSize: 14, height: 1.4),
+            )
+          else
+            ...games.take(8).map((g) => _buildGameRow(_asStringMap(g))),
         ],
       ),
     );
   }
 
-  Widget _buildGameItem(String opponent, String result, String stats) {
+  Widget _buildGameRow(Map<String, dynamic> g) {
+    final opponent = g['opponent']?.toString() ?? g['title']?.toString() ?? 'Game';
+    final result = (g['result']?.toString() ?? g['outcome']?.toString() ?? '').toUpperCase();
+    final line = g['statLine']?.toString() ?? g['summary']?.toString() ?? '';
+    final won = result == 'W' || result == 'WIN';
+    final lost = result == 'L' || result == 'LOSS';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: result == 'W' ? primaryColor.withOpacity(0.2) : Colors.red.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                result,
-                style: TextStyle(
-                  color: result == 'W' ? primaryColor : Colors.red,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
+          if (result.isNotEmpty)
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: won
+                    ? primaryColor.withOpacity(0.2)
+                    : lost
+                        ? Colors.red.withOpacity(0.2)
+                        : surfaceContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  result.length > 3 ? result.substring(0, 1) : result,
+                  style: TextStyle(
+                    color: won ? primaryColor : (lost ? Colors.red : outlineColor),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
+          if (result.isNotEmpty) const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  opponent,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  stats,
-                  style: const TextStyle(color: outlineColor, fontSize: 12),
-                ),
+                Text(opponent, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                if (line.isNotEmpty)
+                  Text(line, style: const TextStyle(color: outlineColor, fontSize: 12)),
               ],
             ),
           ),

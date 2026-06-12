@@ -12,7 +12,16 @@ class AcademyProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? _error;
   String? get error => _error;
+
+  /// Set only when [loadPlayerDashboard] fails (does not mix with admin/coach errors).
+  String? _playerDashboardError;
+  String? get playerDashboardError => _playerDashboardError;
   bool _hasLoadedOverview = false;
+
+  /// After the first successful [loadAdminOverview], the dashboard should stay visible
+  /// while refreshes/mutations run (those still set [isLoading] for progress, but UI must not
+  /// replace the whole screen — see [AcademyDashboardScreen]).
+  bool get hasLoadedAdminOverview => _hasLoadedOverview;
   
   Map<String, dynamic>? _coachDashboard;
   Map<String, dynamic>? get coachDashboard => _coachDashboard;
@@ -55,6 +64,7 @@ class AcademyProvider extends ChangeNotifier {
     _coachDashboard = null;
     _playerDashboard = null;
     _error = null;
+    _playerDashboardError = null;
     _currentUser = user;
     notifyListeners();
   }
@@ -72,6 +82,7 @@ class AcademyProvider extends ChangeNotifier {
     _hasLoadedOverview = false;
     _coachDashboard = null;
     _playerDashboard = null;
+    _playerDashboardError = null;
     _apiService.clearToken();
     notifyListeners();
   }
@@ -185,19 +196,20 @@ class AcademyProvider extends ChangeNotifier {
     // Check if user is authenticated
     final token = await _apiService.getToken();
     if (token == null) {
-      _error = 'Not authenticated. Please log in again.';
+      _playerDashboardError = 'Not authenticated. Please log in again.';
       notifyListeners();
       return;
     }
 
     _isPlayerLoading = true;
-    _error = null;
+    _playerDashboardError = null;
     notifyListeners();
 
     try {
-      print('Loading player dashboard with token: ${token.substring(0, 10)}...');
-      final response = await _apiService.get('/auth/dashboard/player');
-      print('Player dashboard response received: ${response.runtimeType}');
+      final response = await _apiService.get(
+        '/auth/dashboard/player',
+        timeout: const Duration(seconds: 60),
+      );
 
       final map = Map<String, dynamic>.from(response as Map);
       // Backend returns `profile`; player UI expects `player`.
@@ -205,13 +217,10 @@ class AcademyProvider extends ChangeNotifier {
         map['player'] = map['profile'];
       }
       _playerDashboard = map;
+      _playerDashboardError = null;
       _setupSocketListeners();
-      print('Player dashboard loaded successfully');
     } catch (e) {
       String errorMessage = e.toString();
-      print('Error loading player dashboard: $errorMessage');
-      
-      // Handle specific error cases
       if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
         errorMessage = 'Authentication failed. Please log in again.';
       } else if (errorMessage.contains('403') || errorMessage.contains('Forbidden')) {
@@ -220,12 +229,14 @@ class AcademyProvider extends ChangeNotifier {
         errorMessage = 'Connection error. Please check your internet connection.';
       } else if (errorMessage.contains('Network')) {
         errorMessage = 'Network error. Please check your connection and try again.';
-      } else if (errorMessage.contains('timeout')) {
-        errorMessage = 'Request timeout. Please try again.';
+      } else if (errorMessage.contains('timeout') || errorMessage.contains('Timeout')) {
+        errorMessage = 'Request timed out. Check your connection and try again.';
+      } else {
+        errorMessage = errorMessage.replaceFirst(RegExp(r'^Exception:\s*'), '');
       }
-      
-      _error = 'Failed to load player dashboard: $errorMessage';
-      print('Player dashboard error set: $_error');
+
+      _playerDashboard = null;
+      _playerDashboardError = errorMessage;
     } finally {
       _isPlayerLoading = false;
       notifyListeners();
@@ -436,21 +447,27 @@ class AcademyProvider extends ChangeNotifier {
     return _currentUser;
   }
 
-  // Check if current user has specific permission
+  // Check if current user has specific permission (honors admin-set flags on staff / JWT).
   bool hasPermission(String permission) {
     if (_currentUser == null) return false;
-    
-    // Admin and head coach have all permissions
-    if (['admin', 'head_coach'].contains(_currentUser!.role)) {
-      return true;
-    }
-    
-    // For coach roles, prefer permissions from /auth/profile (JWT user), then local staff list
-    if (_currentUser!.role == 'coach' || _currentUser!.role == 'assistant_coach') {
-      final profilePerms = _currentUser!.permissions;
-      if (profilePerms != null && profilePerms.isNotEmpty) {
+
+    final role = _currentUser!.role.trim().toLowerCase();
+    final profilePerms = _currentUser!.permissions;
+
+    // Explicit permission map from /auth/profile — required for coach / assistant / head coach
+    // so academy admins can revoke create battle, strategy, etc.
+    if (profilePerms != null && profilePerms.isNotEmpty) {
+      if (['coach', 'assistant_coach', 'head_coach'].contains(role)) {
         return Permissions.fromDynamic(profilePerms).hasPermission(permission);
       }
+    }
+
+    // Default role powers when the API has not sent a permission object yet
+    if (role == 'admin' || role == 'head_coach') {
+      return true;
+    }
+
+    if (role == 'coach' || role == 'assistant_coach') {
       final staff = academy.staff.firstWhere(
         (s) => s.email == _currentUser!.email,
         orElse: () => Staff(
@@ -464,25 +481,28 @@ class AcademyProvider extends ChangeNotifier {
       );
       return staff.permissions.hasPermission(permission);
     }
-    
+
     return false;
   }
 
-  // Get current user's permissions
+  // Get current user's permissions (same rules as [hasPermission]).
   Permissions get currentUserPermissions {
     if (_currentUser == null) return Permissions();
-    
-    // Admin and head coach have all permissions
-    if (['admin', 'head_coach'].contains(_currentUser!.role)) {
-      return Permissions.forRole(_currentUser!.role);
-    }
-    
-    // For coach roles, prefer profile permissions, then local staff list
-    if (_currentUser!.role == 'coach' || _currentUser!.role == 'assistant_coach') {
-      final profilePerms = _currentUser!.permissions;
-      if (profilePerms != null && profilePerms.isNotEmpty) {
+
+    final role = _currentUser!.role.trim().toLowerCase();
+    final profilePerms = _currentUser!.permissions;
+
+    if (profilePerms != null && profilePerms.isNotEmpty) {
+      if (['coach', 'assistant_coach', 'head_coach'].contains(role)) {
         return Permissions.fromDynamic(profilePerms);
       }
+    }
+
+    if (role == 'admin' || role == 'head_coach') {
+      return Permissions.forRole(role);
+    }
+
+    if (role == 'coach' || role == 'assistant_coach') {
       final staff = academy.staff.firstWhere(
         (s) => s.email == _currentUser!.email,
         orElse: () => Staff(
@@ -496,7 +516,7 @@ class AcademyProvider extends ChangeNotifier {
       );
       return staff.permissions;
     }
-    
+
     return Permissions();
   }
 
@@ -511,11 +531,6 @@ class AcademyProvider extends ChangeNotifier {
       }
     }
     return academy.teams.isNotEmpty ? academy.teams.first : null;
-  }
-
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
   }
 
   void _setError(String error) {
@@ -653,7 +668,6 @@ class AcademyProvider extends ChangeNotifier {
     String? assistantCoachStaffId,
   }) async {
     try {
-      _setLoading(true);
       _clearError();
       
       await _apiService.put('/auth/team/$teamId/leads', {
@@ -674,10 +688,9 @@ class AcademyProvider extends ChangeNotifier {
         loadAdminOverview(force: true);
       }
 
-      _setLoading(false);
       _showSuccessMessage('Team leads assigned successfully!');
+      notifyListeners();
     } catch (e) {
-      _setLoading(false);
       _setError('Failed to assign team leads: ${e.toString()}');
     }
   }
@@ -691,7 +704,6 @@ class AcademyProvider extends ChangeNotifier {
     String? newPassword,
   }) async {
     try {
-      _setLoading(true);
       _clearError();
       
       final response = await _apiService.put('/auth/admin/profile', {
@@ -710,17 +722,15 @@ class AcademyProvider extends ChangeNotifier {
         newPassword: newPassword,
       );
       
-      _setLoading(false);
       _showSuccessMessage('Academy profile updated successfully!');
+      notifyListeners();
     } catch (e) {
-      _setLoading(false);
       _setError('Failed to update academy profile: ${e.toString()}');
     }
   }
 
   Future<void> addTeamToBackend(Team team) async {
     try {
-      _setLoading(true);
       _clearError();
       
       final response = await _apiService.post('/auth/team/create', {
@@ -745,10 +755,9 @@ class AcademyProvider extends ChangeNotifier {
         ),
       );
       
-      _setLoading(false);
       _showSuccessMessage('Team created successfully!');
+      notifyListeners();
     } catch (e) {
-      _setLoading(false);
       _setError('Failed to create team: ${e.toString()}');
     }
   }
@@ -835,7 +844,6 @@ class AcademyProvider extends ChangeNotifier {
 
   Future<void> addStaffToBackend(Staff staff) async {
     try {
-      _setLoading(true);
       _clearError();
       
       final response = await _apiService.post('/auth/staff/create', {
@@ -877,10 +885,9 @@ class AcademyProvider extends ChangeNotifier {
         ),
       );
       
-      _setLoading(false);
       _showSuccessMessage('Staff created successfully!');
+      notifyListeners();
     } catch (e) {
-      _setLoading(false);
       _setError('Failed to create staff: ${e.toString()}');
     }
   }

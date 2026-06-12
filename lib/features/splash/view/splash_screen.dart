@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../routes/routes_names.dart';
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
+import '../../management/viewmodel/academy_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,6 +40,10 @@ class _SplashScreenState extends State<SplashScreen> {
       final user = profileVm.user;
 
       if (user != null) {
+        // Keep AcademyProvider in sync so admin dashboard permissions (Tactical Actions) work
+        // after cold start — login() already does this; splash session restore did not.
+        Provider.of<AcademyProvider>(context, listen: false).setCurrentUser(user);
+
         if (user.role == 'admin') {
           Navigator.pushReplacementNamed(context, RouteNames.academyDashboard);
         } else if (user.profileCompleted) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/colors.dart';
+import '../../../core/legal/app_legal_urls.dart';
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/routes/routes_names.dart';
@@ -143,9 +144,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           bottom: BorderSide(color: primaryColor.withOpacity(0.2), width: 1),
                         ),
                         image: const DecorationImage(
-                          image: NetworkImage(
-                            'https://lh3.googleusercontent.com/aida-public/AB6AXuDd8Hr14isGIWspeNEA6uQEWvgpEq9qCDwROni7rp_wcYO47dQmpBebJbwKNjDkkZjRDpWT1pAmwUOVapQ1McTAetPOYqdNwWw2MQGyyi1G-At-mG_PAvuW3MljpzIb7ipzplp95OOcl9hIlCzdcGslyRw9k-LaWjjeapSXGrMmC50bavLn6d3GUmDWHK6HmGP10-ab73HZScS44Ln5_JmgugyIaLjO8pmJVBoVp0ZDpwDPcwBJv9uFhFGEAgnadVVE_8f6WREEMOSM',
-                          ),
+                          image: AssetImage('assets/images/header.png'),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -362,6 +361,8 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 20),
+                          AppLegalUrls.inlineTextButtons(context),
                           const SizedBox(height: 16),
                         ],
                       ),

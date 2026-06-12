@@ -3,19 +3,24 @@ import 'dart:math' show min, max;
 import 'package:flutter/material.dart';
 
 import 'tactical_animation_engine.dart';
-
+import 'tactical_entities.dart';
+import '../models/tactical/tactical_schema.dart';
 /// Regulation-style **full court** (both ends): 5 offense (south) + 5 defense (north) + ball.
 /// Aspect: NBA ~94×50 → width : height = 94 : 50.
 class TacticalCourtCanvas extends StatelessWidget {
   final TacticalFrame frame;
   final int ballOwnerSlot;
   final double? maxHeight;
+  final PlayStep? currentStep;
+  final double animationProgress;
 
   const TacticalCourtCanvas({
     super.key,
     required this.frame,
     required this.ballOwnerSlot,
     this.maxHeight,
+    this.currentStep,
+    this.animationProgress = 0.0,
   });
 
   @override
@@ -26,14 +31,23 @@ class TacticalCourtCanvas extends StatelessWidget {
         final idealH = w * 50 / 94;
         final h = maxHeight != null ? (idealH > maxHeight! ? maxHeight! : idealH) : idealH;
         return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: CustomPaint(
-            size: Size(w, h),
-            painter: _FullCourtPainter(
-              frame: frame,
-              ballOffenseSlot: ballOwnerSlot,
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F1DE),
+              border: Border.all(color: const Color(0xFF3D405B), width: 8),
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 5))],
             ),
-            child: SizedBox(width: w, height: h),
+            child: CustomPaint(
+              size: Size(w, h),
+              painter: _FullCourtPainter(
+                frame: frame,
+                ballOffenseSlot: ballOwnerSlot,
+                currentStep: currentStep,
+                progress: animationProgress,
+              ),
+              child: SizedBox(width: w, height: h),
+            ),
           ),
         );
       },
@@ -45,138 +59,217 @@ class _FullCourtPainter extends CustomPainter {
   _FullCourtPainter({
     required this.frame,
     required this.ballOffenseSlot,
+    this.currentStep,
+    this.progress = 0.0,
   });
 
   final TacticalFrame frame;
   final int ballOffenseSlot;
+  final PlayStep? currentStep;
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
 
-    // Floor
-    final floor = Paint()..color = const Color(0xFF2D4A2D);
-    canvas.drawRect(Offset.zero & size, floor);
+    // Wood Texture (Background)
+    final woodColor = const Color(0xFFF2CC8F);
+    canvas.drawRect(Offset.zero & size, Paint()..color = woodColor);
 
-    final border = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
+    // Court lines paint
+    final linePaint = Paint()
+      ..color = Colors.black87
       ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.2, w * 0.002);
+      ..strokeWidth = max(1.5, w * 0.003);
 
-    final thin = Paint()
-      ..color = Colors.white.withValues(alpha: 0.35)
+    final thickLine = Paint()
+      ..color = Colors.black
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    final midLine = Paint()
-      ..color = Colors.white.withValues(alpha: 0.92)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(2.0, w * 0.004);
-
-    final circleLine = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.2, w * 0.002);
+      ..strokeWidth = max(2.5, w * 0.005);
 
     // Border
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(10)),
-      border,
-    );
+    canvas.drawRect(Offset.zero & size, thickLine);
 
-    final midY = h * 0.5;
-    canvas.drawLine(Offset(0, midY), Offset(w, midY), midLine);
+    // Midcourt line
+    final midX = w * 0.5;
+    canvas.drawLine(Offset(midX, 0), Offset(midX, h), thickLine);
+    canvas.drawCircle(Offset(midX, h / 2), w * 0.06, linePaint);
 
-    final ccR = min(w, h) * 0.11;
-    canvas.drawCircle(Offset(w / 2, midY), ccR, circleLine);
+    void drawSide(bool left) {
+      final keyW = w * 0.202; // 19ft on 94ft
+      final keyH = h * 0.32; // 16ft on 50ft
+      final startX = left ? 0.0 : w - keyW;
+      final topY = (h - keyH) / 2;
 
-    void drawKey(bool top) {
-      final keyW = w * 0.38;
-      final keyH = h * 0.19;
-      final left = (w - keyW) / 2;
-      final topY = top ? h * 0.02 : h * 0.79;
-      canvas.drawRect(Rect.fromLTWH(left, topY, keyW, keyH), thin);
-      final hoopY = top ? topY + keyH * 0.15 : topY + keyH * 0.85;
-      canvas.drawCircle(Offset(w / 2, hoopY), w * 0.012, Paint()..color = Colors.orange.shade200);
+      // Key (Paint area) - matching the orange in reference
+      final keyColor = const Color(0xFFE07A5F);
+      canvas.drawRect(Rect.fromLTWH(startX, topY, keyW, keyH), Paint()..color = keyColor);
+      canvas.drawRect(Rect.fromLTWH(startX, topY, keyW, keyH), linePaint);
+
+      // Free throw circle
+      final ftR = keyH / 2;
+      final ftCenterX = left ? keyW : w - keyW;
+      canvas.drawCircle(Offset(ftCenterX, h / 2), ftR, linePaint);
+
+      // Hoop and Backboard
+      final rimX = left ? w * 0.056 : w - (w * 0.056);
+      final bbX = left ? w * 0.043 : w - (w * 0.043);
+      final bbH = h * 0.12;
+      canvas.drawLine(Offset(bbX, h / 2 - bbH / 2), Offset(bbX, h / 2 + bbH / 2), thickLine);
+
+      // Rim
+      final rimR = w * 0.012;
+      canvas.drawCircle(Offset(rimX, h / 2), rimR, Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 2);
+
+      // 3-pt arc
+      final threeR = h * 0.475;
+      final rect = Rect.fromCircle(center: Offset(rimX, h / 2), radius: threeR);
+      final startAngle = left ? -1.57 : 1.57;
+      canvas.drawArc(rect, startAngle, 3.14159, false, linePaint);
     }
 
-    drawKey(true);
-    drawKey(false);
+    drawSide(true);
+    drawSide(false);
 
-    // 3-pt arcs (simplified elliptical arcs)
-    void drawArc(bool top) {
-      final cy = top ? h * 0.14 : h * 0.86;
-      final arcRect = Rect.fromCenter(center: Offset(w / 2, cy), width: w * 0.92, height: h * 0.42);
-      final start = top ? 0.35 * 3.14159 : 1.25 * 3.14159;
-      canvas.drawArc(arcRect, start, 0.95, false, thin);
+    // Reference Labels (Attacking / Defense)
+    _drawLabelBox(canvas, w * 0.15, h * 0.05, 'ATTACKING', const Color(0xFF3D405B), Colors.white);
+    _drawLabelBox(canvas, w * 0.65, h * 0.05, 'DEFENSE RESPONSIBILITY', Colors.black87, Colors.white);
+    
+    _drawLabelBox(canvas, w * 0.15, h * 0.88, 'COACHING BOARD', Colors.black87, Colors.white, small: true);
+    _drawLabelBox(canvas, w * 0.65, h * 0.88, 'FULL COURT', const Color(0xFF3D405B), Colors.white, small: true);
+
+    // --- Paths & Indicators (drawn below players) ---
+    if (currentStep != null && progress > 0.0 && frame.startOffenseNorm != null && frame.targetOffenseNorm != null) {
+      final pathPaint = Paint()
+        ..color = Colors.black87.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5;
+
+      void drawDashedLine(Offset p1, Offset p2) {
+        final dist = (p2 - p1).distance;
+        if (dist < 0.1) return;
+        final dir = (p2 - p1) / dist;
+        double dashWidth = 8.0;
+        double dashSpace = 4.0;
+        double currentDistance = 0.0;
+        while (currentDistance < dist) {
+          final start = p1 + dir * currentDistance;
+          currentDistance += dashWidth;
+          if (currentDistance > dist) currentDistance = dist;
+          final end = p1 + dir * currentDistance;
+          canvas.drawLine(start, end, pathPaint);
+          currentDistance += dashSpace;
+        }
+      }
+
+      void drawArrow(Offset p1, Offset p2) {
+        canvas.drawLine(p1, p2, pathPaint);
+        final dist = (p2 - p1).distance;
+        if (dist < 10) return;
+        final dir = (p2 - p1) / dist;
+        final normal = Offset(-dir.dy, dir.dx);
+        const arrowSize = 10.0;
+        final pt1 = p2 - dir * arrowSize + normal * (arrowSize / 2);
+        final pt2 = p2 - dir * arrowSize - normal * (arrowSize / 2);
+        canvas.drawLine(p2, pt1, pathPaint);
+        canvas.drawLine(p2, pt2, pathPaint);
+      }
+
+      void drawScreenBar(Offset p1, Offset p2) {
+        canvas.drawLine(p1, p2, pathPaint);
+        final dist = (p2 - p1).distance;
+        if (dist < 10) return;
+        final dir = (p2 - p1) / dist;
+        final normal = Offset(-dir.dy, dir.dx);
+        const barSize = 16.0;
+        final pt1 = p2 + normal * (barSize / 2);
+        final pt2 = p2 - normal * (barSize / 2);
+        canvas.drawLine(pt1, pt2, pathPaint);
+      }
+
+      Offset getPlayerPos(bool isDef, int slot, bool isStart) {
+        final list = isDef 
+          ? (isStart ? frame.startDefenseNorm! : frame.targetDefenseNorm!)
+          : (isStart ? frame.startOffenseNorm! : frame.targetOffenseNorm!);
+        final idx = (slot - 1).clamp(0, 4);
+        final p = list[idx];
+        return Offset(p.dy * w, p.dx * h);
+      }
+
+      final step = currentStep!;
+      if (step.kind == PlayStepKind.pass || step.kind == PlayStepKind.handoff) {
+        if (frame.startBallNorm != null && frame.targetBallNorm != null) {
+          final p1 = Offset(frame.startBallNorm!.dy * w, frame.startBallNorm!.dx * h);
+          final p2 = Offset(frame.targetBallNorm!.dy * w, frame.targetBallNorm!.dx * h);
+          drawDashedLine(p1, p2);
+        }
+      } else {
+        final p1 = getPlayerPos(step.isDefense, step.actorSlot, true);
+        final p2 = getPlayerPos(step.isDefense, step.actorSlot, false);
+        
+        if (step.kind == PlayStepKind.screen || step.kind == PlayStepKind.staggerScreen) {
+          drawScreenBar(p1, p2);
+        } else if (step.kind == PlayStepKind.shoot) {
+          drawDashedLine(p1, p2);
+        } else {
+          drawArrow(p1, p2);
+        }
+      }
     }
 
-    drawArc(true);
-    drawArc(false);
-
-    // Labels
-    _label(canvas, w * 0.04, h * 0.04, 'DEFENSE', Colors.lightBlue.shade100);
-    _label(canvas, w * 0.04, h * 0.92, 'OFFENSE', const Color(0xFFFFD900));
-
-    // Players — defense (blue)
+    // Players
     for (var i = 0; i < frame.defenseNorm.length; i++) {
       final p = frame.defenseNorm[i];
-      final c = Offset(p.dx * w, p.dy * h);
-      _drawPlayer(canvas, c, 'D${i + 1}', const Color(0xFF4A90D9), false);
+      // In horizontal: 0 is left, 1 is right.
+      final c = Offset(p.dy * w, p.dx * h); 
+      _drawPuck(canvas, c, 'D${i + 1}', Colors.red.shade700, false);
     }
-    // Offense (gold / ball)
     for (var i = 0; i < frame.offenseNorm.length; i++) {
       final p = frame.offenseNorm[i];
-      final c = Offset(p.dx * w, p.dy * h);
-      final slot = i + 1;
-      final hasBall = slot == ballOffenseSlot;
-      _drawPlayer(
-        canvas,
-        c,
-        'O$slot',
-        hasBall ? const Color(0xFFFFD900) : const Color(0xFF5C4A2A),
-        hasBall,
-      );
+      final c = Offset(p.dy * w, p.dx * h);
+      final hasBall = (i + 1) == ballOffenseSlot;
+      _drawPuck(canvas, c, 'O${i + 1}', const Color(0xFFF2CC8F), hasBall);
     }
-
-    // Ball (extra ring if not overlapping)
+    
+    // Ball
     final b = frame.ballNorm;
-    final bc = Offset(b.dx * w, b.dy * h);
-    canvas.drawCircle(bc, w * 0.014, Paint()..color = Colors.deepOrange.shade200);
-    canvas.drawCircle(bc, w * 0.014, Paint()..color = Colors.white.withValues(alpha: 0.9)..style = PaintingStyle.stroke..strokeWidth = 1.2);
+    final bc = Offset(b.dy * w, b.dx * h);
+    canvas.drawCircle(bc, w * 0.012, Paint()..color = Colors.orange.shade800);
+    canvas.drawCircle(bc, w * 0.012, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1);
   }
 
-  void _label(Canvas canvas, double x, double y, String text, Color color) {
+  void _drawLabelBox(Canvas canvas, double x, double y, String text, Color bg, Color textCol, {bool small = false}) {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+        style: TextStyle(color: textCol, fontSize: small ? 8 : 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, Offset(x, y));
+    
+    final rect = Rect.fromLTWH(x, y, tp.width + 16, tp.height + 8);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), Paint()..color = bg);
+    tp.paint(canvas, Offset(x + 8, y + 4));
   }
 
-  void _drawPlayer(Canvas canvas, Offset c, String label, Color fill, bool emphasize) {
-    final r = emphasize ? 13.0 : 11.0;
-    canvas.drawCircle(c, r, Paint()..color = fill);
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.45)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
+  void _drawPuck(Canvas canvas, Offset c, String label, Color color, bool highlight) {
+    final r = highlight ? 14.0 : 12.0;
+    // Outer ring
+    canvas.drawCircle(c, r + 2, Paint()..color = Colors.black26);
+    // Body
+    canvas.drawCircle(c, r, Paint()..color = color);
+    // Border
+    canvas.drawCircle(c, r, Paint()..color = Colors.black87..style = PaintingStyle.stroke..strokeWidth = 1.5);
+    
+    if (highlight) {
+      canvas.drawCircle(c, r + 4, Paint()..color = Colors.orange.withValues(alpha: 0.5)..style = PaintingStyle.stroke..strokeWidth = 2);
+    }
+
     final tp = TextPainter(
       text: TextSpan(
         text: label,
-        style: TextStyle(
-          color: emphasize ? Colors.black : Colors.white,
-          fontSize: emphasize ? 9 : 8,
-          fontWeight: FontWeight.w800,
-        ),
+        style: TextStyle(color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -185,5 +278,8 @@ class _FullCourtPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FullCourtPainter oldDelegate) =>
-      oldDelegate.frame != frame || oldDelegate.ballOffenseSlot != ballOffenseSlot;
+      oldDelegate.frame != frame ||
+      oldDelegate.ballOffenseSlot != ballOffenseSlot ||
+      oldDelegate.progress != progress ||
+      oldDelegate.currentStep != currentStep;
 }

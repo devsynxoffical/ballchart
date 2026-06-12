@@ -1,12 +1,19 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/core/widgets/dialogues/CreatePlayerDialog.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/core/services/api_service.dart';
 import '../../../../core/models/local_academy_models.dart';
+
+String _formatDivisionLabel(String ageGroup) {
+  final raw = ageGroup.trim().toUpperCase().replaceAll('U-', 'U').replaceAll(' ', '');
+  if (raw.isEmpty || raw == 'OPEN') return 'Open Division';
+  return '$raw Division';
+}
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamName;
@@ -192,6 +199,27 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return 'NOT ASSIGNED';
   }
 
+  /// Resolved photo URL for command staff (dashboard populated staff or local academy.staff).
+  String? _leadProfilePicUrl(AcademyProvider provider, Map<String, dynamic>? raw, String key, String? staffId) {
+    if (raw != null) {
+      final v = raw[key];
+      if (v is Map) {
+        final pic = v['profilePic'] ?? v['profileImageUrl'];
+        if (pic != null && pic.toString().trim().isNotEmpty) {
+          final u = ApiService.resolveMediaUrl(pic.toString());
+          return u.isEmpty ? null : u;
+        }
+      }
+    }
+    final staff = provider.getStaffById(staffId);
+    final pic = staff?.profilePic?.trim();
+    if (pic != null && pic.isNotEmpty) {
+      final u = ApiService.resolveMediaUrl(pic);
+      return u.isEmpty ? null : u;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -209,6 +237,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           final teamColor = Color(team.colorValue);
           final coachName = _leadDisplayName(provider, teamRaw, 'coachStaffId', team.coachStaffId);
           final asstName = _leadDisplayName(provider, teamRaw, 'assistantCoachStaffId', team.assistantCoachStaffId);
+          final coachPic = _leadProfilePicUrl(provider, teamRaw, 'coachStaffId', team.coachStaffId);
+          final asstPic = _leadProfilePicUrl(provider, teamRaw, 'assistantCoachStaffId', team.assistantCoachStaffId);
 
           return RefreshIndicator(
             onRefresh: () => _loadDataWithRetry(),
@@ -224,7 +254,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     child: Column(
                       children: [
                         const SizedBox(height: 16),
-                        _buildTeamIdentity(teamColor, team.ageGroup, team.logoPath, team.id),
+                        _buildTeamIdentity(teamColor, team, provider),
                         const SizedBox(height: 32),
                         _buildStatsMetrics(team.players),
                         const SizedBox(height: 40),
@@ -233,6 +263,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         _buildCommandStaff(
                           coachName,
                           asstName,
+                          coachPic,
+                          asstPic,
                           team.id,
                           team.coachStaffId,
                           team.assistantCoachStaffId,
@@ -300,7 +332,33 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _buildTeamIdentity(Color teamColor, String ageGroup, String? logoPath, String teamId) {
+  Future<void> _pickAndUpdateTeamLogo(Team team, AcademyProvider provider) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 85);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    final dataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    final updated = Team(
+      id: team.id,
+      name: team.name,
+      ageGroup: team.ageGroup,
+      colorValue: team.colorValue,
+      logoPath: dataUri,
+      players: team.players,
+      coachStaffId: team.coachStaffId,
+      assistantCoachStaffId: team.assistantCoachStaffId,
+    );
+    await provider.updateTeamInBackend(updated);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Team photo updated'), backgroundColor: _AcademyTheme.primaryColor),
+      );
+    }
+  }
+
+  Widget _buildTeamIdentity(Color teamColor, Team team, AcademyProvider provider) {
+    final ageGroup = team.ageGroup;
+    final logoPath = team.logoPath;
     Widget logo;
     if (logoPath != null && logoPath.startsWith('data:')) {
       logo = Image.memory(base64Decode(logoPath.split(',').last), fit: BoxFit.contain, width: 80, height: 80);
@@ -321,21 +379,25 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _AcademyTheme.surfaceContainer,
-            shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: teamColor.withOpacity(0.1), blurRadius: 40)],
+        InkWell(
+          onTap: () => _pickAndUpdateTeamLogo(team, provider),
+          customBorder: const CircleBorder(),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _AcademyTheme.surfaceContainer,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: teamColor.withOpacity(0.1), blurRadius: 40)],
+            ),
+            child: logo,
           ),
-          child: logo,
         ),
+        const SizedBox(height: 6),
+        Text('Tap logo to change team photo', style: TextStyle(color: teamColor.withOpacity(0.65), fontSize: 10)),
         const SizedBox(height: 24),
         Text(widget.teamName.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, fontFamily: _AcademyTheme.headlineFont, height: 1)),
         const SizedBox(height: 8),
-        Text('DIVISION: $ageGroup', style: TextStyle(color: teamColor.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-        const SizedBox(height: 4),
-        Text('ID: ${teamId.toUpperCase().substring(math.max(0, teamId.length - 8))}', style: const TextStyle(color: _AcademyTheme.outline, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+        Text(_formatDivisionLabel(ageGroup), style: TextStyle(color: teamColor.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
       ],
     );
   }
@@ -518,6 +580,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Widget _buildCommandStaff(
     String head,
     String asst,
+    String? headPicUrl,
+    String? asstPicUrl,
     String? teamId,
     String? currentCoachId,
     String? currentAsstId,
@@ -530,7 +594,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('COMMAND STAFF', style: TextStyle(color: teamColor, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: _AcademyTheme.headlineFont)),
+            Text('COACHING STAFF', style: TextStyle(color: teamColor, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: _AcademyTheme.headlineFont)),
             if (canAssignLeads)
               IconButton(
                 onPressed: () => _showAssignStaffDialog(context, teamId, false, currentCoachId, currentAsstId),
@@ -547,12 +611,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             _staffTile(
               head,
               'HEAD COACH',
+              headPicUrl,
               canAssignLeads ? () => _showAssignStaffDialog(context, teamId, false, currentCoachId, currentAsstId) : null,
             ),
             const SizedBox(width: 12),
             _staffTile(
               asst,
               'ASSISTANT',
+              asstPicUrl,
               canAssignLeads ? () => _showAssignStaffDialog(context, teamId, true, currentCoachId, currentAsstId) : null,
             ),
           ],
@@ -561,14 +627,52 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _staffTile(String name, String role, VoidCallback? onAssign) {
+  Widget _staffPhotoAvatar(String? imageUrl) {
+    const double r = 28;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          imageUrl,
+          width: r * 2,
+          height: r * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _staffPhotoPlaceholder(),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return SizedBox(
+              width: r * 2,
+              height: r * 2,
+              child: const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _AcademyTheme.primaryContainer),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return _staffPhotoPlaceholder();
+  }
+
+  Widget _staffPhotoPlaceholder() {
+    return CircleAvatar(
+      radius: 28,
+      backgroundColor: _AcademyTheme.surfaceHighest,
+      child: const Icon(Icons.person, color: Colors.white24, size: 28),
+    );
+  }
+
+  Widget _staffTile(String name, String role, String? imageUrl, VoidCallback? onAssign) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: _AcademyTheme.surfaceContainer, borderRadius: BorderRadius.circular(20)),
         child: Column(
           children: [
-            const CircleAvatar(radius: 24, backgroundColor: _AcademyTheme.surfaceHighest, child: Icon(Icons.face, color: Colors.white24)),
+            _staffPhotoAvatar(imageUrl),
             const SizedBox(height: 12),
             Text(role, style: const TextStyle(color: _AcademyTheme.primaryContainer, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 2)),
             const SizedBox(height: 4),

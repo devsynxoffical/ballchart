@@ -101,7 +101,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
               _buildSectionTitle('Operational Tier'),
               _buildOperationalTierGrid(),
               const SizedBox(height: 32),
-              _buildSectionTitle('Tactical Signature'),
+              _buildSectionTitle('Team color'),
               _buildColorSignature(),
               const SizedBox(height: 32),
               _buildSectionTitle('Staff Assignment'),

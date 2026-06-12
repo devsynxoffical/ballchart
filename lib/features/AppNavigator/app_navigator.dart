@@ -70,12 +70,6 @@ class _AppNavigatorState extends State<AppNavigator> {
       screens.add(const ManagementScreen());
     }
 
-    screens.addAll([
-      const EnhancedStrategyScreen(),
-      const BattleScreen(),
-      const ProfileScreen(),
-    ]);
-
     return screens;
   }
 

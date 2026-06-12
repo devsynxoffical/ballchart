@@ -156,6 +156,14 @@ class StrategyViewmodel extends ChangeNotifier {
         metadata: metadata,
       );
       _strategies = [created, ..._strategies];
+      // Re-fetch once to avoid partial local state after creation.
+      final latest = await _repository.getStrategies(
+        category: _selectedCategory,
+        tag: _selectedTag,
+        search: _searchQuery,
+        sortBy: _sortBy,
+      );
+      _strategies = latest;
       _setLoading(false);
       notifyListeners();
     } catch (e) {

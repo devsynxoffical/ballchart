@@ -12,4 +12,10 @@ class ProfileRepository {
   Future<void> completeProfile(Map<String, dynamic> profileData) async {
     await _apiService.put('/auth/profile', profileData);
   }
+
+  Future<void> deleteMyAccount() async {
+    await _apiService.post('/auth/account/delete', {
+      'confirmPhrase': 'DELETE MY ACCOUNT',
+    });
+  }
 }

@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'strategy_creation_entry.dart';
+import '../../../features/tactics/view/tactical_lab_screen.dart';
+import '../../tactical/tactical_entities.dart';
+import '../../tactical/voice_command_parser.dart';
+import '../../tactical/tactical_ai_suggestions.dart';
+import '../../models/tactical/tactical_schema.dart';
 
 class CreateStrategyDialog extends StatefulWidget {
   final StrategyCreationEntry entry;
@@ -89,6 +94,17 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
     return uri != null && uri.hasAbsolutePath && (uri.isScheme('http') || uri.isScheme('https'));
   }
 
+  bool _isLikelyUnsupportedVideoUrl(String value) {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null) return false;
+    final host = uri.host.toLowerCase();
+    return host.contains('youtube.com') ||
+        host.contains('youtu.be') ||
+        host.contains('facebook.com') ||
+        host.contains('instagram.com') ||
+        host.contains('tiktok.com');
+  }
+
   String _mapCategoryForApi(String id) {
     switch (id) {
       case 'offense':
@@ -161,6 +177,10 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
     if (error == null && video.isNotEmpty && !_looksLikeHttpUrl(video)) {
       error = 'Video URL must be a valid http(s) link.';
     }
+    // We now allow social page URLs as they can be launched in the external YouTube app or browser.
+    // if (error == null && video.isNotEmpty && _isLikelyUnsupportedVideoUrl(video)) {
+    //   error = 'Please use a direct MP4/HLS stream URL. Social page URLs (YouTube/Facebook/Instagram/TikTok) are not playable in-app.';
+    // }
     if (error == null && reference.isNotEmpty && !_looksLikeHttpUrl(reference)) {
       error = 'Reference link must be a valid http(s) URL.';
     }
@@ -370,6 +390,11 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
                         Text(
                           '${_plays.length} items',
                           style: TextStyle(color: outlineColor, fontSize: 10),
+                        ),
+                        TextButton.icon(
+                          onPressed: _openTacticalLab,
+                          icon: const Icon(Icons.grid_4x4, size: 14, color: primaryColor),
+                          label: const Text('DESIGN IN LAB', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -749,6 +774,36 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _openTacticalLab() async {
+    final result = await Navigator.of(context).push<List<PlayStep>>(
+      MaterialPageRoute(
+        builder: (_) => const TacticalLabScreen(returnOnSave: true),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        for (final step in result) {
+          // Convert step to a readable command that our parser understands
+          String? cmd;
+          if (step.kind == PlayStepKind.pass) {
+            cmd = 'P${step.actorSlot} pass to P${step.targetSlot}';
+          } else if (step.kind == PlayStepKind.handoff) {
+            cmd = 'P${step.actorSlot} handoff to P${step.targetSlot}';
+          } else if (step.kind == PlayStepKind.shoot) {
+            cmd = 'P${step.actorSlot} shoot';
+          } else if (step.kind == PlayStepKind.cut && step.toNorm != null) {
+            cmd = 'P${step.actorSlot} move to target'; // Simplified for now
+          }
+
+          if (cmd != null && !_plays.contains(cmd)) {
+            _plays.add(cmd);
+          }
+        }
+      });
     }
   }
 

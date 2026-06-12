@@ -7,6 +7,8 @@ import 'package:ballchart/core/widgets/dialogues/EditAcademyDialog.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/core/repositories/profile_repository.dart';
 import 'package:ballchart/core/services/api_service.dart';
+import 'package:ballchart/core/legal/app_legal_urls.dart';
+import 'package:ballchart/core/widgets/delete_account_dialog.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
@@ -22,7 +24,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isDarkMode = true;
   bool _notificationsEnabled = true;
   final ApiService _apiService = ApiService();
 
@@ -163,7 +164,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (user == null) return const Center(child: Text('TERMINAL OFFLINE', style: TextStyle(color: outlineColor)));
 
             return RefreshIndicator(
-              onRefresh: () => viewModel.loadProfile(forceRefresh: true),
+              onRefresh: () async {
+                await viewModel.loadProfile(forceRefresh: true);
+                final u = viewModel.user;
+                if (u != null && context.mounted) {
+                  context.read<AcademyProvider>().setCurrentUser(u);
+                }
+              },
               color: primaryColor,
               backgroundColor: const Color(0xFF2A2A2A),
               child: SingleChildScrollView(
@@ -176,7 +183,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 32),
                     if (user.role == 'admin') _buildAcademyPartnership(context),
                     const SizedBox(height: 32),
-                    const Text('COMMAND CENTER PROFILE', style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                    Text(
+                      role.contains('coach') ? 'COACH PROFILE' : 'ACADEMY PROFILE',
+                      style: const TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
                     const SizedBox(height: 16),
                     _buildBentoGrid(context, user),
                     if (user.role == 'player') ...[
@@ -868,13 +878,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildSystemActions(BuildContext context) {
     return Column(
       children: [
-        _systemRow('DARK MODE OPERATIONAL', Icons.dark_mode, _isDarkMode, (value) {
-          setState(() {
-            _isDarkMode = value;
-          });
-          // TODO: Implement theme switching logic
-        }),
-        const SizedBox(height: 12),
         _systemRow('NOTIFICATIONS ACTIVE', Icons.notifications_active, _notificationsEnabled, (value) {
           setState(() {
             _notificationsEnabled = value;
@@ -888,12 +891,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.05), border: Border.all(color: Colors.redAccent.withOpacity(0.2)), borderRadius: BorderRadius.circular(24)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.power_settings_new, color: Colors.redAccent, size: 20),
+                const SizedBox(width: 12),
+                const Text('LOGOUT', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk', letterSpacing: 1.5)),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Center(child: AppLegalUrls.inlineTextButtons(context)),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: () => showDeleteAccountDialog(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white24),
+            ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.power_settings_new, color: Colors.redAccent, size: 20),
-                const SizedBox(width: 12),
-                Text('TERMINAL LOGOUT', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk', letterSpacing: 1.5)),
+                Icon(Icons.delete_forever_outlined, color: Colors.white54, size: 20),
+                SizedBox(width: 10),
+                Text(
+                  'DELETE ACCOUNT',
+                  style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                ),
               ],
             ),
           ),

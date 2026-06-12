@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/models/strategy_model.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
 import '../../../core/widgets/dialogues/strategy_creation_options_sheet.dart';
+import 'package:ballchart/core/repositories/development_repository.dart';
+
+import '../../management/viewmodel/academy_provider.dart';
+import '../../player_development/view/my_development_screen.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
 import '../viewmodel/strategy_viewmodel.dart';
+import 'strategy_detail_screen.dart';
 
 class StrategyScreen extends StatefulWidget {
   const StrategyScreen({super.key});
@@ -21,6 +28,8 @@ enum _StrategyMediaFilter { all, video, nonVideo }
 class _StrategyScreenState extends State<StrategyScreen> {
   _StrategyMediaFilter _mediaFilter = _StrategyMediaFilter.all;
   StrategyViewmodel? _strategyViewmodel;
+  int? _formationKpi;
+  int? _drillKpi;
 
   static const Color primaryColor = Color(0xFFFFD900);
   static const Color bgColor = Color(0xFF131313);
@@ -41,12 +50,20 @@ class _StrategyScreenState extends State<StrategyScreen> {
         final vm = context.read<StrategyViewmodel>();
         _strategyViewmodel = vm;
         await vm.loadStrategies();
+        if (vm.errorMessage != null && vm.strategies.isEmpty) {
+          throw Exception(vm.errorMessage);
+        }
         vm.startLiveSync(); // Start real-time updates
         
         final profileVm = context.read<ProfileViewmodel>();
         if (profileVm.user == null) {
           await profileVm.loadProfile(forceRefresh: true);
         }
+        final isPlayer = (profileVm.user?.role ?? '').toLowerCase() == 'player';
+        if (isPlayer) {
+          await context.read<AcademyProvider>().loadPlayerDashboard(force: true);
+        }
+        await _loadStrategyKpis();
         break; // Success, exit retry loop
       } catch (e) {
         if (i == retryCount - 1) {
@@ -72,6 +89,29 @@ class _StrategyScreenState extends State<StrategyScreen> {
       }
     }
   }
+
+  Future<void> _loadStrategyKpis() async {
+    try {
+      final cat = await DevelopmentRepository().fetchCatalog();
+      if (!mounted) return;
+      setState(() {
+        _formationKpi = cat.formationEngagementPct;
+        _drillKpi = cat.drillCompletionPct;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _formationKpi = null;
+          _drillKpi = null;
+        });
+      }
+    }
+  }
+
+  String _pctLabel(int? v) => v == null ? '—' : '$v%';
+
+  bool get _isPlayerUser =>
+      (context.read<ProfileViewmodel>().user?.role ?? '').toLowerCase() == 'player';
 
   @override
   void dispose() {
@@ -149,6 +189,14 @@ class _StrategyScreenState extends State<StrategyScreen> {
                   _buildTacticalReels(vm),
                   const SizedBox(height: 32),
                   _buildFormationAnalytics(),
+                  if (_formationKpi == null && _drillKpi == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'KPI targets are set by your coach — they will appear above when available.',
+                        style: TextStyle(color: outlineColor.withValues(alpha: 0.85), fontSize: 11, height: 1.35),
+                      ),
+                    ),
                   const SizedBox(height: 32),
                   const Text('ACTIVE PLAYBOOK', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
                   const SizedBox(height: 16),
@@ -164,24 +212,34 @@ class _StrategyScreenState extends State<StrategyScreen> {
   }
 
   Widget _buildHeader() {
-    return Consumer<ProfileViewmodel>(
-      builder: (context, profileVm, _) {
-        final canCreate = profileVm.user?.role == 'admin' || 
-                         profileVm.user?.role == 'head_coach' || 
-                         profileVm.user?.role == 'coach';
-        
+    return Consumer<AcademyProvider>(
+      builder: (context, academy, _) {
+        final canCreate = academy.hasPermission('createStrategy');
+        final isPlayer = (context.watch<ProfileViewmodel>().user?.role ?? '').toLowerCase() == 'player';
+
         return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('PLAYBOOK INTELLIGENCE', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                SizedBox(height: 4),
-                Text('TACTICAL STRATEGY', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
-              ],
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('PLAYBOOK INTELLIGENCE', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                  SizedBox(height: 4),
+                  Text('TACTICAL STRATEGY', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
+                ],
+              ),
             ),
-            if (canCreate)
+            if (isPlayer)
+              IconButton(
+                tooltip: 'Training & development',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const MyDevelopmentScreen()),
+                  );
+                },
+                icon: const Icon(Icons.fitness_center, color: primaryColor, size: 26),
+              ),
+            if (canCreate && !isPlayer)
               GestureDetector(
                 onTap: () => _openStrategyCreationFlow(context),
                 child: Container(
@@ -198,8 +256,95 @@ class _StrategyScreenState extends State<StrategyScreen> {
 
   bool _strategyHasVideo(StrategyModel s) => s.videoUrl.trim().isNotEmpty;
 
+  String _normalizedVideoUrl(String raw) {
+    final resolved = ApiService.resolveMediaUrl(raw).trim();
+    if (resolved.isEmpty) return '';
+    final uri = Uri.tryParse(resolved);
+    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) return '';
+    return uri.toString();
+  }
+
+  bool _isLikelyUnsupportedPageUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    final host = uri.host.toLowerCase();
+    return host.contains('youtube.com') ||
+        host.contains('youtu.be') ||
+        host.contains('facebook.com') ||
+        host.contains('instagram.com') ||
+        host.contains('tiktok.com');
+  }
+
+  String? _extractYoutubeId(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    final host = uri.host.toLowerCase();
+    if (host.contains('youtu.be')) {
+      final segs = uri.pathSegments;
+      if (segs.isNotEmpty && segs.first.trim().isNotEmpty) return segs.first.trim();
+    }
+    if (host.contains('youtube.com')) {
+      final v = uri.queryParameters['v'];
+      if (v != null && v.trim().isNotEmpty) return v.trim();
+      final segs = uri.pathSegments;
+      final idx = segs.indexOf('embed');
+      if (idx != -1 && idx + 1 < segs.length && segs[idx + 1].trim().isNotEmpty) {
+        return segs[idx + 1].trim();
+      }
+      final shortsIdx = segs.indexOf('shorts');
+      if (shortsIdx != -1 && shortsIdx + 1 < segs.length && segs[shortsIdx + 1].trim().isNotEmpty) {
+        return segs[shortsIdx + 1].trim();
+      }
+    }
+    return null;
+  }
+
   List<StrategyModel> _visibleStrategies(StrategyViewmodel vm) {
-    final list = vm.strategies;
+    var list = vm.strategies;
+    final profileVm = context.read<ProfileViewmodel>();
+    final isPlayer = (profileVm.user?.role ?? '').toLowerCase() == 'player';
+
+    if (isPlayer) {
+      final playerId = (profileVm.user?.id ?? '').trim();
+      final academy = context.read<AcademyProvider>();
+      final teamIds = <String>{};
+
+      final dashboardTeams = academy.playerDashboard?['teams'];
+      if (dashboardTeams is List) {
+        for (final t in dashboardTeams) {
+          if (t is! Map) continue;
+          final id = (t['_id'] ?? t['id'] ?? '').toString().trim();
+          if (id.isNotEmpty) teamIds.add(id);
+        }
+      }
+
+      final playerData = academy.playerDashboard?['player'];
+      if (playerData is Map) {
+        final directTeamId = (playerData['teamId'] ?? playerData['team']?['_id'] ?? '').toString().trim();
+        if (directTeamId.isNotEmpty) teamIds.add(directTeamId);
+      }
+
+      for (final team in academy.academy.teams) {
+        final hasPlayer = team.players.any((p) => p.id == playerId || p.email == profileVm.user?.email);
+        if (hasPlayer && team.id.trim().isNotEmpty) {
+          teamIds.add(team.id.trim());
+        }
+      }
+
+      list = list.where((s) {
+        final meta = s.metadata ?? const <String, dynamic>{};
+        final assignedPlayerId = (meta['assignedPlayerId'] ?? '').toString().trim();
+        final assignedTeamId = (meta['assignedTeamId'] ?? '').toString().trim();
+
+        // Global strategy (not assigned to specific player/team).
+        if (assignedPlayerId.isEmpty && assignedTeamId.isEmpty) return true;
+        // Player assignment has priority.
+        if (assignedPlayerId.isNotEmpty) return assignedPlayerId == playerId;
+        // Team assignment fallback.
+        return assignedTeamId.isNotEmpty && teamIds.contains(assignedTeamId);
+      }).toList();
+    }
+
     switch (_mediaFilter) {
       case _StrategyMediaFilter.all:
         return list;
@@ -247,7 +392,9 @@ class _StrategyScreenState extends State<StrategyScreen> {
   }
 
   Widget _buildTacticalReels(StrategyViewmodel vm) {
-    if (vm.isLoading) return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator(color: primaryColor)));
+    if (vm.isLoading && vm.strategies.isEmpty) {
+      return const SizedBox(height: 180, child: Center(child: CircularProgressIndicator(color: primaryColor)));
+    }
     final strategies = _visibleStrategies(vm);
     if (strategies.isEmpty) {
       return Container(
@@ -281,17 +428,18 @@ class _StrategyScreenState extends State<StrategyScreen> {
   Widget _reelCard(StrategyModel strategy) {
     final thumb = ApiService.resolveMediaUrl(strategy.thumbnailUrl);
     final hasPlayableVideo = _strategyHasVideo(strategy);
-    final resolvedVideo = ApiService.resolveMediaUrl(strategy.videoUrl);
-    final canPlayNetwork = resolvedVideo.startsWith('http://') || resolvedVideo.startsWith('https://');
+    final hasThumb = thumb.trim().isNotEmpty;
+    final resolvedVideo = _normalizedVideoUrl(strategy.videoUrl);
+    final youtubeId = _extractYoutubeId(resolvedVideo);
+    final canPlayNetwork =
+        resolvedVideo.isNotEmpty && (youtubeId != null || !_isLikelyUnsupportedPageUrl(resolvedVideo));
+    final meta = strategy.metadata ?? const <String, dynamic>{};
+    final hasAssignment = (meta['assignedTeamId'] ?? '').toString().trim().isNotEmpty ||
+        (meta['assignedPlayerId'] ?? '').toString().trim().isNotEmpty;
+    final showAssignedBadge = _isPlayerUser && hasAssignment;
 
     return GestureDetector(
-      onTap: () {
-        if (hasPlayableVideo && canPlayNetwork) {
-          _playVideo(context, resolvedVideo);
-        } else {
-          _showStrategyDetailSheet(strategy, highlightVideo: false);
-        }
-      },
+      onTap: () => _openStrategyDetailsPage(strategy),
       child: Container(
         width: 160,
         margin: const EdgeInsets.only(right: 16),
@@ -302,7 +450,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          image: thumb.isNotEmpty
+          image: hasThumb
               ? DecorationImage(
                   image: NetworkImage(thumb),
                   fit: BoxFit.cover,
@@ -322,6 +470,23 @@ class _StrategyScreenState extends State<StrategyScreen> {
                   child: const Text('VIDEO', style: TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
                 ),
               ),
+            if (!hasPlayableVideo && !hasThumb)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+                  ),
+                  child: const Text(
+                    'SAVED',
+                    style: TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1),
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 16,
               left: 16,
@@ -337,6 +502,21 @@ class _StrategyScreenState extends State<StrategyScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(strategy.category.toUpperCase(), style: const TextStyle(color: primaryColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  if (showAssignedBadge) ...[
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+                      ),
+                      child: const Text(
+                        'FOR YOU',
+                        style: TextStyle(color: primaryColor, fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: 0.7),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -350,7 +530,26 @@ class _StrategyScreenState extends State<StrategyScreen> {
               )
             else if (!hasPlayableVideo)
               Center(
-                child: Icon(Icons.movie_creation_outlined, color: outlineColor.withOpacity(0.6), size: 36),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [primaryColor.withValues(alpha: 0.95), primaryColor.withValues(alpha: 0.75)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.28),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.sports_basketball, color: Colors.black, size: 28),
+                ),
               ),
           ],
         ),
@@ -361,9 +560,23 @@ class _StrategyScreenState extends State<StrategyScreen> {
   Widget _buildFormationAnalytics() {
     return Row(
       children: [
-        Expanded(child: _analyticsCard('FORMATION ENGAGEMENT', '88%', Icons.insights, const Color(0xFF28D8FF))),
+        Expanded(
+          child: _analyticsCard(
+            'FORMATION ENGAGEMENT',
+            _pctLabel(_formationKpi),
+            Icons.insights,
+            const Color(0xFF28D8FF),
+          ),
+        ),
         const SizedBox(width: 16),
-        Expanded(child: _analyticsCard('DRILL COMPLETION', '94%', Icons.check_circle, primaryColor)),
+        Expanded(
+          child: _analyticsCard(
+            'DRILL COMPLETION',
+            _pctLabel(_drillKpi),
+            Icons.check_circle,
+            primaryColor,
+          ),
+        ),
       ],
     );
   }
@@ -377,7 +590,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
         children: [
           Icon(icon, color: color, size: 20),
           const SizedBox(height: 16),
-          Text(val, style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
+          Text(val, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
           const SizedBox(height: 4),
           Text(title, style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1)),
         ],
@@ -402,9 +615,13 @@ class _StrategyScreenState extends State<StrategyScreen> {
     final hasVideo = _strategyHasVideo(s);
     final subtitle = '${s.category.toUpperCase()} • ${s.sourceType.toUpperCase()}'
         '${hasVideo ? ' • VIDEO' : ''}';
+    final meta = s.metadata ?? const <String, dynamic>{};
+    final hasAssignment = (meta['assignedTeamId'] ?? '').toString().trim().isNotEmpty ||
+        (meta['assignedPlayerId'] ?? '').toString().trim().isNotEmpty;
+    final showPlayerBadge = _isPlayerUser && hasAssignment;
 
     return GestureDetector(
-      onTap: () => _showStrategyDetailSheet(s, highlightVideo: hasVideo),
+      onTap: () => _openStrategyDetailsPage(s),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
@@ -420,9 +637,20 @@ class _StrategyScreenState extends State<StrategyScreen> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(10)),
-                    child: Icon(hasVideo ? Icons.videocam_outlined : Icons.description, color: hasVideo ? primaryColor : outlineColor, size: 18),
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: hasVideo ? primaryColor.withValues(alpha: 0.14) : surfaceHigh,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: hasVideo ? primaryColor.withValues(alpha: 0.4) : outlineColor.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Icon(
+                      hasVideo ? Icons.play_lesson_outlined : Icons.sports_basketball_outlined,
+                      color: hasVideo ? primaryColor : outlineColor,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -432,6 +660,26 @@ class _StrategyScreenState extends State<StrategyScreen> {
                         Text(s.title.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(subtitle, style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold)),
+                        if (showPlayerBadge) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+                            ),
+                            child: const Text(
+                              'ASSIGNED TO YOU',
+                              style: TextStyle(
+                                color: primaryColor,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.7,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -444,68 +692,11 @@ class _StrategyScreenState extends State<StrategyScreen> {
       ),
     );
   }
-
-  void _showStrategyDetailSheet(StrategyModel s, {required bool highlightVideo}) {
-    final resolved = ApiService.resolveMediaUrl(s.videoUrl);
-    final canPlay = resolved.startsWith('http://') || resolved.startsWith('https://');
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: surfaceHigh,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(color: outlineColor.withOpacity(0.35), borderRadius: BorderRadius.circular(4)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(s.title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
-                const SizedBox(height: 8),
-                Text('${s.category.toUpperCase()} • ${s.sourceType.toUpperCase()}', style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                const SizedBox(height: 16),
-                Text(s.sourceText, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.45)),
-                if (canPlay) ...[
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _playVideo(context, resolved);
-                      },
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('PLAY STRATEGY VIDEO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                    ),
-                  ),
-                ] else if (highlightVideo) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Add a valid HTTPS video URL when creating or editing this strategy to enable playback.',
-                    style: TextStyle(color: outlineColor.withOpacity(0.9), fontSize: 12),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
+  void _openStrategyDetailsPage(StrategyModel s) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StrategyDetailScreen(strategy: s),
+      ),
     );
   }
 
@@ -560,110 +751,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
     );
   }
 
-  Future<void> _playVideo(BuildContext context, String videoUrl) async {
-    showDialog(context: context, builder: (_) => _VideoPlayerDialog(videoUrl: videoUrl));
-  }
 }
 
-class _VideoPlayerDialog extends StatefulWidget {
-  final String videoUrl;
-  const _VideoPlayerDialog({required this.videoUrl});
 
-  @override
-  State<_VideoPlayerDialog> createState() => _VideoPlayerDialogState();
-}
 
-class _VideoPlayerDialogState extends State<_VideoPlayerDialog> {
-  VideoPlayerController? _controller;
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    try {
-      if (widget.videoUrl.isEmpty) {
-        throw Exception('Video URL is empty');
-      }
-      
-      final uri = Uri.parse(widget.videoUrl);
-      if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-        throw Exception('Invalid video URL format');
-      }
-      
-      _controller = VideoPlayerController.networkUrl(uri);
-      await _controller!.initialize();
-      await _controller!.setLooping(true);
-      await _controller!.play();
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load video: ${e.toString().replaceAll('Exception: ', '')}';
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: const Color(0xFF020617),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Strategy Video',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Colors.white70),
-                ),
-              ],
-            ),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              )
-            else if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              )
-            else if (_controller != null)
-              AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio == 0
-                    ? (16 / 9)
-                    : _controller!.value.aspectRatio,
-                child: VideoPlayer(_controller!),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}

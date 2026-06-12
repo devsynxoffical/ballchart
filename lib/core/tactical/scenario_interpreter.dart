@@ -11,7 +11,7 @@ class ScenarioSummary {
     this.bullets = const [],
     this.phase = 'open_play',
   });
-}
+} 
 
 /// Builds coaching-style scenario text from raw utterance + parsed intent.
 ScenarioSummary interpretScenario(String raw, ParsedCoachCommand parsed) {
@@ -24,18 +24,151 @@ ScenarioSummary interpretScenario(String raw, ParsedCoachCommand parsed) {
     );
   }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   switch (parsed.intent) {
-    case CoachIntent.playerPass:
-      final from = (parsed.entities['from'] as num?)?.toInt() ?? 1;
-      final to = (parsed.entities['to'] as num?)?.toInt() ?? 2;
+    case CoachIntent.sequence:
       return ScenarioSummary(
-        headline: 'Half-court possession — pass progression',
-        phase: 'half_court_offense',
+        headline: 'Multi-step tactical flow',
+        phase: 'complex_play',
         bullets: [
-          'Offense (bottom end) has the ball; defense (top end) is set in shell.',
-          'You’re moving the ball from offensive Player $from → Player $to (slots match yellow circles).',
-          'Expect help defenders to stunt or gap as the ball crosses the nail.',
+          'Processing ${parsed.steps.length} sequential actions.',
+          'Players will move and pass in the exact order you described.',
+          'Watch the simulation play out step-by-step on the board.',
         ],
+      );
+    case CoachIntent.playerPass:
+      final from = (parsed.entities['from'] as num?)?.toInt() ?? (parsed.entities['actor'] as num?)?.toInt() ?? 1;
+      final to = (parsed.entities['to'] as num?)?.toInt() ?? (parsed.entities['target'] as num?)?.toInt() ?? 2;
+      final action = parsed.entities['action']?.toString() ?? (parsed.entities['isHandoff'] == true ? 'handoff' : 'pass');
+      
+      String headline = 'Half-court possession — $action';
+      List<String> bullets = [
+        'Offense (bottom end) has the ball; defense (top end) is set in shell.',
+        'Action: Player $from is executing a $action to Player $to.',
+      ];
+
+      if (action == 'screen') {
+        bullets.add('Screener (P$from) should hold the angle to force the defender over/under.');
+      } else if (action == 'shoot') {
+        headline = 'Shot attempt — Player $from';
+        bullets = ['Player $from is taking a high-percentage look at the basket.'];
+      }
+
+      return ScenarioSummary(
+        headline: headline,
+        phase: 'half_court_offense',
+        bullets: bullets,
       );
     case CoachIntent.zoneSwitch:
       final z = parsed.entities['zone']?.toString() ?? '2-3';

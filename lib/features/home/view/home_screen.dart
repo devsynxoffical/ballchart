@@ -14,10 +14,10 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildActiveDivision(Map<String, dynamic> dashboard) {
     final playerData = dashboard['player'] ?? {};
-    final division = playerData['division'] ?? playerData['league'] ?? 'NORTH CONFERENCE';
-    final rank = playerData['divisionRank'] ?? playerData['rank'] ?? '#3';
-    final gamesPlayed = playerData['gamesPlayed'] ?? '12';
-    final winLoss = playerData['record'] ?? '8-4';
+    final division = playerData['division'] ?? playerData['league'];
+    final rank = playerData['divisionRank'] ?? playerData['rank'];
+    final gamesPlayed = playerData['gamesPlayed'];
+    final winLoss = playerData['record'];
     
     return Container(
       padding: const EdgeInsets.all(20),
@@ -41,21 +41,22 @@ class HomeScreen extends StatelessWidget {
                   letterSpacing: 2,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFDB927).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  rank,
-                  style: const TextStyle(
-                    color: Color(0xFFFDB927),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+              if (rank != null && '$rank'.trim().isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDB927).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$rank',
+                    style: const TextStyle(
+                      color: Color(0xFFFDB927),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -76,7 +77,7 @@ class HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      division,
+                      (division != null && '$division'.trim().isNotEmpty) ? '$division' : 'Division',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -86,7 +87,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$gamesPlayed GAMES • $winLoss RECORD',
+                      _divisionSubtitle(gamesPlayed, winLoss),
                       style: const TextStyle(
                         color: outlineColor,
                         fontSize: 12,
@@ -105,10 +106,11 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildTeamCategories(Map<String, dynamic> dashboard) {
     final team = dashboard['team'] as Map? ?? {};
-    final category = team['category'] ?? team['division'] ?? 'ELITE SQUAD';
-    final level = team['level'] ?? team['tier'] ?? 'PROFESSIONAL';
-    final members = team['memberCount'] ?? team['players']?.length ?? 15;
-    final founded = team['founded'] ?? '2022';
+    final category = team['category'] ?? team['division'];
+    final level = team['level'] ?? team['tier'];
+    final playersList = team['players'];
+    final members = team['memberCount'] ?? (playersList is List ? playersList.length : null);
+    final founded = team['founded'];
     
     return Container(
       padding: const EdgeInsets.all(20),
@@ -132,11 +134,11 @@ class HomeScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _categoryCard('CATEGORY', category, Icons.category),
+                child: _categoryCard('CATEGORY', _strOrDash(category), Icons.category),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _categoryCard('LEVEL', level, Icons.trending_up),
+                child: _categoryCard('LEVEL', _strOrDash(level), Icons.trending_up),
               ),
             ],
           ),
@@ -144,17 +146,31 @@ class HomeScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _categoryCard('MEMBERS', members.toString(), Icons.group),
+                child: _categoryCard('MEMBERS', members != null ? '$members' : '—', Icons.group),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _categoryCard('FOUNDED', founded, Icons.calendar_today),
+                child: _categoryCard('FOUNDED', _strOrDash(founded), Icons.calendar_today),
               ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  String _strOrDash(dynamic v) {
+    if (v == null) return '—';
+    final s = '$v'.trim();
+    return s.isEmpty ? '—' : s;
+  }
+
+  String _divisionSubtitle(dynamic gamesPlayed, dynamic winLoss) {
+    final gp = gamesPlayed != null ? '$gamesPlayed'.trim() : '';
+    final wl = winLoss != null ? '$winLoss'.trim() : '';
+    if (gp.isEmpty && wl.isEmpty) return 'No league record yet';
+    if (wl.isEmpty) return gp.isEmpty ? '—' : '$gp games';
+    return '${gp.isEmpty ? '—' : '$gp games'} • $wl record';
   }
 
   Widget _categoryCard(String label, String value, IconData icon) {
@@ -216,21 +232,9 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Consumer<AcademyProvider>(
             builder: (context, provider, child) {
-              // Ensure player dashboard is loaded with real-time updates
               if (provider.playerDashboard == null && !provider.isPlayerLoading) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   provider.loadPlayerDashboard(force: true);
-                });
-              }
-
-              // Add periodic refresh for live data
-              if (!provider.isPlayerLoading && provider.playerDashboard != null) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  Future.delayed(const Duration(seconds: 30), () {
-                    if (provider.currentUser?.role == 'player') {
-                      provider.loadPlayerDashboard(force: false); // Refresh without loading indicator
-                    }
-                  });
                 });
               }
 
@@ -262,11 +266,19 @@ class HomeScreen extends StatelessWidget {
                    const SizedBox(height: 32),
                    _buildTeamCategories(dashboard),
                    const SizedBox(height: 32),
-                   _buildTeamBanner(teamName: team?['name']?.toString() ?? 'UNASSIGNED'),
+                   _buildTeamBanner(
+                     teamName: team?['name']?.toString() ?? 'UNASSIGNED',
+                     playerCount: () {
+                       final pl = team?['players'];
+                       return pl is List ? pl.length : null;
+                     }(),
+                     record: team?['record']?.toString(),
+                     streak: team?['streak']?.toString(),
+                   ),
                    const SizedBox(height: 32),
-                   _buildSectionTitle('Upcoming Schedule', 'VIEW ALL', () {}),
+                   _buildSectionTitle('Upcoming Schedule', null, null),
                    const SizedBox(height: 16),
-                   const _UpcomingSchedule(),
+                   _UpcomingSchedule(events: (dashboard['upcomingEvents'] as List?) ?? const []),
                    const SizedBox(height: 32),
                    _buildSectionTitle('Starting Lineup', null, null),
                    const SizedBox(height: 16),
@@ -317,11 +329,10 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildStatsRow(dynamic user) {
-    // Handle different data structures from API
-    final stats = user['stats'] ?? user; // Check if stats is nested or direct
-    final points = stats['points'] ?? stats['pts'] ?? user['points'] ?? user['pts'] ?? '24.5';
-    final rebounds = stats['rebounds'] ?? stats['reb'] ?? user['rebounds'] ?? user['reb'] ?? '8.2';
-    final assists = stats['assists'] ?? stats['ast'] ?? user['assists'] ?? user['ast'] ?? '5.1';
+    final stats = user['stats'] ?? user;
+    final points = stats['points'] ?? stats['pts'] ?? user['points'] ?? user['pts'] ?? '—';
+    final rebounds = stats['rebounds'] ?? stats['reb'] ?? user['rebounds'] ?? user['reb'] ?? '—';
+    final assists = stats['assists'] ?? stats['ast'] ?? user['assists'] ?? user['ast'] ?? '—';
 
     return Row(
       children: [
@@ -352,7 +363,10 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTeamBanner({required String teamName}) {
+  Widget _buildTeamBanner({required String teamName, int? playerCount, String? record, String? streak}) {
+    final count = playerCount ?? 0;
+    final rec = record ?? '—';
+    final str = streak ?? '—';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -383,7 +397,7 @@ class HomeScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                child: const Text('12 PLAYERS', style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                child: Text('$count PLAYERS', style: const TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -399,7 +413,7 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       const Text('RECORD', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
-                      const Text('14 - 2', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(rec, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(width: 24),
@@ -408,7 +422,7 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       const Text('STREAK', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
-                      const Text('W8', style: TextStyle(color: Color(0xFF14D7FF), fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(str, style: const TextStyle(color: Color(0xFF14D7FF), fontSize: 20, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
@@ -463,20 +477,50 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _UpcomingSchedule extends StatelessWidget {
-  const _UpcomingSchedule();
+  const _UpcomingSchedule({required this.events});
+
+  final List<dynamic> events;
 
   @override
   Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Text(
+          'No upcoming events scheduled.',
+          style: TextStyle(color: Color(0xFF9D8F79), fontSize: 14),
+        ),
+      );
+    }
     return Column(
       children: [
-        _scheduleItem('14', 'MAR', 'vs North Bay Raiders', 'Stark Arena • 19:30', Icons.event, const Color(0xFF14D7FF)),
-        const SizedBox(height: 12),
-        _scheduleItem('17', 'MAR', 'Skills Workshop', 'Practice Facility • 16:00', Icons.fitness_center, const Color(0xFFFDB927)),
+        for (var i = 0; i < events.length && i < 8; i++) ...[
+          if (i > 0) const SizedBox(height: 12),
+          _scheduleItem(events[i]),
+        ],
       ],
     );
   }
 
-  Widget _scheduleItem(String day, String month, String title, String subtitle, IconData icon, Color accColor) {
+  Widget _scheduleItem(dynamic raw) {
+    final m = raw is Map ? raw.map((k, v) => MapEntry(k.toString(), v)) : <String, dynamic>{};
+    final title = m['title']?.toString() ?? m['name']?.toString() ?? 'Event';
+    final subtitle = m['subtitle']?.toString() ?? m['location']?.toString() ?? '';
+    final dt = m['dateTime'] ?? m['date'] ?? m['startsAt'];
+    DateTime? d;
+    if (dt is String) {
+      d = DateTime.tryParse(dt);
+    }
+    final day = d != null ? '${d.day}'.padLeft(2, '0') : '—';
+    final month = d != null ? _monthShort(d.month) : '—';
+    final icon = (m['type']?.toString() == 'training') ? Icons.fitness_center : Icons.event;
+    const accColor = Color(0xFF14D7FF);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(16)),
@@ -489,8 +533,8 @@ class _UpcomingSchedule extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(day, style: TextStyle(color: accColor, fontSize: 16, fontWeight: FontWeight.bold, height: 1.1)),
-                Text(month, style: TextStyle(color: accColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(day, style: const TextStyle(color: accColor, fontSize: 16, fontWeight: FontWeight.bold, height: 1.1)),
+                Text(month, style: const TextStyle(color: accColor, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -500,8 +544,10 @@ class _UpcomingSchedule extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: Color(0xFF9D8F79), fontSize: 12)),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(color: Color(0xFF9D8F79), fontSize: 12)),
+                ],
               ],
             ),
           ),
@@ -509,6 +555,11 @@ class _UpcomingSchedule extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _monthShort(int m) {
+    const names = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    return names[(m - 1).clamp(0, 11)];
   }
 }
 

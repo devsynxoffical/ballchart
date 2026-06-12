@@ -71,7 +71,7 @@ class BallChartBottomNav extends StatelessWidget {
               ),
             _NavItem(
               icon: Icons.flash_on,
-              label: 'Battle',
+              label: 'Game',
               isActive: isHC ? currentIndex == 2 : currentIndex == 1,
               activeColor: isHC ? _getColorForIndex(2) : _getColorForIndex(1),
               onTap: () => onTap(isHC ? 2 : 1),

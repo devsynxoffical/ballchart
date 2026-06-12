@@ -102,6 +102,26 @@ class BattleModel {
   }
 
   int get availableSpots => maxParticipants - participants.length;
+
+  /// User-facing title: session name when set, otherwise location.
+  String get displayTitle {
+    final fromMeta = metadata?['sessionTitle']?.toString().trim();
+    if (fromMeta != null && fromMeta.isNotEmpty) return fromMeta;
+    final loc = location.trim();
+    if (loc.isNotEmpty) return loc;
+    return 'Game';
+  }
+
+  static String titleFromMap(Map<String, dynamic> json) {
+    final meta = json['metadata'];
+    if (meta is Map) {
+      final t = meta['sessionTitle']?.toString().trim();
+      if (t != null && t.isNotEmpty) return t;
+    }
+    final loc = json['location']?.toString().trim();
+    if (loc != null && loc.isNotEmpty) return loc;
+    return 'Game';
+  }
 }
 
 class BattleParticipant {

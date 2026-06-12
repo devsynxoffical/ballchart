@@ -3,12 +3,17 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/models/strategy_model.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
 import '../../../core/widgets/dialogues/strategy_creation_options_sheet.dart';
 import '../../../core/widgets/permission_wrapper.dart';
+import 'package:ballchart/features/strategy/widgets/strategy_kpis_sheet.dart';
+
+import '../../player_development/view/coach_training_assignment_screen.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
 import '../../tactics/view/tactical_lab_screen.dart';
 import '../viewmodel/strategy_viewmodel.dart';
+import 'strategy_detail_screen.dart';
 
 class EnhancedStrategyScreen extends StatefulWidget {
   const EnhancedStrategyScreen({super.key});
@@ -109,19 +114,39 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
   Widget _buildHeader() {
     return Consumer<ProfileViewmodel>(
       builder: (context, profileVm, _) {
+        final role = (profileVm.user?.role ?? '').toLowerCase();
+        final isStaff = const {'admin', 'head_coach', 'coach', 'assistant_coach'}.contains(role);
+
         return Padding(
           padding: const EdgeInsets.all(20),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('PLAYBOOK INTELLIGENCE', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                  SizedBox(height: 4),
-                  Text('TACTICAL STRATEGY', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
-                ],
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('PLAYBOOK INTELLIGENCE', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                    SizedBox(height: 4),
+                    Text('TACTICAL STRATEGY', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
+                  ],
+                ),
               ),
+              if (isStaff) ...[
+                IconButton(
+                  tooltip: 'Strategy KPI targets (formation & drills)',
+                  onPressed: () => showStrategyKpisSheet(context),
+                  icon: const Icon(Icons.tune, color: primaryColor, size: 26),
+                ),
+                IconButton(
+                  tooltip: 'Assign player training',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const CoachTrainingAssignmentScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.assignment_turned_in_outlined, color: primaryColor, size: 26),
+                ),
+              ],
               IconButton(
                 tooltip: 'Tactical lab (voice + animation)',
                 onPressed: () {
@@ -732,9 +757,10 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
     // Increment view count
     context.read<StrategyViewmodel>().incrementViewCount(strategy.id);
     
-    showDialog(
-      context: context,
-      builder: (_) => StrategyDetailDialog(strategy: strategy),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StrategyDetailScreen(strategy: strategy),
+      ),
     );
   }
 
@@ -809,160 +835,6 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
 }
 
 // Supporting widgets
-class StrategyDetailDialog extends StatefulWidget {
-  final StrategyModel strategy;
-  
-  const StrategyDetailDialog({super.key, required this.strategy});
-
-  @override
-  State<StrategyDetailDialog> createState() => _StrategyDetailDialogState();
-}
-
-class _StrategyDetailDialogState extends State<StrategyDetailDialog> {
-  VideoPlayerController? _controller;
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _initVideo();
-  }
-
-  Future<void> _initVideo() async {
-    try {
-      if (widget.strategy.videoUrl.isEmpty) {
-        throw Exception('Video URL is empty');
-      }
-      
-      final uri = Uri.parse(widget.strategy.videoUrl);
-      if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-        throw Exception('Invalid video URL format');
-      }
-      
-      _controller = VideoPlayerController.networkUrl(uri);
-      await _controller!.initialize();
-      await _controller!.setLooping(true);
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load video: ${e.toString().replaceAll('Exception: ', '')}';
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: const Color(0xFF020617),
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.9,
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.strategy.title,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                        ),
-                        Text(
-                          '${widget.strategy.category} • ${widget.strategy.createdByName}',
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Video player
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(color: const Color(0xFFFFD900)),
-              )
-            else if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              )
-            else if (_controller != null)
-              AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio == 0 ? 16 / 9 : _controller!.value.aspectRatio,
-                child: VideoPlayer(_controller!),
-              ),
-            
-            // Actions
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      if (_controller != null) {
-                        if (_controller!.value.isPlaying) {
-                          _controller!.pause();
-                        } else {
-                          _controller!.play();
-                        }
-                        setState(() {});
-                      }
-                    },
-                    icon: Icon(
-                      _controller?.value.isPlaying == true ? Icons.pause : Icons.play_arrow,
-                      color: const Color(0xFFFFD900),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {
-                      // Like functionality
-                    },
-                    icon: const Icon(Icons.favorite_border, color: Colors.white70),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      // Share functionality
-                    },
-                    icon: const Icon(Icons.share, color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class StrategyOptionsSheet extends StatelessWidget {
   final StrategyModel strategy;
@@ -1011,7 +883,7 @@ class StrategyOptionsSheet extends StatelessWidget {
             title: const Text('Delete Strategy', style: TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
-              _showDeleteConfirm(context);
+              _showDeleteConfirm(context, strategy);
             },
           ),
         ],
@@ -1019,7 +891,7 @@ class StrategyOptionsSheet extends StatelessWidget {
     );
   }
 
-  void _showDeleteConfirm(BuildContext context) {
+  void _showDeleteConfirm(BuildContext context, StrategyModel strategy) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
