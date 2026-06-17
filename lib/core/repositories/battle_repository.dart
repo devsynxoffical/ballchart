@@ -68,6 +68,8 @@ class BattleRepository {
   Future<BattleModel> updateBattle(String id, {
     String? location,
     DateTime? dateTime,
+    String? battleType,
+    int? maxParticipants,
     String? status,
     String? result,
     String? winnerId,
@@ -78,6 +80,8 @@ class BattleRepository {
     Map<String, dynamic> updateData = {};
     if (location != null) updateData['location'] = location;
     if (dateTime != null) updateData['dateTime'] = dateTime.toIso8601String();
+    if (battleType != null) updateData['battleType'] = battleType;
+    if (maxParticipants != null) updateData['maxParticipants'] = maxParticipants;
     if (status != null) updateData['status'] = status;
     if (result != null) updateData['result'] = result;
     if (winnerId != null) updateData['winnerId'] = winnerId;

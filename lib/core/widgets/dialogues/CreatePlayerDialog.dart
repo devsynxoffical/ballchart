@@ -223,7 +223,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
         TextField(
           controller: _numberController,
           keyboardType: TextInputType.number,
-          inputFormatters: const [
+          inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(2),
           ],

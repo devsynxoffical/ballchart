@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 import 'api_service.dart';
+import '../utils/mic_permission.dart';
 
 class VoiceClip {
   final String localPath;
@@ -26,12 +26,11 @@ class VoiceNoteService {
 
   String? _activePath;
   DateTime? _startedAt;
-  String? _currentlyPlayingUrl;
+  String? _currentlyPlayingSource;
 
   Future<bool> ensureMicPermission() async {
-    if (kIsWeb) return false;
-    final status = await Permission.microphone.request();
-    return status.isGranted;
+    final result = await ensureVoicePermissions();
+    return result.granted;
   }
 
   Future<String> _newTempPath() async {
@@ -39,10 +38,13 @@ class VoiceNoteService {
     return '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
   }
 
+  Future<bool> get isRecording => _recorder.isRecording();
+
   Future<void> startRecording() async {
     if (await _recorder.isRecording()) return;
-    if (!await ensureMicPermission()) {
-      throw Exception('Microphone permission denied');
+    final permission = await ensureVoicePermissions();
+    if (!permission.granted) {
+      throw Exception(permission.message ?? 'Microphone permission denied');
     }
     _activePath = await _newTempPath();
     _startedAt = DateTime.now();
@@ -96,28 +98,39 @@ class VoiceNoteService {
 
   Future<void> playUrl(String url) async {
     final resolved = ApiService.resolveMediaUrl(url);
-    if (_currentlyPlayingUrl == resolved) {
-      await _player.stop();
-      _currentlyPlayingUrl = null;
+    if (_currentlyPlayingSource == resolved) {
+      await stopPlayback();
       return;
     }
     await _player.stop();
-    _currentlyPlayingUrl = resolved;
+    _currentlyPlayingSource = resolved;
     await _player.play(UrlSource(resolved));
   }
 
   Future<void> playLocal(String path) async {
+    if (_currentlyPlayingSource == path) {
+      await stopPlayback();
+      return;
+    }
     await _player.stop();
-    _currentlyPlayingUrl = path;
+    _currentlyPlayingSource = path;
     await _player.play(DeviceFileSource(path));
   }
 
   Future<void> stopPlayback() async {
     await _player.stop();
-    _currentlyPlayingUrl = null;
+    _currentlyPlayingSource = null;
   }
 
   Stream<PlayerState> get playerStateStream => _player.onPlayerStateChanged;
+  Stream<Duration> get positionStream => _player.onPositionChanged;
+  Stream<Duration> get durationStream => _player.onDurationChanged;
+
+  String? get currentlyPlayingSource => _currentlyPlayingSource;
+
+  bool isPlayingSource(String source) =>
+      _currentlyPlayingSource == source &&
+      _player.state == PlayerState.playing;
 
   void dispose() {
     _recorder.dispose();

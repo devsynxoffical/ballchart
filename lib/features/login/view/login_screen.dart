@@ -327,46 +327,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                             ),
                           ),
-                          const SizedBox(height: 32),
-
-                          // Divider
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: 1,
-                                  color: fieldBorderColor,
-                                ),
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                                child: Text(
-                                  'OR',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Container(
-                                  height: 1,
-                                  color: fieldBorderColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Social Login Buttons
-                          Row(
-                            children: [
-                              Expanded(child: _buildSocialButton('Google', Icons.g_mobiledata)),
-                              const SizedBox(width: 16),
-                              Expanded(child: _buildSocialButton('Apple', Icons.apple)),
-                            ],
-                          ),
                           const SizedBox(height: 40),
 
                           // Footer Links
@@ -453,40 +413,6 @@ class _LoginScreenState extends State<LoginScreen> {
           border: InputBorder.none,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton(String text, IconData icon) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: fieldBgColor.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: fieldBorderColor),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () {
-            // Social login implementation
-          },
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

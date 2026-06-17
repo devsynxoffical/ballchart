@@ -10,6 +10,10 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../../../core/services/api_service.dart';
 import '../../../core/services/voice_note_service.dart';
+import '../../../core/utils/mic_permission.dart';
+import '../../../core/models/tactical/tactical_voice_clip.dart';
+import '../../../core/widgets/tactics/coach_voice_clips_panel.dart';
+import '../../../core/tactical/coach_speech_normalizer.dart';
 import '../../../core/tactical/tactical_ai_suggestions.dart';
 import '../../../core/tactical/tactical_animation_engine.dart';
 import '../../../core/tactical/tactical_court_canvas.dart';
@@ -24,6 +28,7 @@ class TacticalLabScreen extends StatefulWidget {
   final String? battleId;
   final bool initialPlayerMode;
   final List<PlayStep>? initialSteps;
+  final List<Map<String, dynamic>>? initialVoiceClips;
   final bool returnOnSave;
 
   const TacticalLabScreen({
@@ -31,6 +36,7 @@ class TacticalLabScreen extends StatefulWidget {
     this.battleId, 
     this.initialPlayerMode = false,
     this.initialSteps,
+    this.initialVoiceClips,
     this.returnOnSave = false,
   });
 
@@ -50,7 +56,9 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   String? _micHint;
   final _api = ApiService();
   final _voiceNoteSvc = VoiceNoteService();
-  final List<VoiceClip> _tacticalVoiceClips = [];
+  final List<TacticalVoiceRecording> _sessionVoiceRecordings = [];
+  List<TacticalVoiceClip> _playbackVoiceClips = [];
+  int _voiceTranscriptStart = 0;
 
   int? _draggingSlot;
   /// Throttle drag → recorded keyframes so replay stays seconds, not minutes.
@@ -180,6 +188,13 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       });
     }
 
+    if (widget.initialVoiceClips != null && widget.initialVoiceClips!.isNotEmpty) {
+      _playbackVoiceClips = widget.initialVoiceClips!
+          .map((e) => TacticalVoiceClip.fromJson(Map<String, dynamic>.from(e)))
+          .where((c) => c.canPlay || c.transcript.isNotEmpty)
+          .toList();
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncPlaybackSequenceUi();
     });
@@ -208,6 +223,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       },
       onStatus: (status) {
         if (!mounted) return;
+        final wasListening = _listening;
         final now = status == stt.SpeechToText.listeningStatus;
         if (now) {
           _micPulseCtrl.repeat(reverse: true);
@@ -222,6 +238,9 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
             _micHint = null;
           }
         });
+        if (wasListening && !now) {
+          unawaited(_commitActiveVoiceClip());
+        }
       },
     );
     setState(() {
@@ -230,58 +249,118 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     });
   }
 
-  String _cleanVoiceTranscript(String text) {
-    String cleaned = text;
-    
-    // Auto-correct common speech-to-text typos/mishearings
-    cleaned = cleaned.replaceAll(RegExp(r'\b(palyer|palyar|playar|playur|payler|plater)\b', caseSensitive: false), 'player');
-    
-    // Replace spoken numbers with digits
-    final numberMap = {
-      'one': '1',
-      'two': '2',
-      'three': '3',
-      'four': '4',
-      'five': '5',
-    };
-    numberMap.forEach((word, digit) {
-      cleaned = cleaned.replaceAll(RegExp('\\b(player|defense|defender|d|p|number)\\s+$word\\b', caseSensitive: false), '\$1 $digit');
+  Future<void> _showMicSettingsDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _surface,
+        title: const Text('Microphone access needed', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'BallChart needs microphone and speech recognition access for voice commands. '
+          'Open Settings and enable both permissions for BallChart.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<TacticalVoiceClip> get _displayVoiceClips {
+    if (_sessionVoiceRecordings.isNotEmpty) {
+      return _sessionVoiceRecordings.map((r) => r.toClip()).toList();
+    }
+    return _playbackVoiceClips;
+  }
+
+  String _cleanVoiceTranscript(String text) => normalizeCoachSpeech(text);
+
+  String get _combinedVoiceTranscript {
+    final fromClips = _sessionVoiceRecordings
+        .map((r) => r.transcript.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (fromClips.isNotEmpty) return fromClips.join(' → ');
+    return _textCtrl.text.trim();
+  }
+
+  Future<void> _commitActiveVoiceClip({String? transcriptOverride}) async {
+    if (!await _voiceNoteSvc.isRecording) return;
+
+    final spoken = _textCtrl.text
+        .substring(_voiceTranscriptStart.clamp(0, _textCtrl.text.length))
+        .trim();
+    var transcript = transcriptOverride ?? spoken;
+    transcript = _cleanVoiceTranscript(transcript);
+    if (transcript.isEmpty) {
+      transcript = _cleanVoiceTranscript(_textCtrl.text.trim());
+    }
+
+    final clip = await _voiceNoteSvc.stopRecording();
+    if (clip == null || !mounted) return;
+
+    if (clip.duration.inMilliseconds < 250 && transcript.isEmpty) return;
+
+    setState(() {
+      _sessionVoiceRecordings.add(
+        TacticalVoiceRecording(
+          localPath: clip.localPath,
+          duration: clip.duration,
+          transcript: transcript,
+        ),
+      );
     });
+  }
 
-    // Format to short P1/P2/D1/D2 representation
-    cleaned = cleaned.replaceAllMapped(RegExp(r'\bplayer\s+([1-5])\b', caseSensitive: false), (m) => 'P${m[1]}');
-    cleaned = cleaned.replaceAllMapped(RegExp(r'\bdefense\s+([1-5])\b', caseSensitive: false), (m) => 'D${m[1]}');
-    cleaned = cleaned.replaceAllMapped(RegExp(r'\bdefender\s+([1-5])\b', caseSensitive: false), (m) => 'D${m[1]}');
-    cleaned = cleaned.replaceAllMapped(RegExp(r'\bp\s+([1-5])\b', caseSensitive: false), (m) => 'P${m[1]}');
-    cleaned = cleaned.replaceAllMapped(RegExp(r'\bd\s+([1-5])\b', caseSensitive: false), (m) => 'D${m[1]}');
-    cleaned = cleaned.replaceAllMapped(RegExp(r'\bnumber\s+([1-5])\b', caseSensitive: false), (m) => 'P${m[1]}');
+  Future<void> _restartVoiceRecordingSegment() async {
+    if (!_listening) return;
+    try {
+      _voiceTranscriptStart = _textCtrl.text.length;
+      await _voiceNoteSvc.startRecording();
+    } catch (_) {}
+  }
 
-    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ');
-    return cleaned;
+  Future<void> _finalizeVoiceSession({bool stopSpeech = true}) async {
+    if (stopSpeech && (_listening || _voiceSessionPending)) {
+      await _stt.stop();
+    }
+    await _commitActiveVoiceClip();
+    _micPulseCtrl.stop();
+    _micPulseCtrl.value = 0;
+    if (mounted) {
+      setState(() {
+        _listening = false;
+        _voiceSessionPending = false;
+        _micHint = _sessionVoiceRecordings.isNotEmpty
+            ? '${_sessionVoiceRecordings.length} voice command(s) saved — will attach when you save the tactic.'
+            : 'Voice capture stopped. Tap mic again to add more, or tap RECORD FLOW.';
+      });
+    }
+  }
+
+  Future<void> _onVoiceCommandRecognized(String cleaned) async {
+    if (!_listening && !_voiceSessionPending) return;
+    await _commitActiveVoiceClip(transcriptOverride: cleaned);
+    await _runCommand(cleaned);
+    if (_listening) {
+      await _restartVoiceRecordingSegment();
+    }
   }
 
   Future<void> _toggleVoiceCommand() async {
     if (_isPlayerMode) return;
 
     if (_listening || _voiceSessionPending) {
-      await _stt.stop();
-      try {
-        final clip = await _voiceNoteSvc.stopRecording();
-        if (clip != null && mounted) {
-          setState(() => _tacticalVoiceClips.add(clip));
-        }
-      } catch (_) {}
-      _micPulseCtrl.stop();
-      _micPulseCtrl.value = 0;
-      if (mounted) {
-        setState(() {
-          _listening = false;
-          _voiceSessionPending = false;
-          _micHint = _tacticalVoiceClips.isNotEmpty
-              ? 'Voice saved (${_tacticalVoiceClips.length} clip${_tacticalVoiceClips.length == 1 ? '' : 's'}). Tap RECORD FLOW or save tactic.'
-              : 'Voice capture stopped. Tap mic again to add more, or tap RECORD FLOW.';
-        });
-      }
+      await _finalizeVoiceSession();
       return;
     }
 
@@ -295,10 +374,13 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS)) {
-      final micStatus = await Permission.microphone.request();
-      if (!micStatus.isGranted) {
+      final permission = await ensureVoicePermissions(speechRecognition: true);
+      if (!permission.granted) {
         if (mounted) {
-          setState(() => _micHint = 'Microphone permission denied.');
+          setState(() => _micHint = permission.message);
+          if (permission.openSettings) {
+            _showMicSettingsDialog();
+          }
         }
         return;
       }
@@ -308,6 +390,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     if (mounted) {
       setState(() {
         _voiceSessionPending = true;
+        _voiceTranscriptStart = _textCtrl.text.length;
         _micHint = null;
       });
       FocusScope.of(context).requestFocus(_commandFocus);
@@ -344,6 +427,10 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
               text: cleaned,
               selection: TextSelection.collapsed(offset: cleaned.length),
             );
+            setState(() => _micHint = coachSpeechHint(cleaned));
+            if (result.finalResult && cleaned.isNotEmpty) {
+              unawaited(_onVoiceCommandRecognized(cleaned));
+            }
           }
           setState(() {});
         },
@@ -399,22 +486,33 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   Future<void> _runCommand(String raw) async {
     if (_isPlayerMode || raw.trim().isEmpty) return;
 
+    final normalized = normalizeCoachSpeech(raw);
+    if (normalized.isEmpty) return;
+
     setState(() {
       _isParsingCommand = true;
+      if (_textCtrl.text.trim() != normalized) {
+        _textCtrl.text = normalized;
+      }
     });
 
-    ParsedCoachCommand parsed;
+    ParsedCoachCommand parsed = parseCoachCommand(normalized);
     bool usedGemini = false;
 
-    try {
-      final res = await _api.parseVoiceCommand(raw);
-      parsed = ParsedCoachCommand.fromJson(res, raw);
-      usedGemini = true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Gemini parsing failed, falling back to local: $e');
+    if (parsed.confidence < 0.72 || parsed.intent == CoachIntent.unknown) {
+      try {
+        final res = await _api.parseVoiceCommand(normalized);
+        final aiParsed = ParsedCoachCommand.fromJson(res, normalized);
+        if (aiParsed.confidence > parsed.confidence &&
+            aiParsed.intent != CoachIntent.unknown) {
+          parsed = aiParsed;
+          usedGemini = true;
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('AI voice parse unavailable, using local parser: $e');
+        }
       }
-      parsed = parseCoachCommand(raw);
     }
 
     if (!mounted) return;
@@ -437,12 +535,15 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
           behavior: SnackBarBehavior.floating,
         )
       );
-    } else if (raw.isNotEmpty) {
+    } else if (normalized.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Command not recognized. Try "P1 pass to P2"'),
+        SnackBar(
+          content: Text(
+            'Try: "Player one pass player two" or "P1 shoot"\nHeard: $normalized',
+          ),
           backgroundColor: Colors.redAccent,
-        )
+          duration: const Duration(seconds: 4),
+        ),
       );
     }
   }
@@ -541,6 +642,8 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No actions recorded to save.')));
       return;
     }
+
+    await _finalizeVoiceSession();
 
     final academy = context.read<AcademyProvider>();
     final strategyVm = context.read<StrategyViewmodel>();
@@ -713,18 +816,34 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                       }
                     }
 
-                    final transcript = _textCtrl.text.trim();
+                    final transcript = _combinedVoiceTranscript;
                     final voiceClipsMeta = <Map<String, dynamic>>[];
                     String? primaryVoiceUrl;
                     int? primaryVoiceDurationMs;
-                    for (final clip in _tacticalVoiceClips) {
-                      final url = await _voiceNoteSvc.uploadClip(clip);
-                      voiceClipsMeta.add({
-                        'url': url,
-                        'durationMs': clip.duration.inMilliseconds,
-                      });
-                      primaryVoiceUrl ??= url;
-                      primaryVoiceDurationMs ??= clip.duration.inMilliseconds;
+                    var uploadFailures = 0;
+                    for (final recording in _sessionVoiceRecordings) {
+                      String? uploadedUrl;
+                      try {
+                        uploadedUrl = await _voiceNoteSvc.uploadClip(
+                          VoiceClip(localPath: recording.localPath, duration: recording.duration),
+                        );
+                      } catch (_) {
+                        uploadFailures++;
+                      }
+                      final entry = <String, dynamic>{
+                        'durationMs': recording.duration.inMilliseconds,
+                        'transcript': recording.transcript,
+                        'recordedAt': recording.recordedAt.toIso8601String(),
+                        'localPath': recording.localPath,
+                      };
+                      if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
+                        entry['url'] = uploadedUrl;
+                        primaryVoiceUrl ??= uploadedUrl;
+                        primaryVoiceDurationMs ??= recording.duration.inMilliseconds;
+                      } else {
+                        entry['uploadPending'] = true;
+                      }
+                      voiceClipsMeta.add(entry);
                     }
 
                     final metadata = <String, dynamic>{
@@ -744,8 +863,8 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
                     await strategyVm.createStrategy(
                       title: _saveNameCtrl.text,
-                      category: 'tactical',
-                      sourceType: voiceClipsMeta.isNotEmpty ? 'voice' : 'tactical_recording',
+                      category: 'offense',
+                      sourceType: voiceClipsMeta.isNotEmpty ? 'voice' : 'text',
                       sourceText: transcript.isNotEmpty
                           ? transcript
                           : 'Recorded tactical flow from Tactical Lab',
@@ -755,22 +874,29 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
                     if (context.mounted) {
                       Navigator.pop(context);
+                      final msg = uploadFailures > 0
+                          ? 'Tactic saved. Voice text + plays saved; $uploadFailures clip(s) waiting on audio upload.'
+                          : 'Tactic saved with coach voice — players can replay it from Strategy.';
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Tactic saved and published to Strategy screen!'),
-                          backgroundColor: Colors.green,
-                        )
+                        SnackBar(
+                          content: Text(msg),
+                          backgroundColor: uploadFailures > 0 ? Colors.orange : Colors.green,
+                        ),
                       );
-                      // Also add to local cache for immediate feedback in this session
                       setState(() {
                         _savedPlaybooks.insert(0, {
                           'name': _saveNameCtrl.text,
                           'steps': List<PlayStep>.from(_playback.recordedSteps),
                           'coachTips': _coachTipsCtrl.text,
+                          'voiceClips': voiceClipsMeta,
+                          'voiceTranscript': transcript,
                         });
+                        _playbackVoiceClips = voiceClipsMeta
+                            .map((e) => TacticalVoiceClip.fromJson(Map<String, dynamic>.from(e)))
+                            .toList();
                         _saveNameCtrl.clear();
                         _coachTipsCtrl.clear();
-                        _tacticalVoiceClips.clear();
+                        _sessionVoiceRecordings.clear();
                       });
                     }
                   } catch (e) {
@@ -796,8 +922,17 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
 
   void _loadPlaybook(Map<String, dynamic> pb) {
+    final rawClips = pb['voiceClips'];
+    final clips = rawClips is List
+        ? rawClips
+            .whereType<Map>()
+            .map((e) => TacticalVoiceClip.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <TacticalVoiceClip>[];
     setState(() {
       _activePlaybook = pb;
+      _playbackVoiceClips = clips;
+      _sessionVoiceRecordings.clear();
     });
     _playback.reset();
     _playback.applyParsedCommand(ParsedCoachCommand(
@@ -1174,7 +1309,12 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                             Expanded(
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(backgroundColor: busy ? Colors.grey : _primary, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 14)),
-                                onPressed: busy ? null : () => _runCommand(_textCtrl.text),
+                                onPressed: busy
+                                    ? null
+                                    : () async {
+                                        await _finalizeVoiceSession();
+                                        await _runCommand(_textCtrl.text);
+                                      },
                                 child: _isParsingCommand
                                     ? const SizedBox(
                                         width: 18,
@@ -1230,6 +1370,30 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                         style: const TextStyle(color: _outline, fontSize: 11),
                       ),
                     ],
+                    if (_displayVoiceClips.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      CoachVoiceClipsPanel(
+                        clips: _displayVoiceClips,
+                        title: _isPlayerMode ? 'COACH VOICE NOTES' : 'YOUR VOICE RECORDINGS',
+                        subtitle: _isPlayerMode
+                            ? 'Replay what the coach said while building this tactic.'
+                            : 'These clips save with the tactic so players can replay your instructions.',
+                        accentColor: _primary,
+                        surfaceColor: _surface,
+                        outlineColor: _outline,
+                      ),
+                    ],
+                  ],
+                  if (_isPlayerMode && _displayVoiceClips.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    CoachVoiceClipsPanel(
+                      clips: _displayVoiceClips,
+                      title: 'COACH VOICE NOTES',
+                      subtitle: 'Replay coach instructions for this play.',
+                      accentColor: _primary,
+                      surfaceColor: _surface,
+                      outlineColor: _outline,
+                    ),
                   ],
                   if (!_isViewingSavedPlayback) ...[
                     const SizedBox(height: 24),

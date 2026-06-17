@@ -1,6 +1,6 @@
 {
-    "name": "CourtIQ",
-    "short_name": "CourtIQ",
+    "name": "BallChart",
+    "short_name": "BallChart",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

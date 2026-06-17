@@ -184,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (user.role == 'admin') _buildAcademyPartnership(context),
                     const SizedBox(height: 32),
                     Text(
-                      role.contains('coach') ? 'COACH PROFILE' : 'ACADEMY PROFILE',
+                      user.role.toString().contains('coach') ? 'COACH PROFILE' : 'ACADEMY PROFILE',
                       style: const TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
                     ),
                     const SizedBox(height: 16),
@@ -419,12 +419,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildBentoGrid(BuildContext context, dynamic user) {
     final role = user.role.toString();
     final experience = (user.experienceLevel ?? 'Not set').toString();
+    final academyProvider = context.watch<AcademyProvider>();
+    final academy = academyProvider.academy;
     final assignedTeams = _assignedTeamsDisplay(user, academyProvider);
     final achievements = user.achievements is List ? (user.achievements as List).length.toString() : '0';
     final additional = (user.additionalInfo ?? 'N/A').toString();
     final position = (user.position ?? 'N/A').toString();
-    final academyProvider = context.watch<AcademyProvider>();
-    final academy = academyProvider.academy;
 
     if (role == 'admin') {
       return Column(

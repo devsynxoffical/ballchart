@@ -270,20 +270,36 @@ List<Token> _tokenize(String input) {
       tokens.add(const Token(TokenType.delimiter, null));
       continue;
     }
-
-    // 2. Actors (P1, O2, D3, player 1, or just 1)
+ 
+    // 2. Actors (P1, O2, D3, player 1, player one, or just 1)
     final pMatch = RegExp(r'^(o|d|p)?([1-5])$').firstMatch(w);
     if (pMatch != null) {
-      final isDef = pMatch.group(1) == 'd';
+      final prefix = pMatch.group(1);
+      final isDef = prefix == 'd';
       final slot = int.parse(pMatch.group(2)!);
       tokens.add(Token(TokenType.actor, ActorVal(slot, isDef)));
       continue;
     }
-    if ((w == 'player' || w == 'number') && i + 1 < words.length) {
-      final numMatch = RegExp(r'^([1-5])$').firstMatch(words[i + 1]);
+    final bareNum = RegExp(r'^([1-5])$').firstMatch(w);
+    if (bareNum != null) {
+      tokens.add(Token(TokenType.actor, ActorVal(int.parse(bareNum.group(1)!), false)));
+      continue;
+    }
+    if ((w == 'player' || w == 'number' || w == 'offense') && i + 1 < words.length) {
+      final next = words[i + 1];
+      final numMatch = RegExp(r'^([1-5])$').firstMatch(next);
       if (numMatch != null) {
         tokens.add(Token(TokenType.actor, ActorVal(int.parse(numMatch.group(1)!), false)));
-        i++; // skip next word
+        i++;
+        continue;
+      }
+    }
+    if ((w == 'defense' || w == 'defender') && i + 1 < words.length) {
+      final next = words[i + 1];
+      final numMatch = RegExp(r'^([1-5])$').firstMatch(next);
+      if (numMatch != null) {
+        tokens.add(Token(TokenType.actor, ActorVal(int.parse(numMatch.group(1)!), true)));
+        i++;
         continue;
       }
     }

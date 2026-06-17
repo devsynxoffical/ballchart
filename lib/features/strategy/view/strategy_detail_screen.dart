@@ -10,7 +10,8 @@ import '../../../core/models/strategy_model.dart';
 import '../../../core/tactical/tactical_entities.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/utils/strategy_pdf_generator.dart';
-import '../../../core/widgets/messaging/voice_note_bubble.dart';
+import '../../../core/models/tactical/tactical_voice_clip.dart';
+import '../../../core/widgets/tactics/coach_voice_clips_panel.dart';
 import '../../tactics/view/tactical_lab_screen.dart';
 
 class StrategyDetailScreen extends StatelessWidget {
@@ -120,10 +121,7 @@ class StrategyDetailScreen extends StatelessWidget {
     final hasVideo = _strategyHasVideo(strategy);
     
     final meta = strategy.metadata ?? <String, dynamic>{};
-    final voiceUrl = (meta['voiceUrl'] ?? '').toString();
-    final voiceDurationMs = meta['voiceDurationMs'] is num
-        ? (meta['voiceDurationMs'] as num).toInt()
-        : 0;
+    final voiceClips = TacticalVoiceClip.listFromMetadata(meta);
     final voiceTranscript = (meta['voiceTranscript'] ?? '').toString().trim();
     final parsedSteps = _parsePlaySteps(meta);
     final playSteps = parsedSteps.map((step) => step.kind.name.toUpperCase()).toList();
@@ -217,7 +215,8 @@ class StrategyDetailScreen extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => TacticalLabScreen(
                         initialPlayerMode: true,
-                        initialSteps: parsedSteps,
+                        initialSteps: parsedSteps.isNotEmpty ? parsedSteps : null,
+                        initialVoiceClips: voiceClips.map((c) => c.toJson()).toList(),
                       ),
                     ),
                   ),
@@ -228,22 +227,14 @@ class StrategyDetailScreen extends StatelessWidget {
 
           const SizedBox(height: 32),
 
-          if (voiceUrl.isNotEmpty) ...[
-            _sectionHeader('COACH VOICE'),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: surfaceHigh.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: primaryColor.withOpacity(0.15)),
-              ),
-              child: VoiceNoteBubble(
-                voiceUrl: voiceUrl,
-                durationMs: voiceDurationMs,
-                mine: false,
-              ),
+          if (voiceClips.isNotEmpty) ...[
+            CoachVoiceClipsPanel(
+              clips: voiceClips,
+              title: 'COACH VOICE',
+              subtitle: 'Replay what the coach said while building this tactic.',
+              accentColor: primaryColor,
+              surfaceColor: surfaceHigh,
+              outlineColor: outlineColor,
             ),
             const SizedBox(height: 32),
           ],

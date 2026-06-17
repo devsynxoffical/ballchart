@@ -8,7 +8,9 @@ import 'package:ballchart/core/models/messaging_models.dart';
 import 'package:ballchart/core/repositories/messaging_repository.dart';
 import 'package:ballchart/core/services/api_service.dart';
 import 'package:ballchart/core/services/voice_note_service.dart';
+import 'package:ballchart/core/utils/mic_permission.dart';
 import 'package:ballchart/core/widgets/messaging/voice_note_bubble.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:ballchart/features/messaging/widgets/chat_participant_profile_sheet.dart';
 import 'package:ballchart/features/messaging/widgets/messaging_avatar.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
@@ -78,6 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
   List<MessagingParticipant> _roster = [];
   final Map<String, String> _nameByUserId = {};
   final Map<String, String?> _avatarByUserId = {};
+  final Map<String, String> _pendingVoiceLocalPaths = {};
 
   @override
   void initState() {
@@ -223,6 +226,47 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  String _userFacingSendError(Object error, {bool voice = false}) {
+    final raw = error
+        .toString()
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^Upload error:\s*'), '')
+        .replaceFirst(RegExp(r'^Upload failed:\s*'), '')
+        .trim();
+
+    if (raw.contains('404') || raw.toLowerCase().contains('not found')) {
+      return voice
+          ? "Couldn't send voice message. Upload isn't available yet — please try again later."
+          : "Couldn't send message. The server isn't ready yet — please try again later.";
+    }
+    if (raw.toLowerCase().contains('permission')) {
+      return raw;
+    }
+    if (raw.contains('No audio captured')) {
+      return 'No audio was recorded. Tap the mic, speak, then tap again to send.';
+    }
+    if (raw.contains('SocketException') ||
+        raw.contains('Connection') ||
+        raw.toLowerCase().contains('network')) {
+      return "Couldn't send message. Check your connection and try again.";
+    }
+    return voice
+        ? "Couldn't send voice message. Please try again."
+        : "Couldn't send message. Please try again.";
+  }
+
+  void _showSendErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFB3261E),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   Future<void> _toggleVoiceNote() async {
     if (_sending) return;
     if (_recordingVoice) {
@@ -232,6 +276,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final replyId = _replyingTo?.id;
       final replyBody = _replyingTo?.isVoice == true ? '🎤 Voice message' : _replyingTo?.body;
       final replySenderId = _replyingTo?.senderId;
+      final tempId = 'pending_voice_${DateTime.now().millisecondsSinceEpoch}';
       setState(() {
         _recordingVoice = false;
         _recordingElapsedSec = 0;
@@ -242,7 +287,6 @@ class _ChatScreenState extends State<ChatScreen> {
         if (clip == null) {
           throw Exception('No audio captured');
         }
-        final tempId = 'pending_voice_${DateTime.now().millisecondsSinceEpoch}';
         final optimistic = ChatMessage(
           id: tempId,
           senderId: myId,
@@ -259,6 +303,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (!mounted) return;
         setState(() {
           _messages.add(optimistic);
+          _pendingVoiceLocalPaths[tempId] = clip.localPath;
           _replyingTo = null;
         });
         _scrollToEnd(animated: true);
@@ -278,16 +323,39 @@ class _ChatScreenState extends State<ChatScreen> {
           } else if (!_messages.any((m) => m.id == saved.id)) {
             _messages.add(saved);
           }
+          _pendingVoiceLocalPaths.remove(tempId);
           _sending = false;
         });
         _scrollToEnd(animated: true);
       } catch (e) {
         if (mounted) {
-          setState(() => _sending = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
-          );
+          setState(() {
+            _messages.removeWhere((m) => m.id == tempId);
+            _pendingVoiceLocalPaths.remove(tempId);
+            _sending = false;
+          });
+          _showSendErrorSnackBar(_userFacingSendError(e, voice: true));
         }
+      }
+      return;
+    }
+
+    final permission = await ensureVoicePermissions();
+    if (!permission.granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(permission.message ?? 'Microphone permission denied'),
+            backgroundColor: Colors.redAccent,
+            action: permission.openSettings
+                ? SnackBarAction(
+                    label: 'Settings',
+                    textColor: Colors.white,
+                    onPressed: openAppSettings,
+                  )
+                : null,
+          ),
+        );
       }
       return;
     }
@@ -305,9 +373,7 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
-        );
+        _showSendErrorSnackBar(_userFacingSendError(e, voice: true));
       }
     }
   }
@@ -359,9 +425,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _messages.removeWhere((m) => m.id == tempId);
           _sending = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
-        );
+        _showSendErrorSnackBar(_userFacingSendError(e));
       }
     }
   }
@@ -713,6 +777,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               isVoice: m.isVoice,
                               voiceUrl: m.voiceUrl,
                               voiceDurationMs: m.voiceDurationMs,
+                              voiceLocalPath: _pendingVoiceLocalPaths[m.id],
                               formattedTime: m.createdAt != null ? _fmt(m.createdAt!) : '',
                               replyQuoteBody: m.replyBody,
                               replyQuoteLabel: (m.replyBody != null && m.replyBody!.isNotEmpty)
@@ -1048,6 +1113,7 @@ class _MessageBubble extends StatelessWidget {
     this.isVoice = false,
     this.voiceUrl,
     this.voiceDurationMs = 0,
+    this.voiceLocalPath,
     this.replyQuoteBody,
     this.replyQuoteLabel,
     this.pending = false,
@@ -1060,6 +1126,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isVoice;
   final String? voiceUrl;
   final int voiceDurationMs;
+  final String? voiceLocalPath;
   final String formattedTime;
   final String? replyQuoteBody;
   final String? replyQuoteLabel;
@@ -1076,7 +1143,10 @@ class _MessageBubble extends StatelessWidget {
         replyQuoteLabel!.isNotEmpty;
 
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxW),
+      constraints: BoxConstraints(
+        maxWidth: maxW,
+        minWidth: isVoice ? 210 : 0,
+      ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: mine ? ChatScreen.bubbleMine : ChatScreen.bubbleOther,
@@ -1141,53 +1211,89 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: isVoice
-                        ? VoiceNoteBubble(
-                            voiceUrl: voiceUrl ?? '',
-                            durationMs: voiceDurationMs,
-                            mine: mine,
-                          )
-                        : Text(
-                            body,
-                            style: const TextStyle(
-                              color: Color(0xFFE9EDEF),
-                              height: 1.38,
-                              fontSize: 15,
-                            ),
-                          ),
-                  ),
-                  if (formattedTime.isNotEmpty || (showReceipt && mine))
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (formattedTime.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4, bottom: 1),
-                              child: Text(
-                                formattedTime,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.45),
-                                  fontSize: 11,
+              if (isVoice)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    VoiceNoteBubble(
+                      voiceUrl: voiceUrl ?? '',
+                      durationMs: voiceDurationMs,
+                      mine: mine,
+                      localPath: voiceLocalPath,
+                      uploading: pending,
+                    ),
+                    if (formattedTime.isNotEmpty || (showReceipt && mine))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (formattedTime.isNotEmpty)
+                                Text(
+                                  formattedTime,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.45),
+                                    fontSize: 11,
+                                  ),
                                 ),
-                              ),
-                            ),
-                          if (showReceipt && mine)
-                            _ReceiptRow(
-                              pending: pending,
-                              seen: seen,
-                            ),
-                        ],
+                              if (showReceipt && mine) ...[
+                                const SizedBox(width: 4),
+                                _ReceiptRow(
+                                  pending: pending,
+                                  seen: seen,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        body,
+                        style: const TextStyle(
+                          color: Color(0xFFE9EDEF),
+                          height: 1.38,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
-                ],
-              ),
+                    if (formattedTime.isNotEmpty || (showReceipt && mine))
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (formattedTime.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4, bottom: 1),
+                                child: Text(
+                                  formattedTime,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.45),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            if (showReceipt && mine)
+                              _ReceiptRow(
+                                pending: pending,
+                                seen: seen,
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
             ],
           ),
         ),
