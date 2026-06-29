@@ -75,6 +75,10 @@ const serializeBattle = (battle, usersMap, currentUserId) => {
         isJoined,
         canJoin: battle.status === 'pending' && !isJoined,
         metadata: battle.metadata || {},
+        battleType: battle.battleType || 'scrimmage_5v5',
+        maxParticipants: battle.maxParticipants || 10,
+        description: battle.description || '',
+        tags: battle.tags || [],
     };
 };
 
@@ -82,7 +86,7 @@ const serializeBattle = (battle, usersMap, currentUserId) => {
 // @route   POST /api/battles
 // @access  Private
 const createBattle = asyncHandler(async (req, res) => {
-    const { location, dateTime } = req.body;
+    const { location, dateTime, battleType, maxParticipants, description, tags, metadata } = req.body;
 
     if (!createAllowedRoles.includes(req.user.role)) {
         res.status(403);
@@ -116,7 +120,12 @@ const createBattle = asyncHandler(async (req, res) => {
         dateTime: parsedDate,
         managedBy: academyScopeId,
         createdByRole: req.user.role,
-        participants: [req.user.id], // Host is automatically a participant
+        participants: [req.user.id],
+        battleType: battleType || 'scrimmage_5v5',
+        maxParticipants: maxParticipants || 10,
+        description: description?.trim() || '',
+        tags: Array.isArray(tags) ? tags : [],
+        metadata: metadata && typeof metadata === 'object' ? metadata : {},
     });
 
     req.io.emit('BATTLE_CREATED', { academyId: academyScopeId, battleId: battle._id });
@@ -226,9 +235,65 @@ const appendBattleEvent = asyncHandler(async (req, res) => {
     res.status(200).json(serializeBattle(battle, usersMap, toIdString(req.user._id)));
 });
 
+// @desc    Update a scheduled battle
+// @route   PUT /api/battles/:id
+// @access  Private (staff)
+const updateBattle = asyncHandler(async (req, res) => {
+    const battle = await Battle.findById(req.params.id);
+    if (!battle) {
+        res.status(404);
+        throw new Error('Battle not found');
+    }
+
+    if (!createAllowedRoles.includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Only academy staff can update battles');
+    }
+
+    const academyScopeId = await resolveAcademyScopeId(req.user);
+    if (!academyScopeId || toIdString(battle.managedBy) !== toIdString(academyScopeId)) {
+        res.status(403);
+        throw new Error('Not authorized');
+    }
+
+    if (battle.status !== 'pending') {
+        res.status(400);
+        throw new Error('Only scheduled games can be edited');
+    }
+
+    const { location, dateTime, battleType, maxParticipants, description, tags, metadata, status } = req.body;
+
+    if (location != null) battle.location = String(location).trim();
+    if (dateTime != null) {
+        const parsedDate = new Date(dateTime);
+        if (Number.isNaN(parsedDate.getTime())) {
+            res.status(400);
+            throw new Error('Invalid battle date/time');
+        }
+        battle.dateTime = parsedDate;
+    }
+    if (battleType != null) battle.battleType = String(battleType);
+    if (maxParticipants != null) battle.maxParticipants = maxParticipants;
+    if (description != null) battle.description = String(description);
+    if (tags != null) battle.tags = Array.isArray(tags) ? tags : [];
+    if (metadata != null && typeof metadata === 'object') {
+        battle.metadata = { ...(battle.metadata || {}), ...metadata };
+    }
+    if (status != null && ['pending', 'ongoing', 'finished', 'cancelled'].includes(status)) {
+        battle.status = status;
+    }
+
+    await battle.save();
+    req.io.emit('BATTLE_UPDATED', { academyId: academyScopeId, battleId: battle._id });
+
+    const usersMap = await resolveUsersByIds([battle.host, ...(battle.participants || [])]);
+    res.status(200).json(serializeBattle(battle, usersMap, toIdString(req.user._id)));
+});
+
 module.exports = {
     createBattle,
     getBattles,
     joinBattle,
     appendBattleEvent,
+    updateBattle,
 };

@@ -46,6 +46,22 @@ const battleSchema = mongoose.Schema(
             type: mongoose.Schema.Types.Mixed,
             default: {},
         },
+        battleType: {
+            type: String,
+            default: 'scrimmage_5v5',
+        },
+        maxParticipants: {
+            type: Number,
+            default: 10,
+        },
+        description: {
+            type: String,
+            default: '',
+        },
+        tags: {
+            type: [String],
+            default: [],
+        },
     },
     {
         timestamps: true,
