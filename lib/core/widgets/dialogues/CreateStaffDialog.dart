@@ -474,7 +474,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
               const Divider(color: Colors.white10, height: 1),
               _buildPermissionToggle('Delete Profile', 'Permanent removal of entities', 'deletePlayer'),
               const Divider(color: Colors.white10, height: 1),
-              _buildPermissionToggle('Manage Teams', 'Shift personnel between units', 'createTeam'),
+              _buildPermissionToggle('Manage Teams', 'Shift personnel between teams', 'createTeam'),
               const Divider(color: Colors.white10, height: 1),
               _buildPermissionToggle('Manage Staff', 'Control academy personnel', 'manageStaff'),
               const Divider(color: Colors.white10, height: 1),

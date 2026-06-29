@@ -1,3 +1,10 @@
+int _parseUnread(Map<String, dynamic> json) {
+  final raw = json['unreadCount'] ?? json['unread'];
+  if (raw is num) return raw.toInt().clamp(0, 999);
+  if (raw == true) return 1;
+  return 0;
+}
+
 class ConversationSummary {
   final String id;
   final String lastMessagePreview;
@@ -7,6 +14,7 @@ class ConversationSummary {
   final String kind;
   final String? teamId;
   final String? teamName;
+  final int unreadCount;
 
   ConversationSummary({
     required this.id,
@@ -16,6 +24,7 @@ class ConversationSummary {
     this.kind = 'direct',
     this.teamId,
     this.teamName,
+    this.unreadCount = 0,
   });
 
   bool get isTeamGroup => kind == 'team';
@@ -34,6 +43,7 @@ class ConversationSummary {
       kind: k,
       teamId: json['teamId']?.toString(),
       teamName: json['teamName']?.toString(),
+      unreadCount: _parseUnread(json),
     );
   }
 }

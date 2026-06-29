@@ -72,6 +72,7 @@ class BattleViewmodel extends ChangeNotifier {
         sortBy: sortBy ?? _sortBy,
         myBattles: myBattles,
       );
+      await _autoFinishPastGames();
       _errorMessage = null;
       if (!silent) {
         _setLoading(false);
@@ -322,6 +323,20 @@ class BattleViewmodel extends ChangeNotifier {
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  Future<void> _autoFinishPastGames() async {
+    final now = DateTime.now();
+    final overdue = _battles.where((b) => b.isPending && b.dateTime.isBefore(now)).toList();
+    for (final b in overdue) {
+      try {
+        final updated = await _repository.updateBattle(b.id, status: 'finished');
+        final index = _battles.indexWhere((x) => x.id == b.id);
+        if (index != -1) _battles[index] = updated;
+      } catch (_) {
+        /* production API may not support update yet; UI still shows as finished */
+      }
+    }
   }
 
   @override

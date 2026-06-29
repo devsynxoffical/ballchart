@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'features/auth/viewmodel/auth_viewmodel.dart';
 import 'features/battle/viewmodel/battle_viewmodel.dart';
 import 'features/home/viewmodel/home_viewmodel.dart';
+import 'features/inbox/viewmodel/inbox_viewmodel.dart';
 import 'features/profile/viewmodel/profile_viewmodel.dart';
 import 'features/auth/completeyourprofile/viewmodel/profile_setup_viewmodel.dart';
 import 'features/management/viewmodel/academy_provider.dart';
@@ -21,6 +22,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ProfileSetupViewmodel()),
         ChangeNotifierProvider(create: (_) => AcademyProvider()),
         ChangeNotifierProvider(create: (_) => StrategyViewmodel()),
+        ChangeNotifierProvider(create: (_) => InboxViewModel()),
       ],
       child: const MyApp(),
     ),

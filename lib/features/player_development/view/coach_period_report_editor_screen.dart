@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/constants/relentless_program.dart';
 import 'package:ballchart/core/models/development_models.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
 import 'package:ballchart/features/player_development/player_development_theme.dart';
@@ -69,21 +70,15 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
       _goals.text = r.goals.join('\n');
       _nextEval.text = r.nextEvaluationDate;
       setState(() {
-        _areas = List<PeriodReportAreaDto>.from(r.areas.map((e) => PeriodReportAreaDto(
-              key: e.key,
-              label: e.label,
-              rating: e.rating,
-              performanceComment: e.performanceComment,
-              strengths: e.strengths,
-              focusArea: e.focusArea,
-            )));
+        _areas = RelentlessProgram.mergeReportAreas(r.areas);
         _loading = false;
       });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = '$e';
+          _areas = RelentlessProgram.mergeReportAreas(const <PeriodReportAreaDto>[]);
           _loading = false;
+          _error = '$e';
         });
       }
     }

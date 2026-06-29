@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/core/models/user_model.dart';
 import 'package:ballchart/core/services/api_service.dart';
-import 'package:ballchart/core/widgets/notification_panel.dart';
-import 'package:ballchart/features/messaging/view/conversations_list_screen.dart';
+import 'package:ballchart/core/widgets/inbox_header_icons.dart';
+import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
 import '../../profile/viewmodel/profile_viewmodel.dart';
 import '../../battle/view/battle_screen.dart';
 import '../../strategy/view/strategy_screen.dart';
@@ -30,8 +31,29 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
   static const Color outlineColor = Color(0xFF9D8F79);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<InboxViewModel>().start();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_currentTab != 0) {
+          setState(() => _currentTab = 0);
+          return;
+        }
+        final shouldExit = await _showExitDialog(context);
+        if (shouldExit == true && context.mounted) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
@@ -50,6 +72,22 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
         ],
       ),
       bottomNavigationBar: _buildBottomNavigation(),
+      ),
+    );
+  }
+
+  Future<bool?> _showExitDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: surfaceContainer,
+        title: const Text('Exit App', style: TextStyle(color: Colors.white)),
+        content: const Text('Do you want to exit the application?', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No', style: TextStyle(color: Colors.white60))),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes', style: TextStyle(color: primaryColor))),
+        ],
+      ),
     );
   }
 
@@ -158,24 +196,8 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Messages',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const ConversationsListScreen()),
-              );
-            },
-            icon: const Icon(Icons.chat_bubble_outline, color: primaryColor, size: 26),
-          ),
-          IconButton(
-            tooltip: 'Notifications',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            onPressed: () => showNotificationPanel(context),
-            icon: const Icon(Icons.notifications_none_rounded, color: primaryColor, size: 26),
-          ),
+          const MessagesIconButton(),
+          const NotificationBellButton(),
           // Status Indicator
           Container(
             width: 12,

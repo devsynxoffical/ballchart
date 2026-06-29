@@ -8,6 +8,17 @@ import '../../../features/management/viewmodel/academy_provider.dart';
 /// Richer "schedule session" flow: title, format, roster size, notes, quick time presets.
 /// Use [scaffoldMessenger] from the screen that opened the sheet (not the sheet context) for snackbars after close.
 /// Pass [existing] to edit a scheduled game.
+String _staffNotesFromBattle(BattleModel? existing) {
+  if (existing == null) return '';
+  final desc = existing.description?.trim() ?? '';
+  if (desc.isEmpty) return '';
+  return desc
+      .split('\n')
+      .where((line) => !line.trim().toLowerCase().startsWith('title:'))
+      .join('\n')
+      .trim();
+}
+
 Future<void> showCreateBattleSheet(
   BuildContext context, {
   required ScaffoldMessengerState scaffoldMessenger,
@@ -21,7 +32,7 @@ Future<void> showCreateBattleSheet(
 
   final titleCtrl = TextEditingController(text: existing?.metadata?['sessionTitle']?.toString() ?? '');
   final locationCtrl = TextEditingController(text: existing?.location ?? '');
-  final notesCtrl = TextEditingController(text: existing?.description ?? '');
+  final notesCtrl = TextEditingController(text: _staffNotesFromBattle(existing));
   DateTime sessionTime = existing?.dateTime ?? DateTime.now().add(const Duration(hours: 2));
   String battleType = existing?.battleType ?? 'scrimmage_5v5';
   int maxParticipants = existing?.maxParticipants ?? 10;
@@ -313,10 +324,7 @@ Future<void> showCreateBattleSheet(
                               'sessionTitle': titleCtrl.text.trim(),
                               'formatLabel': formats.firstWhere((e) => e['id'] == battleType, orElse: () => formats[0])['label'],
                             };
-                            final description = [
-                              if (titleCtrl.text.trim().isNotEmpty) 'Title: ${titleCtrl.text.trim()}',
-                              if (notesCtrl.text.trim().isNotEmpty) notesCtrl.text.trim(),
-                            ].join('\n');
+                            final description = notesCtrl.text.trim();
                             if (editing) {
                               await vm.updateBattle(
                                 existing.id,

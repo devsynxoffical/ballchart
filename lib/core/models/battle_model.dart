@@ -85,10 +85,15 @@ class BattleModel {
   /// Paused is signaled via [metadata] until the API adds a first-class field.
   bool get isPausedSession => metadata?['sessionPhase']?.toString() == 'paused';
 
-  BattleSessionPhase get sessionPhase =>
-      battlePhaseFromModel(status: status, metadata: metadata);
+  bool get isPastScheduled => isPending && dateTime.isBefore(DateTime.now());
+
+  BattleSessionPhase get sessionPhase {
+    if (isPastScheduled) return BattleSessionPhase.finished;
+    return battlePhaseFromModel(status: status, metadata: metadata);
+  }
 
   String get statusDisplayLabel {
+    if (isPastScheduled) return 'FINISHED';
     switch (sessionPhase) {
       case BattleSessionPhase.scheduled:
         return 'SCHEDULED';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../routes/routes_names.dart';
+import 'academy_setup_guide_sheet.dart';
 
 class RegistrationSuccessScreen extends StatelessWidget {
   final String role;
@@ -45,10 +46,14 @@ class RegistrationSuccessScreen extends StatelessWidget {
             ),
           ),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                children: [
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    children: [
                   const SizedBox(height: 24),
                   // Hero Image/Gradient Area
                   Container(
@@ -206,12 +211,34 @@ class RegistrationSuccessScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text(
-                    'Need help setting up? View Guide',
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+                  TextButton(
+                    onPressed: () => showAcademySetupGuide(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    child: Text.rich(
+                      TextSpan(
+                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+                        children: const [
+                          TextSpan(text: 'Need help setting up? '),
+                          TextSpan(
+                            text: 'View Guide',
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.underline,
+                              decorationColor: primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 40),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

@@ -33,6 +33,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
   int _reportMonth = DateTime.now().month;
   bool _goalsBusy = false;
   bool _pdfBusy = false;
+  PeriodReportDto? _periodReport;
 
   @override
   void initState() {
@@ -129,10 +130,20 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
     try {
       final list = await _repo.fetchMyAssignments();
       final p = await _repo.fetchMyPoints();
+      PeriodReportDto? report;
+      final uid = context.read<ProfileViewmodel>().user?.id;
+      if (uid != null && uid.isNotEmpty) {
+        try {
+          report = await _repo.fetchPeriodReport(playerId: uid, year: _reportYear, month: _reportMonth);
+        } catch (_) {
+          report = null;
+        }
+      }
       if (mounted) {
         setState(() {
           _items = list;
           _points = p;
+          _periodReport = report;
           _loading = false;
         });
       }
@@ -370,6 +381,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                                       if (v == null) return;
                                       setState(() => _reportMonth = v);
                                       await _loadPersonalGoals();
+                                      await _load();
                                     },
                                   ),
                                 ),
@@ -393,6 +405,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                                       if (v == null) return;
                                       setState(() => _reportYear = v);
                                       await _loadPersonalGoals();
+                                      await _load();
                                     },
                                   ),
                                 ),
@@ -453,6 +466,10 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                           ],
                         ),
                       ),
+                      if (_periodReport != null) ...[
+                        const SizedBox(height: 16),
+                        _buildCoachReportSection(_periodReport!),
+                      ],
                       if (_completionHighlight != null) ...[
                         const SizedBox(height: 16),
                         _buildCompletionHighlightBanner(),
@@ -472,7 +489,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                         Padding(
                           padding: const EdgeInsets.all(32),
                           child: Text(
-                            'No training assigned yet. Your coach will assign sessions under the same six areas as your report.',
+                            'No training assigned yet. Your coach will assign sessions under the same development areas as your performance report.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: PlayerDevelopmentTheme.outlineColor.withValues(alpha: 0.85)),
                           ),
@@ -482,6 +499,72 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _buildCoachReportSection(PeriodReportDto report) {
+    final areas = RelentlessProgram.mergeReportAreas(report.areas);
+    final hasContent = report.summary.trim().isNotEmpty ||
+        report.goals.isNotEmpty ||
+        areas.any((a) => (a.rating ?? 0) > 0 || a.performanceComment.trim().isNotEmpty);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: PlayerDevelopmentTheme.surfaceHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PlayerDevelopmentTheme.outlineColor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PERFORMANCE REPORT · COACH FEEDBACK',
+            style: TextStyle(
+              color: PlayerDevelopmentTheme.primaryColor,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (!hasContent)
+            Text(
+              'Your coach has not published feedback for this month yet.',
+              style: TextStyle(color: PlayerDevelopmentTheme.outlineColor.withValues(alpha: 0.9), fontSize: 12),
+            )
+          else ...[
+            if (report.summary.trim().isNotEmpty) ...[
+              Text(report.summary.trim(), style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4)),
+              const SizedBox(height: 12),
+            ],
+            ...areas.map((a) {
+              final hasArea = (a.rating ?? 0) > 0 ||
+                  a.performanceComment.trim().isNotEmpty ||
+                  a.strengths.trim().isNotEmpty ||
+                  a.focusArea.trim().isNotEmpty;
+              if (!hasArea) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(a.label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                    if (a.rating != null)
+                      Text('Rating: ${a.rating}/5', style: TextStyle(color: PlayerDevelopmentTheme.outlineColor.withValues(alpha: 0.95), fontSize: 12)),
+                    if (a.performanceComment.trim().isNotEmpty)
+                      Text(a.performanceComment.trim(), style: TextStyle(color: PlayerDevelopmentTheme.outlineColor.withValues(alpha: 0.95), fontSize: 12)),
+                  ],
+                ),
+              );
+            }),
+            if (report.goals.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Text('Coach goals', style: TextStyle(color: PlayerDevelopmentTheme.primaryColor, fontWeight: FontWeight.w800, fontSize: 12)),
+              ...report.goals.map((g) => Text('• $g', style: TextStyle(color: PlayerDevelopmentTheme.outlineColor.withValues(alpha: 0.95), fontSize: 12))),
+            ],
+          ],
+        ],
+      ),
     );
   }
 

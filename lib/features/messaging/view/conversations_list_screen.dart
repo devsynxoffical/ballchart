@@ -5,6 +5,7 @@ import 'package:ballchart/core/repositories/messaging_repository.dart';
 import 'package:ballchart/core/services/api_service.dart';
 import 'package:ballchart/features/messaging/view/chat_screen.dart';
 import 'package:ballchart/features/messaging/widgets/messaging_avatar.dart';
+import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 
 /// Inbox: lists DM threads and opens [ChatScreen].
@@ -30,6 +31,7 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
 
   void _onMessageNewSocket(dynamic data) {
     if (!mounted) return;
+    context.read<InboxViewModel>().refresh();
     _load();
   }
 

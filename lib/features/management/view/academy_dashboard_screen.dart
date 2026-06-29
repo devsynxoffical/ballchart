@@ -6,13 +6,13 @@ import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/constants/colors.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateStaffDialog.dart';
-import 'package:ballchart/core/widgets/notification_panel.dart';
+import 'package:ballchart/core/widgets/inbox_header_icons.dart';
 import 'package:ballchart/core/widgets/permission_wrapper.dart';
 import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
+import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/staff/view/staff_list_screen.dart';
 import 'package:ballchart/features/profile/view/profile_screen.dart';
-import 'package:ballchart/features/messaging/view/conversations_list_screen.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/features/coach/team_details/view/team_detail_screen.dart';
@@ -47,6 +47,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncAcademyUserFromProfile();
+      if (mounted) context.read<InboxViewModel>().start();
       // Load data with error handling
       _loadDataWithRetry();
       
@@ -222,19 +223,8 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
         ),
       ),
       actions: [
-        IconButton(
-          tooltip: 'Messages',
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const ConversationsListScreen()),
-            );
-          },
-          icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-        ),
-        IconButton(
-          onPressed: () => showNotificationPanel(context),
-          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-        ),
+        const MessagesIconButton(iconColor: Colors.white),
+        const NotificationBellButton(iconColor: Colors.white),
         const SizedBox(width: 8),
       ],
     );

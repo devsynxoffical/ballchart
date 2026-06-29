@@ -125,7 +125,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
                   padding: const EdgeInsets.all(16),
                   children: [
                     Text(
-                      'Summarize all completed sessions in the selected calendar month. The PDF uses the ${RelentlessProgram.subtitle} layout (same six development areas as training assignments).',
+                      'Summarize all completed sessions in the selected calendar month. The PDF uses the ${RelentlessProgram.subtitle} layout (${RelentlessProgram.coreAreaCount} core development areas).',
                       style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.35),
                     ),
                     const SizedBox(height: 20),

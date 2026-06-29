@@ -582,7 +582,9 @@ class _BattleScreenState extends State<BattleScreen> {
   Widget _battleDataRow(BattleModel b, BattleViewmodel vm) {
     final accent = _accentForBattle(b);
     final iconText = b.statusDisplayLabel.length > 3 ? b.statusDisplayLabel.substring(0, 3) : b.statusDisplayLabel;
-    final subtitle = '${_formatBattleWhen(b.dateTime)} • ${b.battleType.toUpperCase()}';
+    final loc = b.location.trim();
+    final locPart = loc.isNotEmpty ? loc : 'Location TBD';
+    final subtitle = '${_formatBattleWhen(b.dateTime)} • $locPart • ${b.battleType.toUpperCase()}';
     final score = b.isFinished && b.result != null && b.result!.isNotEmpty ? b.result : null;
 
     return Material(
