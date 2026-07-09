@@ -102,6 +102,7 @@ class _BasketballCourtPainter extends CustomPainter {
     final midY = h * 0.5;
     canvas.drawLine(Offset(0, midY), Offset(w, midY), thickLine);
     canvas.drawCircle(Offset(w / 2, midY), w * 0.12, linePaint);
+    canvas.drawCircle(Offset(w / 2, midY), w * 0.04, linePaint);
 
     void drawEnd({required bool north}) {
       final keyDepth = h * (19 / 94);
@@ -127,26 +128,40 @@ class _BasketballCourtPainter extends CustomPainter {
         false,
         linePaint,
       );
-
       final rimY = north ? h * 0.052 : h - h * 0.052;
       final rimR = w * 0.018;
       final boardY = north ? 0.0 : h;
       final boardHalf = w * 0.08;
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(w / 2, rimY), radius: w * 0.08),
+        north ? 0 : pi,
+        pi,
+        false,
+        linePaint,
+      );
       canvas.drawLine(Offset(w / 2 - boardHalf, boardY), Offset(w / 2 + boardHalf, boardY), thickLine);
       canvas.drawCircle(Offset(w / 2, rimY), rimR, Paint()..color = Colors.orange.shade800);
       canvas.drawCircle(Offset(w / 2, rimY), rimR, Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.5);
 
-      // Three-point arc (NBA-style radius ≈ 23.75 ft from hoop center)
-      final threeR = w * 0.475;
+      // Three-point arc with full corner continuity.
+      final threeR = h * 0.36;
       final arcRect = Rect.fromCircle(center: Offset(w / 2, rimY), radius: threeR);
-      canvas.drawArc(arcRect, north ? pi * 0.55 : pi * 1.55, pi * 0.9, false, linePaint);
+      canvas.drawArc(arcRect, north ? pi * 0.18 : pi * 1.18, pi * 0.64, false, linePaint);
 
       // Corner three lines
-      final cornerX = w * 0.06;
-      final cornerLen = h * (14 / 94);
-      final cornerY = north ? rimY + cornerLen : rimY - cornerLen;
+      final cornerX = w * 0.09;
+      final cornerLen = h * 0.22;
+      final cornerY = north ? cornerLen : h - cornerLen;
       canvas.drawLine(Offset(cornerX, rimY), Offset(cornerX, cornerY), linePaint);
       canvas.drawLine(Offset(w - cornerX, rimY), Offset(w - cornerX, cornerY), linePaint);
+
+      // Lane hash marks (both sides) for a fuller court layout.
+      final marks = [0.10, 0.16, 0.22, 0.28];
+      for (final m in marks) {
+        final y = north ? h * m : h - h * m;
+        canvas.drawLine(Offset(left - w * 0.02, y), Offset(left, y), linePaint);
+        canvas.drawLine(Offset(left + keyWidth, y), Offset(left + keyWidth + w * 0.02, y), linePaint);
+      }
     }
 
     drawEnd(north: true);

@@ -45,10 +45,17 @@ class InboxViewModel extends ChangeNotifier {
       final notifications = await _notificationRepo.fetchNotifications();
       final conversations = await _messagingRepo.fetchConversations();
       _unreadNotifications = notifications.where((n) => !n.isRead).length;
-      _unreadMessages = conversations.fold<int>(
+      final convoUnread = conversations.fold<int>(
         0,
         (sum, ConversationSummary c) => sum + c.unreadCount,
       );
+      final notifMessageUnread = notifications.where((n) {
+        if (n.isRead) return false;
+        final t = n.type.toLowerCase();
+        return t.contains('message') || t == 'chat';
+      }).length;
+      // Fallback to notification-derived message count when conversation counters lag.
+      _unreadMessages = convoUnread > 0 ? convoUnread : notifMessageUnread;
       notifyListeners();
     } catch (_) {
       /* keep last known counts */

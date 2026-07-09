@@ -11,6 +11,7 @@ import '../management/view/management_screen.dart';
 import 'package:provider/provider.dart';
 import '../profile/viewmodel/profile_viewmodel.dart';
 import '../management/viewmodel/academy_provider.dart';
+import '../inbox/viewmodel/inbox_viewmodel.dart';
 
 
 class AppNavigator extends StatefulWidget {
@@ -34,6 +35,7 @@ class _AppNavigatorState extends State<AppNavigator> {
     
     // Centralized profile load
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<InboxViewModel>().start();
       final profileVm = context.read<ProfileViewmodel>();
       profileVm.loadProfile(forceRefresh: true).then((_) {
         final u = profileVm.user;
