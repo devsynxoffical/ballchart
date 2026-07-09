@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:ballchart/core/constants/relentless_program.dart';
 import 'package:ballchart/core/models/development_models.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
+import 'package:ballchart/core/utils/coach_player_resolver.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/player_development/view/coach_monthly_report_screen.dart';
 
@@ -46,6 +47,13 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
       if (academy.coachDashboard == null) {
         await academy.loadCoachDashboard(force: true);
       }
+      if (coachAssignablePlayers(academy).isEmpty && academy.academy.teams.isEmpty) {
+        try {
+          await academy.loadAdminOverview(force: true);
+        } catch (_) {
+          // Coach-only accounts may not have admin overview access.
+        }
+      }
       final cat = await _repo.fetchCatalog();
       if (!mounted) return;
       final focusOpts = RelentlessProgram.mergedFocusOptions(cat.focusAreas);
@@ -77,24 +85,7 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
     if (mounted) setState(() => _assignments = list);
   }
 
-  List<MapEntry<String, String>> _playersFromDashboard(AcademyProvider academy) {
-    final teams = academy.coachDashboard?['teams'] as List<dynamic>? ?? [];
-    final seen = <String>{};
-    final out = <MapEntry<String, String>>[];
-    for (final t in teams) {
-      if (t is! Map) continue;
-      final players = t['players'] as List<dynamic>? ?? [];
-      for (final p in players) {
-        if (p is! Map) continue;
-        final id = (p['_id'] ?? p['id'] ?? '').toString();
-        if (id.isEmpty || seen.contains(id)) continue;
-        seen.add(id);
-        final name = p['username']?.toString() ?? 'Player';
-        out.add(MapEntry(id, name));
-      }
-    }
-    return out;
-  }
+  List<MapEntry<String, String>> _players(AcademyProvider academy) => coachAssignablePlayers(academy);
 
   Future<void> _submit() async {
     final pid = _selectedPlayerId;
@@ -178,7 +169,7 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
           ? const Center(child: CircularProgressIndicator(color: CoachTrainingAssignmentScreen.primaryColor))
           : Consumer<AcademyProvider>(
               builder: (context, academy, _) {
-                final players = _playersFromDashboard(academy);
+                final players = _players(academy);
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -211,6 +202,20 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (players.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: CoachTrainingAssignmentScreen.surfaceHigh,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+                        ),
+                        child: const Text(
+                          'No players found. Add players to a team first.',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ),
                     DropdownButtonFormField<String>(
                       value: _selectedPlayerId != null &&
                               players.any((e) => e.key == _selectedPlayerId)

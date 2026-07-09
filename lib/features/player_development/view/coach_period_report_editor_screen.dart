@@ -34,7 +34,6 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
   List<PeriodReportAreaDto> _areas = [];
   bool _loading = true;
   bool _saving = false;
-  String? _error;
 
   @override
   void initState() {
@@ -53,10 +52,7 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _loading = true);
     try {
       final r = await _repo.fetchPeriodReport(
         playerId: widget.playerId,
@@ -78,8 +74,16 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
         setState(() {
           _areas = RelentlessProgram.mergeReportAreas(const <PeriodReportAreaDto>[]);
           _loading = false;
-          _error = '$e';
         });
+        final raw = e.toString().replaceAll('Exception: ', '');
+        if (!raw.contains('404') && !raw.toLowerCase().contains('not found')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not load saved report — starting a new one. ($raw)'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
       }
     }
   }
@@ -156,20 +160,7 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: PlayerDevelopmentTheme.primaryColor))
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-                        TextButton(onPressed: _load, child: const Text('Retry')),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView(
+          : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     Text(

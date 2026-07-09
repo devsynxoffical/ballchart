@@ -48,6 +48,7 @@ class PeriodReportAreaDto {
 
   Map<String, dynamic> toJson() => {
         'key': key,
+        'label': label,
         'rating': rating,
         'performanceComment': performanceComment,
         'strengths': strengths,

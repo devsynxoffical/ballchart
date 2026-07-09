@@ -34,6 +34,7 @@ class MessagesIconButton extends StatelessWidget {
         color: iconColor,
         size: iconSize,
         badgeCount: unread,
+        showDotOnly: unread > 0,
       ),
     );
   }

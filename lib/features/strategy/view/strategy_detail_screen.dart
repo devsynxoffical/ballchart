@@ -9,6 +9,7 @@ import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/tactical/tactical_entities.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/utils/share_utils.dart';
 import '../../../core/utils/strategy_pdf_generator.dart';
 import '../../../core/models/tactical/tactical_voice_clip.dart';
 import '../../../core/widgets/tactics/coach_voice_clips_panel.dart';
@@ -420,8 +421,10 @@ class StrategyDetailScreen extends StatelessWidget {
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsBytes(pdfBytes);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      if (!context.mounted) return;
+      await shareFiles(
+        context,
+        files: [XFile(file.path)],
         text: 'HoopStar Strategy: ${strategy.title}\nCategory: ${BasketballStrategy.categoryLabel(strategy.category)}',
         subject: 'Coaching Strategy: ${strategy.title}',
       );

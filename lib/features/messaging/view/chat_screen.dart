@@ -15,6 +15,7 @@ import 'package:ballchart/features/messaging/widgets/chat_participant_profile_sh
 import 'package:ballchart/features/messaging/widgets/messaging_avatar.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -775,6 +776,9 @@ class _ChatScreenState extends State<ChatScreen> {
                               body: m.body,
                               mine: mine,
                               isVoice: m.isVoice,
+                              isFile: m.isFile,
+                              fileUrl: m.fileUrl,
+                              fileName: m.fileName,
                               voiceUrl: m.voiceUrl,
                               voiceDurationMs: m.voiceDurationMs,
                               voiceLocalPath: _pendingVoiceLocalPaths[m.id],
@@ -1111,7 +1115,10 @@ class _MessageBubble extends StatelessWidget {
     required this.mine,
     required this.formattedTime,
     this.isVoice = false,
+    this.isFile = false,
     this.voiceUrl,
+    this.fileUrl,
+    this.fileName,
     this.voiceDurationMs = 0,
     this.voiceLocalPath,
     this.replyQuoteBody,
@@ -1124,7 +1131,10 @@ class _MessageBubble extends StatelessWidget {
   final String body;
   final bool mine;
   final bool isVoice;
+  final bool isFile;
   final String? voiceUrl;
+  final String? fileUrl;
+  final String? fileName;
   final int voiceDurationMs;
   final String? voiceLocalPath;
   final String formattedTime;
@@ -1248,6 +1258,72 @@ class _MessageBubble extends StatelessWidget {
                               ],
                             ],
                           ),
+                        ),
+                      ),
+                  ],
+                )
+              else if (isFile)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final raw = (fileUrl ?? '').trim();
+                          if (raw.isEmpty) return;
+                          final resolved = ApiService.resolveMediaUrl(raw);
+                          final uri = Uri.tryParse(resolved);
+                          if (uri == null) return;
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: ChatScreen.primaryColor.withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.picture_as_pdf_rounded, color: ChatScreen.primaryColor, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  (fileName != null && fileName!.trim().isNotEmpty) ? fileName! : 'Open PDF report',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Color(0xFFE9EDEF), fontSize: 14, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (formattedTime.isNotEmpty || (showReceipt && mine))
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (formattedTime.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4, bottom: 1),
+                                child: Text(
+                                  formattedTime,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.45),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            if (showReceipt && mine)
+                              _ReceiptRow(
+                                pending: pending,
+                                seen: seen,
+                              ),
+                          ],
                         ),
                       ),
                   ],

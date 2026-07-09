@@ -237,6 +237,14 @@ class ApiService {
     return MediaType('audio', 'mp4');
   }
 
+  static MediaType _fileMediaTypeForPath(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.pdf')) return MediaType('application', 'pdf');
+    if (lower.endsWith('.txt')) return MediaType('text', 'plain');
+    if (lower.endsWith('.json')) return MediaType('application', 'json');
+    return MediaType('application', 'octet-stream');
+  }
+
   Future<Map<String, dynamic>> uploadAudio(File file) async {
     return uploadFile('/upload/audio', file, fieldName: 'audio');
   }
@@ -265,7 +273,9 @@ class ApiService {
       }
       final contentType = fieldName == 'audio'
           ? _audioMediaTypeForPath(rawName)
-          : _imageMediaTypeForPath(rawName);
+          : fieldName == 'file'
+              ? _fileMediaTypeForPath(rawName)
+              : _imageMediaTypeForPath(rawName);
 
       var fileStream = file.openRead();
       var length = await file.length();

@@ -330,7 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('OFFICIAL PARTNERSHIP', style: TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold)),
+                        const Text('ACADEMY NAME', style: TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold)),
                         Text(academy.name.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Space Grotesk')),
                       ],
                     ),

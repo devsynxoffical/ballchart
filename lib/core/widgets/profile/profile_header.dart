@@ -100,7 +100,7 @@ class ProfileHeader extends StatelessWidget {
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
-                      'Welcome ${user.teamName}',
+                      user.teamName!,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,

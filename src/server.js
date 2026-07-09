@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
@@ -26,17 +27,23 @@ connectDB();
 
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/battles', require('./routes/battleRoutes'));
-app.use('/api/strategies', require('./routes/strategyRoutes'));
-app.use('/api/teams', require('./routes/teamRoutes'));
-
 // Make io available in req
 app.use((req, res, next) => {
     req.io = io;
     next();
 });
+
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/battles', require('./routes/battleRoutes'));
+app.use('/api/strategies', require('./routes/strategyRoutes'));
+app.use('/api/teams', require('./routes/teamRoutes'));
+app.use('/api/messages', require('./routes/messagingRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/player-development', require('./routes/playerDevelopmentRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);

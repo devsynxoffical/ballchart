@@ -1,5 +1,6 @@
 import '../models/messaging_models.dart';
 import '../services/api_service.dart';
+import 'dart:io';
 
 class MessagingRepository {
   final ApiService _api = ApiService();
@@ -101,5 +102,42 @@ class MessagingRepository {
 
   Future<void> markRead(String conversationId) async {
     await _api.post('/messages/conversations/$conversationId/read', {});
+  }
+
+  /// Uploads a PDF and sends it as an in-app message payload.
+  /// Falls back to plain text with link if backend doesn't support `type:file`.
+  Future<void> sendPdfMessage(
+    String conversationId, {
+    required File pdfFile,
+    required String title,
+  }) async {
+    String? mediaUrl;
+    Object? uploadErr;
+    for (final endpoint in const ['/upload/file', '/upload/document', '/upload/image']) {
+      try {
+        final uploaded = await _api.uploadFile(endpoint, pdfFile, fieldName: 'file');
+        mediaUrl = (uploaded['url'] ?? uploaded['fileUrl'] ?? uploaded['path'] ?? '').toString();
+        if (mediaUrl.isNotEmpty) break;
+      } catch (e) {
+        uploadErr = e;
+      }
+    }
+
+    if (mediaUrl == null || mediaUrl.isEmpty) {
+      throw Exception(uploadErr?.toString() ?? 'Could not upload PDF');
+    }
+
+    final resolved = ApiService.resolveMediaUrl(mediaUrl);
+    try {
+      await _api.post('/messages/conversations/$conversationId/messages', {
+        'type': 'file',
+        'body': 'PDF report: $title',
+        'fileUrl': mediaUrl,
+        'fileName': pdfFile.path.replaceAll(r'\', '/').split('/').last,
+        'mimeType': 'application/pdf',
+      });
+    } catch (_) {
+      await sendMessage(conversationId, 'PDF report: $title\n$resolved');
+    }
   }
 }

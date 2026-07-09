@@ -1,7 +1,24 @@
-int _parseUnread(Map<String, dynamic> json) {
-  final raw = json['unreadCount'] ?? json['unread'];
+int _toUnreadInt(dynamic raw) {
   if (raw is num) return raw.toInt().clamp(0, 999);
-  if (raw == true) return 1;
+  if (raw is String) return (int.tryParse(raw) ?? 0).clamp(0, 999);
+  if (raw is bool) return raw ? 1 : 0;
+  return 0;
+}
+
+int _parseUnread(Map<String, dynamic> json) {
+  final direct = json['unreadCount'] ??
+      json['unread'] ??
+      json['unreadMessages'] ??
+      json['unread_messages'] ??
+      json['newMessagesCount'];
+  final v = _toUnreadInt(direct);
+  if (v > 0) return v;
+
+  final counters = json['counters'];
+  if (counters is Map) {
+    final nested = _toUnreadInt(counters['unreadMessages'] ?? counters['unreadCount']);
+    if (nested > 0) return nested;
+  }
   return 0;
 }
 
@@ -81,6 +98,9 @@ class ChatMessage {
   final String body;
   final String type;
   final String? voiceUrl;
+  final String? fileUrl;
+  final String? fileName;
+  final String? mimeType;
   final int voiceDurationMs;
   final DateTime? createdAt;
   final String? replyToMessageId;
@@ -95,6 +115,9 @@ class ChatMessage {
     required this.body,
     this.type = 'text',
     this.voiceUrl,
+    this.fileUrl,
+    this.fileName,
+    this.mimeType,
     this.voiceDurationMs = 0,
     this.createdAt,
     this.replyToMessageId,
@@ -104,6 +127,7 @@ class ChatMessage {
   });
 
   bool get isVoice => type == 'voice';
+  bool get isFile => type == 'file' || (fileUrl?.isNotEmpty ?? false) || (mimeType?.contains('pdf') ?? false);
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
@@ -112,6 +136,9 @@ class ChatMessage {
       body: json['body']?.toString() ?? '',
       type: (json['type'] ?? 'text').toString(),
       voiceUrl: json['voiceUrl']?.toString(),
+      fileUrl: (json['fileUrl'] ?? json['attachmentUrl'] ?? json['url'])?.toString(),
+      fileName: (json['fileName'] ?? json['attachmentName'])?.toString(),
+      mimeType: (json['mimeType'] ?? json['contentType'])?.toString(),
       voiceDurationMs: (json['voiceDurationMs'] is num) ? (json['voiceDurationMs'] as num).toInt() : 0,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
       replyToMessageId: json['replyToMessageId']?.toString(),
@@ -127,6 +154,9 @@ class ChatMessage {
     String? body,
     String? type,
     String? voiceUrl,
+    String? fileUrl,
+    String? fileName,
+    String? mimeType,
     int? voiceDurationMs,
     DateTime? createdAt,
     String? replyToMessageId,
@@ -140,6 +170,9 @@ class ChatMessage {
       body: body ?? this.body,
       type: type ?? this.type,
       voiceUrl: voiceUrl ?? this.voiceUrl,
+      fileUrl: fileUrl ?? this.fileUrl,
+      fileName: fileName ?? this.fileName,
+      mimeType: mimeType ?? this.mimeType,
       voiceDurationMs: voiceDurationMs ?? this.voiceDurationMs,
       createdAt: createdAt ?? this.createdAt,
       replyToMessageId: replyToMessageId ?? this.replyToMessageId,

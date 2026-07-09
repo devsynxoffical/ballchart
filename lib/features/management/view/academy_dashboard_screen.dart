@@ -208,13 +208,15 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
   }
 
   PreferredSizeWidget _buildTopAppBar() {
+    final academyName = context.watch<AcademyProvider>().academy.name.trim();
+    final titleText = academyName.isEmpty ? 'ACADEMY' : academyName.toUpperCase();
     return AppBar(
       backgroundColor: bgColor,
       elevation: 0,
       automaticallyImplyLeading: false,
-      title: const Text(
-        'ELITE ACADEMY',
-        style: TextStyle(
+      title: Text(
+        titleText,
+        style: const TextStyle(
           color: primaryColor,
           fontFamily: 'Space Grotesk',
           fontWeight: FontWeight.bold,

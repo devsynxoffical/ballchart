@@ -7,6 +7,10 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:ballchart/core/constants/relentless_program.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
+import 'package:ballchart/core/repositories/messaging_repository.dart';
+import 'package:ballchart/core/utils/coach_player_resolver.dart';
+import 'package:ballchart/core/utils/share_utils.dart';
+import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/player_development/view/coach_period_report_editor_screen.dart';
 import 'package:ballchart/features/player_development/view/coach_training_assignment_screen.dart';
@@ -21,6 +25,7 @@ class CoachMonthlyReportScreen extends StatefulWidget {
 
 class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
   final DevelopmentRepository _repo = DevelopmentRepository();
+  final MessagingRepository _messagingRepo = MessagingRepository();
   String? _selectedPlayerId;
   int _reportYear = DateTime.now().year;
   int _reportMonth = DateTime.now().month;
@@ -38,28 +43,42 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
       if (academy.coachDashboard == null) {
         await academy.loadCoachDashboard(force: true);
       }
+      if (coachAssignablePlayers(academy).isEmpty && academy.academy.teams.isEmpty) {
+        try {
+          await academy.loadAdminOverview(force: true);
+        } catch (_) {
+          // Coach-only accounts may not have admin overview access.
+        }
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  List<MapEntry<String, String>> _playersFromDashboard(AcademyProvider academy) {
-    final teams = academy.coachDashboard?['teams'] as List<dynamic>? ?? [];
-    final seen = <String>{};
-    final out = <MapEntry<String, String>>[];
-    for (final t in teams) {
-      if (t is! Map) continue;
-      final players = t['players'] as List<dynamic>? ?? [];
-      for (final p in players) {
-        if (p is! Map) continue;
-        final id = (p['_id'] ?? p['id'] ?? '').toString();
-        if (id.isEmpty || seen.contains(id)) continue;
-        seen.add(id);
-        final name = p['username']?.toString() ?? 'Player';
-        out.add(MapEntry(id, name));
-      }
-    }
-    return out;
+  List<MapEntry<String, String>> _players(AcademyProvider academy) => coachAssignablePlayers(academy);
+
+  bool _pdfBusy = false;
+  bool _sendBusy = false;
+  final GlobalKey _shareButtonKey = GlobalKey();
+  final GlobalKey _sendButtonKey = GlobalKey();
+
+  String _monthName(int month) {
+    const names = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month < 1 || month > 12) return '$month';
+    return names[month - 1];
   }
 
   Future<void> _downloadPdf() async {
@@ -70,6 +89,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
       );
       return;
     }
+    setState(() => _pdfBusy = true);
     try {
       final bytes = await _repo.fetchMonthlyReportPdf(
         playerId: pid,
@@ -80,13 +100,82 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
       final name = 'development-$pid-$_reportYear-${_reportMonth.toString().padLeft(2, '0')}.pdf';
       final file = File('${dir.path}/$name');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles([XFile(file.path)], text: 'Player development report');
+      if (!mounted) return;
+      await shareFiles(
+        context,
+        files: [XFile(file.path)],
+        text: 'Player development report',
+        anchorKey: _shareButtonKey,
+      );
     } catch (e) {
       if (mounted) {
+        final raw = e.toString().replaceAll('Exception: ', '');
+        final friendly = raw.contains('404') || raw.toLowerCase().contains('not found')
+            ? 'Save the performance report first (Edit ratings & insights), then generate the PDF.'
+            : raw;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(friendly), backgroundColor: Colors.redAccent),
         );
       }
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
+  Future<void> _publishToPlayerChat(List<MapEntry<String, String>> players) async {
+    final pid = _selectedPlayerId;
+    if (pid == null || pid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a player first')),
+      );
+      return;
+    }
+
+    var playerName = 'Player';
+    for (final e in players) {
+      if (e.key == pid) {
+        playerName = e.value;
+        break;
+      }
+    }
+
+    setState(() => _sendBusy = true);
+    try {
+      // Ensure the report exists and send it into the in-app chat.
+      final bytes = await _repo.fetchMonthlyReportPdf(
+        playerId: pid,
+        year: _reportYear,
+        month: _reportMonth,
+      );
+      final dir = await getTemporaryDirectory();
+      final fileName = 'performance-report-$pid-$_reportYear-${_reportMonth.toString().padLeft(2, '0')}.pdf';
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsBytes(bytes);
+      final convo = await _messagingRepo.createOrGetConversation(pid);
+      await _messagingRepo.sendPdfMessage(
+        convo.id,
+        pdfFile: file,
+        title: '${playerName} — ${_monthName(_reportMonth)} $_reportYear',
+      );
+      if (!mounted) return;
+      context.read<InboxViewModel>().refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PDF published to player chat'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final raw = e.toString().replaceAll('Exception: ', '');
+      final friendly = raw.contains('404') || raw.toLowerCase().contains('not found')
+          ? 'Save the performance report first (Edit ratings & insights), then publish.'
+          : raw;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendly), backgroundColor: Colors.redAccent),
+      );
+    } finally {
+      if (mounted) setState(() => _sendBusy = false);
     }
   }
 
@@ -120,7 +209,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
           ? const Center(child: CircularProgressIndicator(color: CoachTrainingAssignmentScreen.primaryColor))
           : Consumer<AcademyProvider>(
               builder: (context, academy, _) {
-                final players = _playersFromDashboard(academy);
+                final players = _players(academy);
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -128,6 +217,21 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
                       'Summarize all completed sessions in the selected calendar month. The PDF uses the ${RelentlessProgram.subtitle} layout (${RelentlessProgram.coreAreaCount} core development areas).',
                       style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.35),
                     ),
+                    if (players.isEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: CoachTrainingAssignmentScreen.surfaceHigh,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+                        ),
+                        child: const Text(
+                          'No players found. Add players to a team first, then return here.',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
                       value: _selectedPlayerId != null && players.any((e) => e.key == _selectedPlayerId)
@@ -213,14 +317,39 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
                     ),
                     const SizedBox(height: 12),
                     FilledButton.icon(
+                      key: _shareButtonKey,
                       style: FilledButton.styleFrom(
                         backgroundColor: CoachTrainingAssignmentScreen.primaryColor,
                         foregroundColor: Colors.black,
                         minimumSize: const Size(double.infinity, 48),
                       ),
-                      onPressed: _downloadPdf,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Generate & share PDF'),
+                      onPressed: _pdfBusy ? null : _downloadPdf,
+                      icon: _pdfBusy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            )
+                          : const Icon(Icons.picture_as_pdf),
+                      label: Text(_pdfBusy ? 'Generating…' : 'Generate & share PDF'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      key: _sendButtonKey,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CoachTrainingAssignmentScreen.primaryColor,
+                        side: BorderSide(color: CoachTrainingAssignmentScreen.primaryColor.withValues(alpha: 0.5)),
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                      onPressed: _sendBusy ? null : () => _publishToPlayerChat(players),
+                      icon: _sendBusy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: CoachTrainingAssignmentScreen.primaryColor),
+                            )
+                          : const Icon(Icons.mark_chat_read_rounded),
+                      label: Text(_sendBusy ? 'Publishing…' : 'Publish PDF to player chat'),
                     ),
                   ],
                 );

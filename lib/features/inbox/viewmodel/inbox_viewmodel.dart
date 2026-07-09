@@ -33,10 +33,11 @@ class InboxViewModel extends ChangeNotifier {
     _onMessageNew = (_) => refresh();
     _onNotificationNew = (_) => refresh();
     _api.socket?.on('MESSAGE_NEW', _onMessageNew!);
+    _api.socket?.on('message:new', _onMessageNew!);
     _api.socket?.on('NOTIFICATION_NEW', _onNotificationNew!);
     _api.socket?.on('NOTIFICATION_CREATED', _onNotificationNew!);
     refresh();
-    _pollTimer = Timer.periodic(const Duration(seconds: 25), (_) => refresh());
+    _pollTimer = Timer.periodic(const Duration(seconds: 12), (_) => refresh());
   }
 
   Future<void> refresh() async {
@@ -59,6 +60,7 @@ class InboxViewModel extends ChangeNotifier {
     _pollTimer?.cancel();
     if (_onMessageNew != null) {
       _api.socket?.off('MESSAGE_NEW', _onMessageNew);
+      _api.socket?.off('message:new', _onMessageNew);
     }
     if (_onNotificationNew != null) {
       _api.socket?.off('NOTIFICATION_NEW', _onNotificationNew);

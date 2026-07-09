@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
-
 import 'package:ballchart/core/models/development_models.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
+import 'package:ballchart/core/utils/share_utils.dart';
 import 'package:ballchart/features/player_development/player_development_theme.dart';
 
 /// Full-screen module: preview and share the PDF for one completed training assignment.
@@ -25,6 +25,7 @@ class TrainingCompletionReportScreen extends StatefulWidget {
 
 class _TrainingCompletionReportScreenState extends State<TrainingCompletionReportScreen> {
   final DevelopmentRepository _repo = DevelopmentRepository();
+  final GlobalKey _shareButtonKey = GlobalKey();
   Future<Uint8List>? _pdfFuture;
   String? _loadError;
 
@@ -43,7 +44,13 @@ class _TrainingCompletionReportScreenState extends State<TrainingCompletionRepor
     final name = 'training-completion-${widget.assignment.id}.pdf';
     final file = File('${dir.path}/$name');
     await file.writeAsBytes(bytes);
-    await Share.shareXFiles([XFile(file.path)], text: 'Training completion — ${widget.assignment.focusArea}');
+    if (!mounted) return;
+    await shareFiles(
+      context,
+      files: [XFile(file.path)],
+      text: 'Training completion — ${widget.assignment.focusArea}',
+      anchorKey: _shareButtonKey,
+    );
   }
 
   @override
@@ -172,6 +179,7 @@ class _TrainingCompletionReportScreenState extends State<TrainingCompletionRepor
                 builder: (context, snap) {
                   final ready = snap.hasData && snap.data != null && snap.data!.isNotEmpty;
                   return FilledButton.icon(
+                    key: _shareButtonKey,
                     style: FilledButton.styleFrom(
                       backgroundColor: PlayerDevelopmentTheme.primaryColor,
                       foregroundColor: Colors.black,

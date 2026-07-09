@@ -320,7 +320,18 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             child: Icon(Icons.shield_rounded, color: teamColor, size: 16),
           ),
           const SizedBox(width: 12),
-          Text('ELITE ACADEMY', style: TextStyle(color: teamColor, fontFamily: _AcademyTheme.headlineFont, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.5)),
+          Consumer<AcademyProvider>(
+            builder: (context, provider, _) => Text(
+              provider.academy.name.toUpperCase(),
+              style: TextStyle(
+                color: teamColor,
+                fontFamily: _AcademyTheme.headlineFont,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
         ],
       ),
       actions: [

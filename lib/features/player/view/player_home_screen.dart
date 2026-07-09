@@ -151,7 +151,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Welcome, $displayName',
+                  displayName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,

@@ -136,7 +136,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Welcome, $displayName',
+                  displayName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,

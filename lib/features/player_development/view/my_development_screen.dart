@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:ballchart/core/utils/share_utils.dart';
+
 import 'package:ballchart/core/constants/relentless_program.dart';
 import 'package:ballchart/core/models/development_models.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
@@ -33,6 +35,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
   int _reportMonth = DateTime.now().month;
   bool _goalsBusy = false;
   bool _pdfBusy = false;
+  final GlobalKey _pdfShareKey = GlobalKey();
   PeriodReportDto? _periodReport;
 
   @override
@@ -106,7 +109,13 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
       final name = 'my-development-$uid-$_reportYear-${_reportMonth.toString().padLeft(2, '0')}.pdf';
       final file = File('${dir.path}/$name');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles([XFile(file.path)], text: 'Player development report');
+      if (!mounted) return;
+      await shareFiles(
+        context,
+        files: [XFile(file.path)],
+        text: 'Player development report',
+        anchorKey: _pdfShareKey,
+      );
     } catch (e) {
       if (mounted) {
         final raw = e.toString().replaceAll('Exception: ', '');
@@ -447,6 +456,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: OutlinedButton(
+                                    key: _pdfShareKey,
                                     onPressed: _pdfBusy ? null : _sharePeriodPdf,
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: PlayerDevelopmentTheme.primaryColor,

@@ -7,8 +7,8 @@ import 'tactical_animation_engine.dart';
 import 'tactical_entities.dart';
 import '../models/tactical/tactical_schema.dart';
 
-/// Regulation-style **full basketball court** (vertical): north hoop (defense) at top,
-/// south hoop (offense) at bottom. Aspect ratio 50 ft wide × 94 ft long.
+/// Regulation-style **full basketball court** in landscape.
+/// Aspect ratio is 94 ft length × 50 ft width.
 class TacticalCourtCanvas extends StatelessWidget {
   final TacticalFrame frame;
   final int ballOwnerSlot;
@@ -30,14 +30,14 @@ class TacticalCourtCanvas extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth;
-        final idealH = w * 94 / 50;
+        final idealH = w * 50 / 94;
         final h = maxHeight != null ? min(idealH, maxHeight!) : idealH;
         return ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFE8C49A),
-              border: Border.all(color: const Color(0xFF3D405B), width: 6),
+              color: const Color(0xFFD4A574),
+              border: Border.all(color: const Color(0xFF3D405B), width: 4),
               boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))],
             ),
             child: CustomPaint(
@@ -77,7 +77,15 @@ class _BasketballCourtPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE8C49A));
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFD4A574));
+
+    // Subtle wood planks
+    final plankPaint = Paint()
+      ..color = const Color(0xFFC99860).withValues(alpha: 0.35)
+      ..strokeWidth = 1;
+    for (var y = 0.0; y < h; y += h / 18) {
+      canvas.drawLine(Offset(0, y), Offset(w, y), plankPaint);
+    }
 
     final linePaint = Paint()
       ..color = Colors.black87
@@ -93,7 +101,7 @@ class _BasketballCourtPainter extends CustomPainter {
 
     final midY = h * 0.5;
     canvas.drawLine(Offset(0, midY), Offset(w, midY), thickLine);
-    canvas.drawCircle(Offset(w / 2, midY), w * 0.06, linePaint);
+    canvas.drawCircle(Offset(w / 2, midY), w * 0.12, linePaint);
 
     void drawEnd({required bool north}) {
       final keyDepth = h * (19 / 94);
@@ -103,11 +111,15 @@ class _BasketballCourtPainter extends CustomPainter {
 
       canvas.drawRect(
         Rect.fromLTWH(left, top, keyWidth, keyDepth),
-        Paint()..color = const Color(0xFFE07A5F).withValues(alpha: 0.5),
+        Paint()..color = const Color(0xFFB85C38).withValues(alpha: 0.45),
       );
       canvas.drawRect(Rect.fromLTWH(left, top, keyWidth, keyDepth), linePaint);
 
+      // Free-throw circle
       final ftY = north ? top + keyDepth : top;
+      canvas.drawCircle(Offset(w / 2, ftY), keyWidth / 2, linePaint);
+
+      // Restricted area arc
       canvas.drawArc(
         Rect.fromCircle(center: Offset(w / 2, ftY), radius: keyWidth / 2),
         north ? 0 : pi,
@@ -116,27 +128,32 @@ class _BasketballCourtPainter extends CustomPainter {
         linePaint,
       );
 
-      final rimY = north ? h * 0.048 : h - h * 0.048;
-      final rimR = w * 0.014;
+      final rimY = north ? h * 0.052 : h - h * 0.052;
+      final rimR = w * 0.018;
       final boardY = north ? 0.0 : h;
-      final boardHalf = w * 0.07;
+      final boardHalf = w * 0.08;
       canvas.drawLine(Offset(w / 2 - boardHalf, boardY), Offset(w / 2 + boardHalf, boardY), thickLine);
       canvas.drawCircle(Offset(w / 2, rimY), rimR, Paint()..color = Colors.orange.shade800);
       canvas.drawCircle(Offset(w / 2, rimY), rimR, Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.5);
 
-      final threeR = w * 0.46;
-      final rect = Rect.fromCircle(center: Offset(w / 2, rimY), radius: threeR);
-      canvas.drawArc(rect, north ? pi * 0.58 : pi * 1.58, pi * 0.84, false, linePaint);
+      // Three-point arc (NBA-style radius ≈ 23.75 ft from hoop center)
+      final threeR = w * 0.475;
+      final arcRect = Rect.fromCircle(center: Offset(w / 2, rimY), radius: threeR);
+      canvas.drawArc(arcRect, north ? pi * 0.55 : pi * 1.55, pi * 0.9, false, linePaint);
+
+      // Corner three lines
+      final cornerX = w * 0.06;
+      final cornerLen = h * (14 / 94);
+      final cornerY = north ? rimY + cornerLen : rimY - cornerLen;
+      canvas.drawLine(Offset(cornerX, rimY), Offset(cornerX, cornerY), linePaint);
+      canvas.drawLine(Offset(w - cornerX, rimY), Offset(w - cornerX, cornerY), linePaint);
     }
 
     drawEnd(north: true);
     drawEnd(north: false);
 
     _drawLabelBox(canvas, w * 0.04, h * 0.02, 'DEFENSE', Colors.black87, Colors.white);
-    _drawLabelBox(canvas, w * 0.04, h * 0.90, 'OFFENSE', const Color(0xFF3D405B), Colors.white);
-    _drawLabelBox(canvas, w * 0.04, h * 0.96, 'COACHING BOARD', Colors.black87, Colors.white);
-    _drawLabelBox(canvas, w * 0.55, h * 0.96, 'FULL COURT', const Color(0xFF3D405B), Colors.white);
-    _drawLabelBox(canvas, w * 0.36, midY - 8, 'BALLCHART', const Color(0xFF3D405B), Colors.white);
+    _drawLabelBox(canvas, w * 0.04, h * 0.93, 'OFFENSE', const Color(0xFF3D405B), Colors.white);
 
     if (currentStep != null && progress > 0.0 && frame.startOffenseNorm != null && frame.targetOffenseNorm != null) {
       final pathPaint = Paint()

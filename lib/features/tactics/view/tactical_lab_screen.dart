@@ -1156,9 +1156,18 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, c) {
-              final targetH = (MediaQuery.sizeOf(context).height * 0.42).clamp(280.0, 520.0);
-              final w = min(c.maxWidth, targetH * 94 / 50);
-              final h = w * 50 / 94;
+              final screenH = MediaQuery.sizeOf(context).height;
+              final maxCourtH = (screenH * 0.58).clamp(460.0, 760.0);
+              final maxCourtW = c.maxWidth;
+
+              // Regulation full court in landscape: 94 ft length × 50 ft width.
+              double w = maxCourtW;
+              double h = w * 50 / 94;
+              if (h > maxCourtH) {
+                h = maxCourtH;
+                w = h * 94 / 50;
+              }
+
               return Center(
                 child: Stack(
                   alignment: Alignment.center,
