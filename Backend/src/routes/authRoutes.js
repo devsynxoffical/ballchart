@@ -25,6 +25,8 @@ const {
     getAdminOverview,
     getCoachDashboard,
     getPlayerDashboard,
+    getPlayerById,
+    deleteMyAccount,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -37,6 +39,7 @@ router.post('/admin/login', loginAdmin);
 router.get('/me', protect, getMe);
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
+router.post('/account/delete', protect, deleteMyAccount);
 
 // Management Routes
 router.post('/staff/create', protect, createStaff);
@@ -44,6 +47,7 @@ router.get('/staff/credentials', protect, getStaffCredentials);
 router.put('/staff/:id', protect, updateStaff);
 router.delete('/staff/:id', protect, deleteStaff);
 router.post('/player/create', protect, createPlayerByCoach);
+router.get('/player/:id', protect, getPlayerById);
 router.put('/player/:id', protect, updatePlayerByAdmin);
 router.delete('/player/:id', protect, deletePlayerByAdmin);
 router.post('/team/create', protect, createTeamByAdmin);

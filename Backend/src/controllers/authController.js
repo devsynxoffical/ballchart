@@ -21,13 +21,6 @@ const ensureAdmin = (req, res) => {
     }
 };
 
-const ensureCoachOrAdmin = (req, res) => {
-    if (!['head_coach', 'admin', 'coach', 'assistant_coach'].includes(req.user.role)) {
-        res.status(403);
-        throw new Error('Only coaching staff or admin can perform this action');
-    }
-};
-
 const canManagePlayerAction = (user, actionKey) => {
     if (!user) return false;
     if (['admin', 'head_coach'].includes(user.role)) return true;
@@ -587,10 +580,6 @@ const createStaff = asyncHandler(async (req, res) => {
             deletePlayer: !!permissions.deletePlayer,
             createTeam: !!permissions.createTeam,
             manageStaff: !!permissions.manageStaff,
-            createBattle: !!permissions.createBattle,
-            manageBattle: !!permissions.manageBattle,
-            createStrategy: !!permissions.createStrategy,
-            manageStrategy: !!permissions.manageStrategy,
         },
     });
 
@@ -686,24 +675,13 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Get staff credentials for Head Coach and Assistant Coach
+// @desc    Get staff credentials for Head Coach
 // @route   GET /api/auth/staff/credentials
-// @access  Private (Head Coach, Assistant Coach, Admin)
+// @access  Private (Head Coach)
 const getStaffCredentials = asyncHandler(async (req, res) => {
-    ensureCoachOrAdmin(req, res);
+    ensureAdmin(req, res);
 
-    let staff;
-    if (req.user.role === 'admin') {
-        staff = await Coach.find({ managedBy: req.user._id }).select('-password');
-    } else {
-        // For coaches and assistant coaches, get staff from their academy
-        const academyId = req.user.managedBy;
-        if (academyId) {
-            staff = await Coach.find({ managedBy: academyId }).select('-password');
-        } else {
-            staff = [];
-        }
-    }
+    const staff = await Coach.find({ managedBy: req.user._id }).select('-password');
     res.status(200).json(staff);
 });
 
@@ -762,10 +740,6 @@ const updateStaff = asyncHandler(async (req, res) => {
             deletePlayer: !!permissions.deletePlayer,
             createTeam: !!permissions.createTeam,
             manageStaff: !!permissions.manageStaff,
-            createBattle: !!permissions.createBattle,
-            manageBattle: !!permissions.manageBattle,
-            createStrategy: !!permissions.createStrategy,
-            manageStrategy: !!permissions.manageStrategy,
         };
     }
     if (password && password.trim()) {
@@ -784,7 +758,7 @@ const updateStaff = asyncHandler(async (req, res) => {
         nextAssignedTeamIds: normalizeIdList(updated.assignedTeamIds),
     });
 
-    req.io?.emit('STAFF_UPDATED', { academyId: req.user._id, staffId: updated._id });
+    req.io.emit('STAFF_UPDATED', { academyId: req.user._id, staffId: updated._id });
 
     res.status(200).json({
         _id: updated._id,
@@ -824,7 +798,7 @@ const deleteStaff = asyncHandler(async (req, res) => {
     );
 
     await staff.deleteOne();
-    req.io?.emit('STAFF_DELETED', { academyId: req.user._id, staffId: req.params.id });
+    req.io.emit('STAFF_DELETED', { academyId: req.user._id, staffId: req.params.id });
 
     res.status(200).json({ message: 'Staff deleted successfully' });
 });
@@ -869,7 +843,7 @@ const createTeamByAdmin = asyncHandler(async (req, res) => {
         players: [],
     });
 
-    req.io?.emit('TEAM_CREATED', { academyId: req.user._id, teamId: team._id });
+    req.io.emit('TEAM_CREATED', { academyId: req.user._id, teamId: team._id });
 
     res.status(201).json(team);
 });
@@ -915,7 +889,7 @@ const updateTeamByAdmin = asyncHandler(async (req, res) => {
 
     const updated = await team.save();
 
-    req.io?.emit('TEAM_UPDATED', { academyId: req.user._id, teamId: updated._id });
+    req.io.emit('TEAM_UPDATED', { academyId: req.user._id, teamId: updated._id });
 
     res.status(200).json(updated);
 });
@@ -945,7 +919,7 @@ const deleteTeamByAdmin = asyncHandler(async (req, res) => {
 
     await team.deleteOne();
 
-    req.io?.emit('TEAM_DELETED', { academyId: req.user._id, teamId: teamIdString });
+    req.io.emit('TEAM_DELETED', { academyId: req.user._id, teamId: teamIdString });
 
     res.status(200).json({ message: 'Team deleted successfully' });
 });
@@ -989,7 +963,7 @@ const assignTeamLeadsByAdmin = asyncHandler(async (req, res) => {
     team.coachingStaff = staffIds;
     await team.save();
 
-    req.io?.emit('TEAM_LEADS_UPDATED', { academyId: req.user._id, teamId: team._id });
+    req.io.emit('TEAM_LEADS_UPDATED', { academyId: req.user._id, teamId: team._id });
 
     res.status(200).json(team);
 });
@@ -1065,7 +1039,7 @@ const updatePlayerByAdmin = asyncHandler(async (req, res) => {
 
     const updated = await player.save();
 
-    req.io?.emit('PLAYER_UPDATED', { academyId: req.user._id, playerId: updated._id });
+    req.io.emit('PLAYER_UPDATED', { academyId: req.user._id, playerId: updated._id });
 
     res.status(200).json({
         _id: updated._id,
@@ -1101,7 +1075,7 @@ const deletePlayerByAdmin = asyncHandler(async (req, res) => {
     );
     await player.deleteOne();
 
-    req.io?.emit('PLAYER_DELETED', { academyId: adminScopeId, playerId: player._id });
+    req.io.emit('PLAYER_DELETED', { academyId: adminScopeId, playerId: player._id });
 
     res.status(200).json({ message: 'Player deleted successfully' });
 });
@@ -1212,6 +1186,60 @@ const getPlayerDashboard = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Get player by id (staff)
+// @route   GET /api/auth/player/:id
+// @access  Private (Staff)
+const getPlayerById = asyncHandler(async (req, res) => {
+    if (!canManagePlayerAction(req.user, 'updatePlayer') && !['admin', 'head_coach', 'coach', 'assistant_coach'].includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Access denied');
+    }
+    const player = await getManagedPlayerForUser(req.user, req.params.id);
+    if (!player) {
+        res.status(404);
+        throw new Error('Player not found');
+    }
+    const team = await Team.findOne({ players: player._id, managedBy: player.managedBy }).select('name ageGroup');
+    res.status(200).json({
+        _id: player._id,
+        id: player._id,
+        username: player.username,
+        email: player.email,
+        role: player.role,
+        position: player.position,
+        ageRange: player.ageRange,
+        jersey: player.jersey,
+        profileImageUrl: player.profileImageUrl || player.profilePic,
+        teamName: team?.name,
+        teamId: team?._id,
+    });
+});
+
+// @desc    Delete authenticated user's account
+// @route   POST /api/auth/account/delete
+// @access  Private
+const deleteMyAccount = asyncHandler(async (req, res) => {
+    const phrase = (req.body?.confirmPhrase || '').toString().trim();
+    if (phrase !== 'DELETE MY ACCOUNT') {
+        res.status(400);
+        throw new Error('Confirmation phrase required');
+    }
+    const userId = req.user._id;
+    const role = req.user.role;
+    if (role === 'admin' || role === 'head_coach') {
+        await Admin.findByIdAndDelete(userId);
+    } else if (['coach', 'assistant_coach'].includes(role)) {
+        await Coach.findByIdAndDelete(userId);
+    } else if (role === 'player') {
+        await Player.findByIdAndDelete(userId);
+        await Team.updateMany({ players: userId }, { $pull: { players: userId } });
+    } else {
+        res.status(400);
+        throw new Error('Unsupported account type');
+    }
+    res.status(200).json({ ok: true, message: 'Account deleted' });
+});
+
 module.exports = {
     registerCoach,
     registerPlayer,
@@ -1237,4 +1265,6 @@ module.exports = {
     getProfile,
     getCoachDashboard,
     getPlayerDashboard,
+    getPlayerById,
+    deleteMyAccount,
 };

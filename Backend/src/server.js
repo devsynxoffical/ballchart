@@ -1,6 +1,8 @@
 const express = require('express');
+const path = require('path');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const connectDB = require('./config/db');
 const { Server } = require('socket.io');
 const http = require('http');
@@ -32,9 +34,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// Routes Placeholder
-app.get('/', (req, res) => {
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+app.get('/', (_req, res) => {
     res.send('BallChart Backend is running!');
+});
+
+app.get('/health', (_req, res) => {
+    res.status(200).json({ ok: true, service: 'ballchart-api' });
 });
 
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -42,18 +49,42 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/battles', require('./routes/battleRoutes'));
 app.use('/api/strategies', require('./routes/strategyRoutes'));
 app.use('/api/teams', require('./routes/teamRoutes'));
-
-// Serve static files and handle missing routes
-app.use('/api', (req, res, next) => {
-    res.status(404).json({ message: `API route ${req.method} ${req.path} not found` });
-});
+app.use('/api/messages', require('./routes/messagingRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/player-development', require('./routes/playerDevelopmentRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);
 
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+        next(new Error('Unauthorized'));
+        return;
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.id;
+        socket.userRole = decoded.role;
+        next();
+    } catch (err) {
+        next(new Error('Unauthorized'));
+    }
+});
+
 // Socket.io Connection
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('A user connected:', socket.id, socket.userId || '');
+
+    socket.on('join_tactical_room', ({ battleId }) => {
+        if (battleId) socket.join(`tactical:${battleId}`);
+    });
+
+    socket.on('TACTICAL_ANIMATION_FRAME', (payload) => {
+        if (!payload || !payload.battleId) return;
+        socket.to(`tactical:${payload.battleId}`).emit('TACTICAL_ANIMATION_FRAME', payload);
+    });
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);

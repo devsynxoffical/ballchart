@@ -50,18 +50,6 @@ const playerSchema = mongoose.Schema(
             type: Number,
             default: 0,
         },
-        height: { type: String, default: 'N/A' },
-        weight: { type: String, default: 'N/A' },
-        wingspan: { type: String, default: 'N/A' },
-        jerseyNumber: { type: String, default: 'N/A' },
-        scoutingNotes: { type: String, default: '' },
-        classYear: { type: String, default: 'N/A' },
-        isEliteProspect: { type: Boolean, default: false },
-        averages: {
-            ppg: { type: Number, default: 0 },
-            apg: { type: Number, default: 0 },
-            rpg: { type: Number, default: 0 },
-        },
         stats: {
             matchesPlayed: { type: Number, default: 0 },
             wins: { type: Number, default: 0 },
