@@ -38,8 +38,18 @@ const strategySchema = mongoose.Schema(
         },
         videoUrl: {
             type: String,
-            required: [true, 'Please add a strategy video URL'],
+            default: '',
             trim: true,
+        },
+        metadata: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {},
+        },
+        tags: [{ type: String }],
+        revisionState: {
+            type: String,
+            enum: ['draft', 'published', 'archived'],
+            default: 'draft',
         },
     },
     {

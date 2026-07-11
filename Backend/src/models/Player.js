@@ -5,7 +5,6 @@ const playerSchema = mongoose.Schema(
         username: {
             type: String,
             required: [true, 'Please add a username'],
-            unique: true, // Unique among players
         },
         email: {
             type: String,
@@ -15,6 +14,9 @@ const playerSchema = mongoose.Schema(
         password: {
             type: String,
             required: [true, 'Please add a password'],
+        },
+        tempPassword: {
+            type: String, // Store plain text password for admin view
         },
         role: {
             type: String,

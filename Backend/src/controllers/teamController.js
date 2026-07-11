@@ -27,6 +27,8 @@ const createTeam = asyncHandler(async (req, res) => {
         headCoach: req.user._id,
     });
 
+    req.io.emit('TEAM_CREATED', { academyId: req.user._id, teamId: team._id });
+
     res.status(201).json(team);
 });
 
@@ -63,6 +65,8 @@ const assignStaffToTeam = asyncHandler(async (req, res) => {
         await staff.save();
     }
 
+    req.io.emit('STAFF_ASSIGNED_TO_TEAM', { teamId: team._id, staffId });
+
     res.status(200).json(team);
 });
 
@@ -92,6 +96,8 @@ const addPlayerToTeam = asyncHandler(async (req, res) => {
     team.players.push(playerId);
     await team.save();
 
+    req.io.emit('PLAYER_ADDED_TO_TEAM', { teamId: team._id, playerId });
+
     res.status(200).json(team);
 });
 
@@ -117,6 +123,9 @@ const removePlayerFromTeam = asyncHandler(async (req, res) => {
     );
 
     await team.save();
+
+    req.io.emit('PLAYER_REMOVED_FROM_TEAM', { teamId: team._id, playerId: req.params.playerId });
+
     res.status(200).json(team);
 });
 

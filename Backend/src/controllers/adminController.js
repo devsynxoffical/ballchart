@@ -248,6 +248,8 @@ const updateAcademyStatus = asyncHandler(async (req, res) => {
 
     const updated = await academy.save();
 
+    req.io.emit('ACADEMY_STATUS_UPDATED', { academyId: updated._id, status: updated.approvalStatus, action: normalizedAction });
+
     res.status(200).json({
         _id: updated._id,
         academyName: updated.academyName,
@@ -282,6 +284,8 @@ const deleteAcademy = asyncHandler(async (req, res) => {
     });
     await Coach.deleteMany({ managedBy: academyId });
     await academy.deleteOne();
+
+    req.io.emit('ACADEMY_DELETED', { academyId });
 
     res.status(200).json({ message: 'Academy and related data deleted successfully' });
 });
@@ -361,6 +365,9 @@ const deleteUser = asyncHandler(async (req, res) => {
     }
 
     await user.deleteOne();
+
+    req.io.emit('USER_DELETED', { id, type: resolvedType, academyId });
+
     res.status(200).json({ message: `${resolvedType === 'coach' ? 'Coach' : 'Player'} removed` });
 });
 
@@ -386,6 +393,8 @@ const verifyUser = asyncHandler(async (req, res) => {
 
     user.isVerified = !user.isVerified;
     const updatedUser = await user.save();
+
+    req.io.emit('USER_VERIFIED', { id: updatedUser._id, type: resolvedType, isVerified: updatedUser.isVerified, academyId });
 
     res.json({
         _id: updatedUser._id,
