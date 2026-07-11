@@ -53,3 +53,4 @@ app.*.map.json
 **/build/
 node_modules
 .env
+.backend-sync/

@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const connectDB = require('./config/db');
 const { Server } = require('socket.io');
 const http = require('http');
@@ -35,6 +36,14 @@ app.use((req, res, next) => {
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+app.get('/', (_req, res) => {
+    res.send('BallChart Backend is running!');
+});
+
+app.get('/health', (_req, res) => {
+    res.status(200).json({ ok: true, service: 'ballchart-api' });
+});
+
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/battles', require('./routes/battleRoutes'));
@@ -48,14 +57,25 @@ app.use('/api/player-development', require('./routes/playerDevelopmentRoutes'));
 app.use(notFound);
 app.use(errorHandler);
 
-// Routes Placeholder
-app.get('/', (req, res) => {
-    res.send('BallChart Backend is running!');
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+        next(new Error('Unauthorized'));
+        return;
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.id;
+        socket.userRole = decoded.role;
+        next();
+    } catch (err) {
+        next(new Error('Unauthorized'));
+    }
 });
 
 // Socket.io Connection
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('A user connected:', socket.id, socket.userId || '');
 
     socket.on('join_tactical_room', ({ battleId }) => {
         if (battleId) socket.join(`tactical:${battleId}`);

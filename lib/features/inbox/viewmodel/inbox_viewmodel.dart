@@ -37,7 +37,7 @@ class InboxViewModel extends ChangeNotifier {
     _api.socket?.on('NOTIFICATION_NEW', _onNotificationNew!);
     _api.socket?.on('NOTIFICATION_CREATED', _onNotificationNew!);
     refresh();
-    _pollTimer = Timer.periodic(const Duration(seconds: 12), (_) => refresh());
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => refresh());
   }
 
   Future<void> refresh() async {
@@ -54,8 +54,8 @@ class InboxViewModel extends ChangeNotifier {
         final t = n.type.toLowerCase();
         return t.contains('message') || t == 'chat';
       }).length;
-      // Fallback to notification-derived message count when conversation counters lag.
-      _unreadMessages = convoUnread > 0 ? convoUnread : notifMessageUnread;
+      // Use the higher count so message icon updates even when conversation counters lag.
+      _unreadMessages = convoUnread >= notifMessageUnread ? convoUnread : notifMessageUnread;
       notifyListeners();
     } catch (_) {
       /* keep last known counts */

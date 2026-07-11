@@ -92,7 +92,7 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
     final user = context.watch<ProfileViewmodel>().user;
     final name = user?.username ?? 'Coach';
     final role = user?.role ?? 'coach';
-    final academyName = user?.teamName?.trim() ?? '';
+    final academyName = (user?.academyName ?? user?.teamName)?.trim() ?? '';
     final displayName = name.trim().isEmpty ? 'Coach' : name.split(' ').first;
 
     return Container(

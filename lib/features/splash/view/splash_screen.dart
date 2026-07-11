@@ -219,7 +219,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           Container(width: 32, height: 1, color: primaryColor.withOpacity(0.4)),
                           const SizedBox(width: 8),
                           const Text(
-                            'ELITE BASKETBALL ACADEMY',
+                            'BASKETBALL ACADEMY PLATFORM',
                             style: TextStyle(
                               color: primaryColor,
                               fontSize: 14,

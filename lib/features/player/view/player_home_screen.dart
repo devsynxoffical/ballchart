@@ -95,7 +95,7 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
     final user = context.watch<ProfileViewmodel>().user;
     final name = user?.username ?? 'Player';
     final role = user?.role ?? 'player';
-    final academyName = user?.teamName?.trim() ?? '';
+    final academyName = (user?.academyName ?? user?.teamName)?.trim() ?? '';
     final displayName = name.trim().isEmpty ? 'Player' : name.split(' ').first;
     final picRaw = user is UserModel ? user.profileImageUrl : null;
     final picUrl = (picRaw != null && picRaw.trim().isNotEmpty) ? ApiService.resolveMediaUrl(picRaw) : '';

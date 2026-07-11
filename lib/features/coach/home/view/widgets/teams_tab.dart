@@ -480,7 +480,9 @@ class _TeamsTabState extends State<TeamsTab> {
                   ],
                 ),
                 Text(
-                  team['ageGroup']?.toString().toUpperCase() ?? 'ELITE DIVISION',
+                  team['ageGroup']?.toString().trim().isNotEmpty == true
+                      ? '${team['ageGroup'].toString().trim().toUpperCase()} DIVISION'
+                      : 'OPEN DIVISION',
                   style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1),
                 ),
                 const SizedBox(height: 16),

@@ -42,6 +42,14 @@ Future<void> showCreateBattleSheet(
     'Home': false,
     'Film': false,
   };
+  if (existing != null) {
+    for (final raw in existing.tags) {
+      final key = raw.trim().isEmpty
+          ? ''
+          : raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+      if (tagState.containsKey(key)) tagState[key] = true;
+    }
+  }
 
   final formats = <Map<String, dynamic>>[
     {'id': 'scrimmage_5v5', 'label': '5v5 scrimmage', 'icon': Icons.groups_outlined},

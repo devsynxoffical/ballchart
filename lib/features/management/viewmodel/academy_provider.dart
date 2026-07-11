@@ -49,7 +49,7 @@ class AcademyProvider extends ChangeNotifier {
 
   Academy academy = Academy(
     id: 'a1',
-    name: 'Elite Basketball Academy',
+    name: 'Academy',
     logoUrl: null,
     teams: [],
     staff: [],

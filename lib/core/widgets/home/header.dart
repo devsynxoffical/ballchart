@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../features/profile/viewmodel/profile_viewmodel.dart';
 import '../../constants/colors.dart';
+import '../inbox_header_icons.dart';
 
 class Header extends StatelessWidget {
   const Header({super.key});
@@ -109,6 +110,9 @@ class Header extends StatelessWidget {
               ],
             ),
           ),
+          const MessagesIconButton(iconColor: AppColors.yellow, iconSize: 24),
+          const NotificationBellButton(iconColor: AppColors.yellow, iconSize: 24),
+          const SizedBox(width: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(

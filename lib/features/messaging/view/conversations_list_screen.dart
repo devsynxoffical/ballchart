@@ -328,15 +328,32 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: ConversationsListScreen.outlineColor, fontSize: 13),
               ),
-              trailing: trailingText.isEmpty
-                  ? null
-                  : Text(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (item.unreadCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: ConversationsListScreen.primaryColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
+                        style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  if (trailingText.isNotEmpty)
+                    Text(
                       trailingText,
                       style: TextStyle(
                         color: ConversationsListScreen.outlineColor.withValues(alpha: 0.85),
                         fontSize: 11,
                       ),
                     ),
+                ],
+              ),
               onTap: () async {
                 await Navigator.push(
                   context,

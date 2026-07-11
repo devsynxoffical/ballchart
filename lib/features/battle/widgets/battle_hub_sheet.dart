@@ -97,6 +97,21 @@ class _BattleHubContent extends StatelessWidget {
           _when(battle.dateTime),
           style: TextStyle(color: outlineColor.withValues(alpha: 0.95), fontSize: 12),
         ),
+        if (battle.location.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.place_outlined, size: 14, color: outlineColor.withValues(alpha: 0.9)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  battle.location.trim(),
+                  style: TextStyle(color: outlineColor.withValues(alpha: 0.95), fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

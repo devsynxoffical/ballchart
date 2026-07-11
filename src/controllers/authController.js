@@ -1186,6 +1186,60 @@ const getPlayerDashboard = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Get player by id (staff)
+// @route   GET /api/auth/player/:id
+// @access  Private (Staff)
+const getPlayerById = asyncHandler(async (req, res) => {
+    if (!canManagePlayerAction(req.user, 'updatePlayer') && !['admin', 'head_coach', 'coach', 'assistant_coach'].includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Access denied');
+    }
+    const player = await getManagedPlayerForUser(req.user, req.params.id);
+    if (!player) {
+        res.status(404);
+        throw new Error('Player not found');
+    }
+    const team = await Team.findOne({ players: player._id, managedBy: player.managedBy }).select('name ageGroup');
+    res.status(200).json({
+        _id: player._id,
+        id: player._id,
+        username: player.username,
+        email: player.email,
+        role: player.role,
+        position: player.position,
+        ageRange: player.ageRange,
+        jersey: player.jersey,
+        profileImageUrl: player.profileImageUrl || player.profilePic,
+        teamName: team?.name,
+        teamId: team?._id,
+    });
+});
+
+// @desc    Delete authenticated user's account
+// @route   POST /api/auth/account/delete
+// @access  Private
+const deleteMyAccount = asyncHandler(async (req, res) => {
+    const phrase = (req.body?.confirmPhrase || '').toString().trim();
+    if (phrase !== 'DELETE MY ACCOUNT') {
+        res.status(400);
+        throw new Error('Confirmation phrase required');
+    }
+    const userId = req.user._id;
+    const role = req.user.role;
+    if (role === 'admin' || role === 'head_coach') {
+        await Admin.findByIdAndDelete(userId);
+    } else if (['coach', 'assistant_coach'].includes(role)) {
+        await Coach.findByIdAndDelete(userId);
+    } else if (role === 'player') {
+        await Player.findByIdAndDelete(userId);
+        await Team.updateMany({ players: userId }, { $pull: { players: userId } });
+    } else {
+        res.status(400);
+        throw new Error('Unsupported account type');
+    }
+    res.status(200).json({ ok: true, message: 'Account deleted' });
+});
+
 module.exports = {
     registerCoach,
     registerPlayer,
@@ -1211,4 +1265,6 @@ module.exports = {
     getProfile,
     getCoachDashboard,
     getPlayerDashboard,
+    getPlayerById,
+    deleteMyAccount,
 };
