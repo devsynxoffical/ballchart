@@ -195,41 +195,56 @@ class _SplashScreenState extends State<SplashScreen> {
                       const SizedBox(height: 24),
 
                       // Text Branding
-                      RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
-                            letterSpacing: -1,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: RichText(
+                            text: const TextSpan(
+                              style: TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.w900,
+                                fontStyle: FontStyle.italic,
+                                letterSpacing: -1,
+                              ),
+                              children: [
+                                TextSpan(text: 'BALL', style: TextStyle(color: Colors.white)),
+                                TextSpan(text: 'CHART', style: TextStyle(color: primaryColor)),
+                              ],
+                            ),
                           ),
-                          children: [
-                            TextSpan(text: 'BALL', style: TextStyle(color: Colors.white)),
-                            TextSpan(text: 'CHART', style: TextStyle(color: primaryColor)),
-                          ],
                         ),
                       ),
 
                       const SizedBox(height: 24),
                       
-                      // Divider & Subtitle
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(width: 32, height: 1, color: primaryColor.withOpacity(0.4)),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'BASKETBALL ACADEMY PLATFORM',
-                            style: TextStyle(
-                              color: primaryColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 3,
+                      // Divider & Subtitle — no fixed-width Row (avoids phone overflow)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'BASKETBALL ACADEMY PLATFORM',
+                                maxLines: 1,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: primaryColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(width: 32, height: 1, color: primaryColor.withOpacity(0.4)),
-                        ],
+                            const SizedBox(height: 10),
+                            Container(
+                              height: 1,
+                              width: double.infinity,
+                              color: primaryColor.withValues(alpha: 0.35),
+                            ),
+                          ],
+                        ),
                       ),
                       
                       const SizedBox(height: 24),
@@ -290,13 +305,17 @@ class _SplashScreenState extends State<SplashScreen> {
                       ),
                       const SizedBox(height: 24),
                       
-                      const Text(
-                        'UNLOCKING PEAK PERFORMANCE',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'UNLOCKING PEAK PERFORMANCE',
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
                         ),
                       ),
                     ],

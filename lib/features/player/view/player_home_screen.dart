@@ -198,22 +198,6 @@ class _PlayerHomeScreenState extends State<PlayerHomeScreen> {
           ),
           const MessagesIconButton(),
           const NotificationBellButton(),
-          // Status Indicator
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: Colors.green,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withOpacity(0.5),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

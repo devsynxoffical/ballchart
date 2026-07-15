@@ -41,6 +41,11 @@ const strategySchema = mongoose.Schema(
             default: '',
             trim: true,
         },
+        thumbnailUrl: {
+            type: String,
+            default: '',
+            trim: true,
+        },
         metadata: {
             type: mongoose.Schema.Types.Mixed,
             default: {},

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'tactical_entities.dart';
 
-/// Full court: x ∈ [0,1] left–right, y ∈ [0,1] **north basket → south basket** (defense guards north hoop, offense attacks south).
+/// Full court logical coords: x ∈ [0,1] sideline↔sideline, y ∈ [0,1] **north basket → south basket**
+/// (defense guards north hoop, offense attacks south).
+/// On the landscape canvas these map to: left = north/defense, right = south/offense.
 @immutable
 class FullCourtLayout {
   final List<Offset> offense;
@@ -13,11 +15,11 @@ class FullCourtLayout {
   static const int playersPerTeam = 5;
 }
 
-/// Normalized half-court coordinates: (0,0) top-left, (1,1) bottom-right — offense toward bottom hoop.
+/// Normalized court coordinates: (0,0) west+north, (1,1) east+south — offense toward south hoop.
 class CourtSlots {
   CourtSlots._();
 
-  /// Full 94×50 style layout: **10 players** — bottom five = offense (O1–O5), top five = defense (D1–D5).
+  /// Full 94×50 layout: **10 players** — high-y = offense (O1–O5), low-y = defense (D1–D5).
   static FullCourtLayout fullCourt(FormationPreset f) {
     switch (f) {
       case FormationPreset.fastBreak:
@@ -150,14 +152,17 @@ class CourtSlots {
     return o[slotToIndex(slot).clamp(0, o.length - 1)];
   }
 
-  /// Map normalized court coords (x = sideline, y = north→south) to canvas pixels.
+  /// Map normalized coords to landscape canvas pixels.
+  /// Logical y (north→south) runs left→right; logical x (west→east) runs bottom→top
+  /// after a 90° CW rotation so the court stays 94×50 landscape with NBA proportions.
   static Offset normToPixel(Offset norm, Size size) =>
-      Offset(norm.dx * size.width, norm.dy * size.height);
+      Offset(norm.dy * size.width, (1.0 - norm.dx) * size.height);
 
-  static Offset pixelToNorm(Offset pixel, Size size) => Offset(
-        (pixel.dx / size.width).clamp(0.0, 1.0),
-        (pixel.dy / size.height).clamp(0.0, 1.0),
-      );
+  static Offset pixelToNorm(Offset pixel, Size size) {
+    final nx = (1.0 - pixel.dy / size.height).clamp(0.0, 1.0);
+    final ny = (pixel.dx / size.width).clamp(0.0, 1.0);
+    return Offset(nx, ny);
+  }
 }
 
 /// Ball state: which 1-based slot possesses the rock.

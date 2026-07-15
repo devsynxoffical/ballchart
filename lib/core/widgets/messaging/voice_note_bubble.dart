@@ -27,8 +27,9 @@ class VoiceNoteBubble extends StatefulWidget {
 }
 
 class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
-  final VoiceNoteService _voice = VoiceNoteService();
+  final VoiceNoteService _voice = VoiceNoteService.playback();
   bool _playing = false;
+  bool _busy = false;
   Duration _position = Duration.zero;
   Duration _total = Duration.zero;
   StreamSubscription<PlayerState>? _stateSub;
@@ -109,6 +110,11 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
   }
 
   Future<void> _togglePlay() async {
+    if (_busy) return;
+    if (_sourceKey.isEmpty) {
+      _showPlayError('No audio available for this clip yet.');
+      return;
+    }
     if (_playing) {
       await _voice.stopPlayback();
       if (mounted) {
@@ -119,11 +125,37 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
       }
       return;
     }
-    if (widget.localPath != null && widget.localPath!.isNotEmpty) {
-      await _voice.playLocal(widget.localPath!);
-    } else if (widget.voiceUrl.isNotEmpty) {
-      await _voice.playUrl(widget.voiceUrl);
+
+    setState(() => _busy = true);
+    try {
+      if (widget.localPath != null && widget.localPath!.isNotEmpty) {
+        await _voice.playLocal(widget.localPath!);
+      } else if (widget.voiceUrl.isNotEmpty) {
+        await _voice.playUrl(widget.voiceUrl);
+      } else {
+        throw Exception('No audio available for this clip yet.');
+      }
+      if (mounted) setState(() => _playing = true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _playing = false);
+        _showPlayError(e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _showPlayError(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -144,7 +176,9 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
               radius: 18,
               backgroundColor: accent.withValues(alpha: 0.2),
               child: Icon(
-                _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                _busy
+                    ? Icons.hourglass_top_rounded
+                    : (_playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
                 color: accent,
                 size: 20,
               ),

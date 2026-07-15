@@ -58,11 +58,17 @@ class AcademyProvider extends ChangeNotifier {
 
   // Set current user from authentication
   void setCurrentUser(UserModel user) {
-    // Reset role-specific caches when session changes to avoid stale/unauthorized refresh calls.
-    _cleanupSocketListeners();
-    _hasLoadedOverview = false;
-    _coachDashboard = null;
-    _playerDashboard = null;
+    final previousId = _currentUser?.id;
+    final sameUser = previousId != null && previousId == user.id;
+
+    // Only drop role caches when the signed-in account actually changes.
+    // Clearing on every profile refresh raced TeamsTab and showed "No coach data available".
+    if (!sameUser) {
+      _cleanupSocketListeners();
+      _hasLoadedOverview = false;
+      _coachDashboard = null;
+      _playerDashboard = null;
+    }
     _error = null;
     _playerDashboardError = null;
     _currentUser = user;
@@ -166,8 +172,24 @@ class AcademyProvider extends ChangeNotifier {
   }
 
   Future<void> loadCoachDashboard({bool force = false}) async {
-    if (_isCoachLoading) return;
+    if (_isCoachLoading) {
+      // Wait for the in-flight request instead of silently returning.
+      while (_isCoachLoading) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      if (_coachDashboard != null && !force) return;
+      if (!force) return;
+    }
     if (_coachDashboard != null && !force) return;
+
+    // Check if user is authenticated
+    final token = await _apiService.getToken();
+    if (token == null) {
+      _error = 'Not authenticated. Please log in again.';
+      _coachDashboard = null;
+      notifyListeners();
+      return;
+    }
 
     _isCoachLoading = true;
     _error = null;
@@ -182,7 +204,21 @@ class AcademyProvider extends ChangeNotifier {
       _setupSocketListeners();
     } catch (e) {
       _coachDashboard = null;
-      _error = e.toString();
+      String errorMessage = e.toString();
+      if (errorMessage.contains('401') || errorMessage.contains('Unauthorized')) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (errorMessage.contains('403') || errorMessage.contains('Forbidden')) {
+        errorMessage = 'Access denied. You do not have permission to view coach data.';
+      } else if (errorMessage.contains('Cannot read properties of undefined')) {
+        errorMessage = 'Connection error. Please check your internet connection.';
+      } else if (errorMessage.contains('Network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (errorMessage.contains('timeout') || errorMessage.contains('Timeout')) {
+        errorMessage = 'Request timed out. Please try again.';
+      } else {
+        errorMessage = errorMessage.replaceFirst(RegExp(r'^Exception:\s*'), '');
+      }
+      _error = errorMessage;
     } finally {
       _isCoachLoading = false;
       notifyListeners();

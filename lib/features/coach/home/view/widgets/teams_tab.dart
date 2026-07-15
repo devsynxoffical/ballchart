@@ -176,14 +176,46 @@ class _TeamsTabState extends State<TeamsTab> {
           );
         }
 
-        // Show empty state
+        // Show empty state with retry (dashboard cleared by a race, or never loaded)
         if (provider.coachDashboard == null) {
-          return const SizedBox(
+          return SizedBox(
             height: 400,
             child: Center(
-              child: Text(
-                'No coach data available',
-                style: TextStyle(color: Colors.white70),
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'No coach data available',
+                      style: TextStyle(color: Colors.white70, fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Pull to refresh or tap retry to load your teams.',
+                      style: TextStyle(color: outlineColor, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () => _loadDataWithRetry(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Text(
+                          'RETRY',
+                          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -197,8 +229,12 @@ class _TeamsTabState extends State<TeamsTab> {
 
         final teams = allTeams;
 
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+        return RefreshIndicator(
+          color: primaryColor,
+          backgroundColor: surfaceHigh,
+          onRefresh: () => _loadDataWithRetry(),
+          child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,6 +294,7 @@ class _TeamsTabState extends State<TeamsTab> {
               const SizedBox(height: 40),
             ],
           ),
+        ),
         );
       },
     );

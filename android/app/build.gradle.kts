@@ -51,14 +51,26 @@ android {
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
-            } else {
-                throw GradleException(
-                    "Release signing is not configured. Create android/key.properties " +
-                        "(see android/key.properties.example) and upload-keystore.jks. " +
-                        "Run: powershell -File android/create-upload-keystore.ps1"
-                )
             }
         }
+    }
+}
+
+// Only require Play Store signing when building a release artifact (not debug / flutter run).
+gradle.taskGraph.whenReady {
+    val buildingRelease = allTasks.any { task ->
+        val name = task.name
+        name.contains("Release", ignoreCase = false) &&
+            (name.startsWith("assemble") ||
+                name.startsWith("bundle") ||
+                name.startsWith("package"))
+    }
+    if (buildingRelease && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "Release signing is not configured. Create android/key.properties " +
+                "(see android/key.properties.example) and upload-keystore.jks. " +
+                "Run: powershell -File android/create-upload-keystore.ps1"
+        )
     }
 }
 

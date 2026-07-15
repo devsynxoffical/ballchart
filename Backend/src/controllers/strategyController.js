@@ -48,6 +48,64 @@ const isValidHttpUrl = (value) => {
     }
 };
 
+const youtubeIdFromUrl = (rawUrl) => {
+    const raw = (rawUrl || '').toString().trim();
+    if (!raw) return null;
+    let parsed;
+    try {
+        parsed = new URL(raw);
+    } catch (_) {
+        return null;
+    }
+    const host = (parsed.hostname || '').toLowerCase();
+    if (host.includes('youtu.be')) {
+        const id = (parsed.pathname || '').split('/').filter(Boolean)[0];
+        return id || null;
+    }
+    if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+        const v = parsed.searchParams.get('v');
+        if (v && v.trim()) return v.trim();
+        const parts = (parsed.pathname || '').split('/').filter(Boolean);
+        for (let i = 0; i < parts.length - 1; i += 1) {
+            const s = parts[i].toLowerCase();
+            if (s === 'embed' || s === 'shorts' || s === 'live' || s === 'v') {
+                return parts[i + 1] || null;
+            }
+        }
+    }
+    return null;
+};
+
+const thumbnailFromVideoUrl = (videoUrl, explicit) => {
+    const explicitTrim = (explicit || '').toString().trim();
+    if (explicitTrim && isValidHttpUrl(explicitTrim)) return explicitTrim;
+    const id = youtubeIdFromUrl(videoUrl);
+    return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : '';
+};
+
+const serializeStrategy = (item, creator) => ({
+    _id: item._id,
+    title: item.title,
+    category: item.category,
+    sourceType: item.sourceType,
+    sourceText: item.sourceText,
+    videoUrl: item.videoUrl || '',
+    thumbnailUrl:
+        (item.thumbnailUrl || '').toString().trim() ||
+        thumbnailFromVideoUrl(item.videoUrl || '', ''),
+    metadata: item.metadata || {},
+    tags: item.tags || [],
+    revisionState: item.revisionState || 'draft',
+    createdAt: item.createdAt,
+    createdBy: creator
+        ? {
+            _id: creator._id,
+            username: creator.username,
+            role: creator.role,
+        }
+        : null,
+});
+
 // @desc    Create strategy with video URL
 // @route   POST /api/strategies
 // @access  Private (academy staff)
@@ -57,7 +115,7 @@ const createStrategy = asyncHandler(async (req, res) => {
         throw new Error('Only academy staff can create strategies');
     }
 
-    const { title, category, sourceType, sourceText, videoUrl, metadata, tags, revisionState } = req.body;
+    const { title, category, sourceType, sourceText, videoUrl, thumbnailUrl, metadata, tags, revisionState } = req.body;
     if (!title) {
         res.status(400);
         throw new Error('Title is required');
@@ -66,6 +124,11 @@ const createStrategy = asyncHandler(async (req, res) => {
     if (v && !isValidHttpUrl(v)) {
         res.status(400);
         throw new Error('Please provide a valid video URL (http/https)');
+    }
+    const thumb = thumbnailFromVideoUrl(v, thumbnailUrl);
+    if (thumb && !isValidHttpUrl(thumb)) {
+        res.status(400);
+        throw new Error('Please provide a valid thumbnail URL (http/https)');
     }
 
     const academyScopeId = await resolveAcademyScopeId(req.user);
@@ -85,31 +148,14 @@ const createStrategy = asyncHandler(async (req, res) => {
         sourceType: sourceType === 'voice' ? 'voice' : 'text',
         sourceText: (sourceText || '').toString().trim(),
         videoUrl: v,
+        thumbnailUrl: thumb,
         metadata: metadata && typeof metadata === 'object' ? metadata : {},
         tags: Array.isArray(tags) ? tags.map((t) => String(t)) : [],
         revisionState: ['draft', 'published', 'archived'].includes(revisionState) ? revisionState : 'draft',
     });
 
     const creator = await resolveCreator(strategy.createdBy, strategy.createdByRole);
-    res.status(201).json({
-        _id: strategy._id,
-        title: strategy.title,
-        category: strategy.category,
-        sourceType: strategy.sourceType,
-        sourceText: strategy.sourceText,
-        videoUrl: strategy.videoUrl,
-        metadata: strategy.metadata || {},
-        tags: strategy.tags || [],
-        revisionState: strategy.revisionState || 'draft',
-        createdAt: strategy.createdAt,
-        createdBy: creator
-            ? {
-                _id: creator._id,
-                username: creator.username,
-                role: creator.role,
-            }
-            : null,
-    });
+    res.status(201).json(serializeStrategy(strategy, creator));
 });
 
 // @desc    Get live strategy feed for academy
@@ -147,24 +193,13 @@ const getStrategies = asyncHandler(async (req, res) => {
     });
 
     res.status(200).json(
-        strategies.map((item) => ({
-            _id: item._id,
-            title: item.title,
-            category: item.category,
-            sourceType: item.sourceType,
-            sourceText: item.sourceText,
-            videoUrl: item.videoUrl,
-            metadata: item.metadata || {},
-            tags: item.tags || [],
-            revisionState: item.revisionState || 'draft',
-            createdAt: item.createdAt,
-            createdBy:
-                creatorMap.get(toIdString(item.createdBy)) || {
-                    _id: item.createdBy,
-                    username: 'Unknown',
-                    role: item.createdByRole,
-                },
-        }))
+        strategies.map((item) =>
+            serializeStrategy(item, creatorMap.get(toIdString(item.createdBy)) || {
+                _id: item.createdBy,
+                username: 'Unknown',
+                role: item.createdByRole,
+            })
+        )
     );
 });
 
@@ -189,7 +224,7 @@ const updateStrategy = asyncHandler(async (req, res) => {
         throw new Error('Not authorized to update this strategy');
     }
 
-    const { title, category, sourceText, videoUrl, metadata, tags, revisionState, sourceType } = req.body;
+    const { title, category, sourceText, videoUrl, thumbnailUrl, metadata, tags, revisionState, sourceType } = req.body;
     if (title) strategy.title = title.toString().trim();
     if (category && ['offense', 'defense', 'drills', 'general'].includes(category)) strategy.category = category;
     if (sourceText !== undefined) strategy.sourceText = (sourceText || '').toString().trim();
@@ -201,6 +236,14 @@ const updateStrategy = asyncHandler(async (req, res) => {
             throw new Error('Invalid video URL');
         }
         strategy.videoUrl = v;
+        strategy.thumbnailUrl = thumbnailFromVideoUrl(v, thumbnailUrl ?? strategy.thumbnailUrl);
+    } else if (thumbnailUrl !== undefined) {
+        const t = (thumbnailUrl || '').toString().trim();
+        if (t && !isValidHttpUrl(t)) {
+            res.status(400);
+            throw new Error('Invalid thumbnail URL');
+        }
+        strategy.thumbnailUrl = t;
     }
     if (metadata && typeof metadata === 'object') {
         strategy.metadata = { ...(strategy.metadata || {}), ...metadata };
@@ -212,25 +255,7 @@ const updateStrategy = asyncHandler(async (req, res) => {
 
     await strategy.save();
     const creator = await resolveCreator(strategy.createdBy, strategy.createdByRole);
-    res.status(200).json({
-        _id: strategy._id,
-        title: strategy.title,
-        category: strategy.category,
-        sourceType: strategy.sourceType,
-        sourceText: strategy.sourceText,
-        videoUrl: strategy.videoUrl,
-        metadata: strategy.metadata || {},
-        tags: strategy.tags || [],
-        revisionState: strategy.revisionState || 'draft',
-        createdAt: strategy.createdAt,
-        createdBy: creator
-            ? {
-                _id: creator._id,
-                username: creator.username,
-                role: creator.role,
-            }
-            : null,
-    });
+    res.status(200).json(serializeStrategy(strategy, creator));
 });
 
 module.exports = {

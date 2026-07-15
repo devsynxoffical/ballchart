@@ -7,8 +7,8 @@ import 'tactical_animation_engine.dart';
 import 'tactical_entities.dart';
 import '../models/tactical/tactical_schema.dart';
 
-/// Regulation-style **full basketball court** in landscape.
-/// Aspect ratio is 94 ft length × 50 ft width.
+/// Full NBA basketball court in landscape.
+/// Source of truth: 94 ft × 50 ft (length along X, width along Y).
 class TacticalCourtCanvas extends StatelessWidget {
   final TacticalFrame frame;
   final int ballOwnerSlot;
@@ -30,7 +30,7 @@ class TacticalCourtCanvas extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth;
-        final idealH = w * 50 / 94;
+        final idealH = w * NbaCourt.ftWidth / NbaCourt.ftLength;
         final h = maxHeight != null ? min(idealH, maxHeight!) : idealH;
         return ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -57,6 +57,28 @@ class TacticalCourtCanvas extends StatelessWidget {
   }
 }
 
+/// NBA regulation dimensions in feet (do not mix with FIBA).
+abstract final class NbaCourt {
+  static const double ftLength = 94;
+  static const double ftWidth = 50;
+  static const double centerCircleR = 6;
+  static const double keyWidth = 16;
+  static const double keyDepth = 19;
+  static const double freeThrowCircleR = 6;
+  static const double restrictedR = 4;
+  static const double threePointR = 23.75;
+  static const double threePointCorner = 22;
+  static const double threePointCornerRun = 14;
+  static const double backboardFromBaseline = 4;
+  static const double backboardWidth = 6;
+  static const double rimFromBaseline = 5.25;
+  static const double rimR = 0.75; // ~9 inches
+  static const double laneHashStart = 7;
+  static const double laneHashSpacing = 3;
+  static const double laneHashLength = 0.8;
+  static const double sidelineHashLength = 1.0;
+}
+
 class _BasketballCourtPainter extends CustomPainter {
   _BasketballCourtPainter({
     required this.frame,
@@ -72,14 +94,17 @@ class _BasketballCourtPainter extends CustomPainter {
 
   Offset _px(Offset norm, double w, double h) => CourtSlots.normToPixel(norm, Size(w, h));
 
+  Offset _ft(double xFt, double yFt, double sx, double sy) => Offset(xFt * sx, yFt * sy);
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
+    final sx = w / NbaCourt.ftLength;
+    final sy = h / NbaCourt.ftWidth;
 
+    // Wood floor
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFD4A574));
-
-    // Subtle wood planks
     final plankPaint = Paint()
       ..color = const Color(0xFFC99860).withValues(alpha: 0.35)
       ..strokeWidth = 1;
@@ -87,88 +112,81 @@ class _BasketballCourtPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(w, y), plankPaint);
     }
 
-    final linePaint = Paint()
-      ..color = Colors.black87
+    final stroke = max(1.8, w * 0.0028);
+    final line = Paint()
+      ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.5, w * 0.004);
-
-    final thickLine = Paint()
-      ..color = Colors.black
+      ..strokeWidth = stroke
+      ..isAntiAlias = true;
+    final thick = Paint()
+      ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = max(2.0, w * 0.006);
+      ..strokeWidth = max(2.2, stroke * 1.25)
+      ..isAntiAlias = true;
 
-    canvas.drawRect(Offset.zero & size, thickLine);
+    final midX = NbaCourt.ftLength / 2;
+    final midY = NbaCourt.ftWidth / 2;
+    final keyHalf = NbaCourt.keyWidth / 2;
 
-    final midY = h * 0.5;
-    canvas.drawLine(Offset(0, midY), Offset(w, midY), thickLine);
-    canvas.drawCircle(Offset(w / 2, midY), w * 0.12, linePaint);
-    canvas.drawCircle(Offset(w / 2, midY), w * 0.04, linePaint);
+    // Paint fills (subtle contrast)
+    final paintFill = Paint()..color = const Color(0xFF8B4513).withValues(alpha: 0.38);
+    final centerFill = Paint()..color = const Color(0xFFA06B3C).withValues(alpha: 0.55);
 
-    void drawEnd({required bool north}) {
-      final keyDepth = h * (19 / 94);
-      final keyWidth = w * (16 / 50);
-      final left = (w - keyWidth) / 2;
-      final top = north ? 0.0 : h - keyDepth;
+    // Left key
+    canvas.drawRect(
+      Rect.fromLTRB(0, (midY - keyHalf) * sy, NbaCourt.keyDepth * sx, (midY + keyHalf) * sy),
+      paintFill,
+    );
+    // Right key
+    canvas.drawRect(
+      Rect.fromLTRB(
+        (NbaCourt.ftLength - NbaCourt.keyDepth) * sx,
+        (midY - keyHalf) * sy,
+        NbaCourt.ftLength * sx,
+        (midY + keyHalf) * sy,
+      ),
+      paintFill,
+    );
+    // Center circle fill
+    canvas.drawCircle(_ft(midX, midY, sx, sy), NbaCourt.centerCircleR * min(sx, sy), centerFill);
 
-      canvas.drawRect(
-        Rect.fromLTWH(left, top, keyWidth, keyDepth),
-        Paint()..color = const Color(0xFFB85C38).withValues(alpha: 0.45),
-      );
-      canvas.drawRect(Rect.fromLTWH(left, top, keyWidth, keyDepth), linePaint);
+    // Outer boundary
+    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), thick);
 
-      // Free-throw circle
-      final ftY = north ? top + keyDepth : top;
-      canvas.drawCircle(Offset(w / 2, ftY), keyWidth / 2, linePaint);
+    // Center line
+    canvas.drawLine(_ft(midX, 0, sx, sy), _ft(midX, NbaCourt.ftWidth, sx, sy), thick);
 
-      // Restricted area arc
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(w / 2, ftY), radius: keyWidth / 2),
-        north ? 0 : pi,
-        pi,
-        false,
-        linePaint,
-      );
-      final rimY = north ? h * 0.052 : h - h * 0.052;
-      final rimR = w * 0.018;
-      final boardY = north ? 0.0 : h;
-      final boardHalf = w * 0.08;
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(w / 2, rimY), radius: w * 0.08),
-        north ? 0 : pi,
-        pi,
-        false,
-        linePaint,
-      );
-      canvas.drawLine(Offset(w / 2 - boardHalf, boardY), Offset(w / 2 + boardHalf, boardY), thickLine);
-      canvas.drawCircle(Offset(w / 2, rimY), rimR, Paint()..color = Colors.orange.shade800);
-      canvas.drawCircle(Offset(w / 2, rimY), rimR, Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.5);
+    // Center circle
+    canvas.drawCircle(_ft(midX, midY, sx, sy), NbaCourt.centerCircleR * min(sx, sy), line);
 
-      // Three-point arc with full corner continuity.
-      final threeR = h * 0.36;
-      final arcRect = Rect.fromCircle(center: Offset(w / 2, rimY), radius: threeR);
-      canvas.drawArc(arcRect, north ? pi * 0.18 : pi * 1.18, pi * 0.64, false, linePaint);
+    // Half-court sideline hash marks
+    final hashLen = NbaCourt.sidelineHashLength;
+    canvas.drawLine(_ft(midX - hashLen / 2, 0, sx, sy), _ft(midX + hashLen / 2, 0, sx, sy), line);
+    canvas.drawLine(
+      _ft(midX - hashLen / 2, NbaCourt.ftWidth, sx, sy),
+      _ft(midX + hashLen / 2, NbaCourt.ftWidth, sx, sy),
+      line,
+    );
 
-      // Corner three lines
-      final cornerX = w * 0.09;
-      final cornerLen = h * 0.22;
-      final cornerY = north ? cornerLen : h - cornerLen;
-      canvas.drawLine(Offset(cornerX, rimY), Offset(cornerX, cornerY), linePaint);
-      canvas.drawLine(Offset(w - cornerX, rimY), Offset(w - cornerX, cornerY), linePaint);
+    _drawHalf(
+      canvas,
+      sx: sx,
+      sy: sy,
+      leftBaseline: true,
+      line: line,
+      thick: thick,
+    );
+    _drawHalf(
+      canvas,
+      sx: sx,
+      sy: sy,
+      leftBaseline: false,
+      line: line,
+      thick: thick,
+    );
 
-      // Lane hash marks (both sides) for a fuller court layout.
-      final marks = [0.10, 0.16, 0.22, 0.28];
-      for (final m in marks) {
-        final y = north ? h * m : h - h * m;
-        canvas.drawLine(Offset(left - w * 0.02, y), Offset(left, y), linePaint);
-        canvas.drawLine(Offset(left + keyWidth, y), Offset(left + keyWidth + w * 0.02, y), linePaint);
-      }
-    }
-
-    drawEnd(north: true);
-    drawEnd(north: false);
-
-    _drawLabelBox(canvas, w * 0.04, h * 0.02, 'DEFENSE', Colors.black87, Colors.white);
-    _drawLabelBox(canvas, w * 0.04, h * 0.93, 'OFFENSE', const Color(0xFF3D405B), Colors.white);
+    _drawLabelBox(canvas, w * 0.02, h * 0.02, 'DEFENSE', Colors.black87, Colors.white);
+    _drawLabelBox(canvas, w * 0.78, h * 0.02, 'OFFENSE', const Color(0xFF3D405B), Colors.white);
 
     if (currentStep != null && progress > 0.0 && frame.startOffenseNorm != null && frame.targetOffenseNorm != null) {
       final pathPaint = Paint()
@@ -255,6 +273,149 @@ class _BasketballCourtPainter extends CustomPainter {
     final bc = _px(frame.ballNorm, w, h);
     canvas.drawCircle(bc, w * 0.013, Paint()..color = Colors.orange.shade800);
     canvas.drawCircle(bc, w * 0.013, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1);
+  }
+
+  void _drawHalf(
+    Canvas canvas, {
+    required double sx,
+    required double sy,
+    required bool leftBaseline,
+    required Paint line,
+    required Paint thick,
+  }) {
+    final midY = NbaCourt.ftWidth / 2;
+    final keyHalf = NbaCourt.keyWidth / 2;
+    final scale = min(sx, sy);
+
+    final baseline = leftBaseline ? 0.0 : NbaCourt.ftLength;
+    final dir = leftBaseline ? 1.0 : -1.0; // toward midcourt
+    final rimX = baseline + dir * NbaCourt.rimFromBaseline;
+    final boardX = baseline + dir * NbaCourt.backboardFromBaseline;
+    final ftLineX = baseline + dir * NbaCourt.keyDepth;
+    final keyY0 = midY - keyHalf;
+    final keyY1 = midY + keyHalf;
+
+    // Key outline
+    final keyRect = leftBaseline
+        ? Rect.fromLTRB(0, keyY0 * sy, NbaCourt.keyDepth * sx, keyY1 * sy)
+        : Rect.fromLTRB(
+            (NbaCourt.ftLength - NbaCourt.keyDepth) * sx,
+            keyY0 * sy,
+            NbaCourt.ftLength * sx,
+            keyY1 * sy,
+          );
+    canvas.drawRect(keyRect, line);
+
+    // Free-throw circle: solid toward basket, dashed toward midcourt
+    final ftCenter = _ft(ftLineX, midY, sx, sy);
+    final ftR = NbaCourt.freeThrowCircleR * scale;
+    // Toward basket = left half for left basket, right half for right basket
+    canvas.drawArc(
+      Rect.fromCircle(center: ftCenter, radius: ftR),
+      leftBaseline ? pi / 2 : -pi / 2,
+      pi,
+      false,
+      line,
+    );
+    _drawDashedArc(
+      canvas,
+      center: ftCenter,
+      radius: ftR,
+      startAngle: leftBaseline ? -pi / 2 : pi / 2,
+      sweepAngle: pi,
+      paint: line,
+    );
+
+    // Backboard (6 ft wide, centered)
+    final boardHalf = NbaCourt.backboardWidth / 2;
+    canvas.drawLine(
+      _ft(boardX, midY - boardHalf, sx, sy),
+      _ft(boardX, midY + boardHalf, sx, sy),
+      thick,
+    );
+
+    // Rim
+    final rim = _ft(rimX, midY, sx, sy);
+    canvas.drawCircle(rim, NbaCourt.rimR * scale, Paint()..color = Colors.orange.shade800);
+    canvas.drawCircle(
+      rim,
+      NbaCourt.rimR * scale,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = line.strokeWidth,
+    );
+
+    // Restricted area arc (4 ft from rim), facing midcourt
+    canvas.drawArc(
+      Rect.fromCircle(center: rim, radius: NbaCourt.restrictedR * scale),
+      leftBaseline ? -pi / 2 : pi / 2,
+      pi,
+      false,
+      line,
+    );
+
+    // Three-point corner straights (22 ft from centerline, 14 ft from baseline)
+    final cornerY0 = midY - NbaCourt.threePointCorner;
+    final cornerY1 = midY + NbaCourt.threePointCorner;
+    final cornerEndX = baseline + dir * NbaCourt.threePointCornerRun;
+    canvas.drawLine(_ft(baseline, cornerY0, sx, sy), _ft(cornerEndX, cornerY0, sx, sy), line);
+    canvas.drawLine(_ft(baseline, cornerY1, sx, sy), _ft(cornerEndX, cornerY1, sx, sy), line);
+
+    // Three-point arc (23.75 ft from rim) connecting corner lines
+    final threeR = NbaCourt.threePointR * scale;
+    final topCorner = _ft(cornerEndX, cornerY0, sx, sy);
+    final bottomCorner = _ft(cornerEndX, cornerY1, sx, sy);
+    final a0 = (topCorner - rim).direction;
+    final a1 = (bottomCorner - rim).direction;
+    var sweep = a1 - a0;
+    // Open toward midcourt (short arc through the floor).
+    if (leftBaseline) {
+      while (sweep < 0) {
+        sweep += 2 * pi;
+      }
+      while (sweep > pi) {
+        sweep -= 2 * pi;
+      }
+    } else {
+      while (sweep > 0) {
+        sweep -= 2 * pi;
+      }
+      while (sweep < -pi) {
+        sweep += 2 * pi;
+      }
+    }
+    canvas.drawArc(Rect.fromCircle(center: rim, radius: threeR), a0, sweep, false, line);
+
+    // Lane hash marks along key long edges, 3 ft apart from 7 ft
+    final tick = NbaCourt.laneHashLength;
+    for (var d = NbaCourt.laneHashStart; d < NbaCourt.keyDepth - 0.5; d += NbaCourt.laneHashSpacing) {
+      final x = baseline + dir * d;
+      // Outer ticks (away from lane center)
+      canvas.drawLine(_ft(x, keyY0, sx, sy), _ft(x, keyY0 - tick, sx, sy), line);
+      canvas.drawLine(_ft(x, keyY1, sx, sy), _ft(x, keyY1 + tick, sx, sy), line);
+    }
+  }
+
+  void _drawDashedArc(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+    required double startAngle,
+    required double sweepAngle,
+    required Paint paint,
+  }) {
+    const dashRad = 0.12;
+    const gapRad = 0.08;
+    var a = startAngle;
+    final end = startAngle + sweepAngle;
+    final step = sweepAngle >= 0 ? 1.0 : -1.0;
+    while ((step > 0 && a < end) || (step < 0 && a > end)) {
+      final next = a + step * dashRad;
+      final clampNext = step > 0 ? min(next, end) : max(next, end);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), a, clampNext - a, false, paint);
+      a = clampNext + step * gapRad;
+    }
   }
 
   void _drawLabelBox(Canvas canvas, double x, double y, String text, Color bg, Color textCol) {

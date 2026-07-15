@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show MissingPluginException, HapticFeedba
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:speech_to_text/speech_recognition_result.dart';
 
 import '../../../core/services/api_service.dart';
 import '../../../core/services/voice_note_service.dart';
@@ -51,14 +52,21 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   final _stt = stt.SpeechToText();
   bool _sttReady = false;
   bool _listening = false;
-  /// True after user taps mic until the platform reports not listening (covers connect latency).
+  /// True after user taps mic until they stop or tap RECORD FLOW.
+  bool _voiceSessionActive = false;
+  /// True after user taps mic until the platform reports listening (covers connect latency).
   bool _voiceSessionPending = false;
+  bool _voiceSessionFinalizing = false;
+  bool _voiceListenRestartScheduled = false;
+  bool _voiceFileRecordingStarted = false;
   String? _micHint;
   final _api = ApiService();
   final _voiceNoteSvc = VoiceNoteService();
   final List<TacticalVoiceRecording> _sessionVoiceRecordings = [];
   List<TacticalVoiceClip> _playbackVoiceClips = [];
   int _voiceTranscriptStart = 0;
+
+  bool get _voiceUiActive => _voiceSessionActive || _voiceSessionPending;
 
   int? _draggingSlot;
   /// Throttle drag → recorded keyframes so replay stays seconds, not minutes.
@@ -214,20 +222,27 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     final ok = await _stt.initialize(
       onError: (e) {
         if (!mounted) return;
-        _micPulseCtrl.stop();
+        // Keep the session open on transient errors so the user can keep speaking.
         setState(() {
-          _micHint = 'Speech error: ${e.errorMsg}';
+          _micHint = 'Speech hiccup: ${e.errorMsg}. Keep talking, or tap mic to stop.';
           _listening = false;
-          _voiceSessionPending = false;
         });
+        if (_voiceSessionActive && !_voiceSessionFinalizing) {
+          _scheduleListenRestart();
+        } else {
+          _micPulseCtrl.stop();
+          _micPulseCtrl.value = 0;
+          setState(() => _voiceSessionPending = false);
+        }
       },
       onStatus: (status) {
         if (!mounted) return;
-        final wasListening = _listening;
         final now = status == stt.SpeechToText.listeningStatus;
         if (now) {
           _micPulseCtrl.repeat(reverse: true);
-        } else {
+          // Start file recording only after STT owns the mic so text keeps working.
+          unawaited(_maybeStartFileRecording());
+        } else if (!_voiceSessionActive || _voiceSessionFinalizing) {
           _micPulseCtrl.stop();
           _micPulseCtrl.value = 0;
         }
@@ -238,8 +253,9 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
             _micHint = null;
           }
         });
-        if (wasListening && !now) {
-          unawaited(_commitActiveVoiceClip());
+        // Platform often ends listen on short silence — keep session alive until user submits.
+        if (!now && _voiceSessionActive && !_voiceSessionFinalizing) {
+          _scheduleListenRestart();
         }
       },
     );
@@ -247,6 +263,82 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       _sttReady = ok;
       _micHint = ok ? null : 'Speech recognition unavailable.';
     });
+  }
+
+  bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  void _scheduleListenRestart() {
+    if (_voiceListenRestartScheduled || !_voiceSessionActive || _voiceSessionFinalizing) {
+      return;
+    }
+    _voiceListenRestartScheduled = true;
+    unawaited(Future<void>.delayed(const Duration(milliseconds: 400), () async {
+      _voiceListenRestartScheduled = false;
+      if (!mounted || !_voiceSessionActive || _voiceSessionFinalizing || _listening) {
+        return;
+      }
+      _voiceTranscriptStart = _textCtrl.text.length;
+      await _startSttListening();
+    }));
+  }
+
+  void _onSttResult(SpeechRecognitionResult result) {
+    final transcript = result.recognizedWords.trim();
+    if (!mounted || !_voiceSessionActive || transcript.isEmpty) return;
+
+    final cleaned = _cleanVoiceTranscript(transcript);
+    final start = _voiceTranscriptStart.clamp(0, _textCtrl.text.length);
+    final prefix = _textCtrl.text.substring(0, start).trimRight();
+    final combined = prefix.isEmpty ? cleaned : '$prefix $cleaned';
+    _textCtrl.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: combined.length),
+    );
+    // Force a rebuild so the TextField reflects STT updates immediately.
+    setState(() {
+      _micHint = coachSpeechHint(cleaned);
+    });
+    // Do not auto-run the flow on finalResult — user submits via RECORD FLOW or stops mic.
+  }
+
+  Future<void> _startSttListening() async {
+    if (!_voiceSessionActive || _voiceSessionFinalizing || !_sttReady) return;
+
+    final systemLocale = await _stt.systemLocale();
+    final localeId = systemLocale?.localeId;
+
+    await _stt.listen(
+      localeId: (localeId != null && localeId.isNotEmpty) ? localeId : null,
+      listenFor: const Duration(minutes: 3),
+      pauseFor: const Duration(seconds: 30),
+      listenOptions: stt.SpeechListenOptions(
+        listenMode: stt.ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: false,
+        autoPunctuation: true,
+      ),
+      onResult: _onSttResult,
+      onSoundLevelChange: (_) {
+        // Keep pulse alive while the platform reports audio levels.
+        if (_voiceSessionActive && !_micPulseCtrl.isAnimating) {
+          _micPulseCtrl.repeat(reverse: true);
+        }
+      },
+    );
+  }
+
+  Future<void> _maybeStartFileRecording() async {
+    if (_voiceFileRecordingStarted || !_voiceSessionActive) return;
+    // Android SpeechRecognizer needs exclusive mic access for live text.
+    // Concurrent AAC recording would kill transcription on most devices.
+    if (_isAndroid) return;
+    _voiceFileRecordingStarted = true;
+    try {
+      await _voiceNoteSvc.startRecording();
+    } catch (_) {
+      _voiceFileRecordingStarted = false;
+    }
   }
 
   Future<void> _showMicSettingsDialog() async {
@@ -294,8 +386,6 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   }
 
   Future<void> _commitActiveVoiceClip({String? transcriptOverride}) async {
-    if (!await _voiceNoteSvc.isRecording) return;
-
     final spoken = _textCtrl.text
         .substring(_voiceTranscriptStart.clamp(0, _textCtrl.text.length))
         .trim();
@@ -306,60 +396,73 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     }
 
     final clip = await _voiceNoteSvc.stopRecording();
-    if (clip == null || !mounted) return;
+    if (!mounted) return;
 
-    if (clip.duration.inMilliseconds < 250 && transcript.isEmpty) return;
-
-    setState(() {
-      _sessionVoiceRecordings.add(
-        TacticalVoiceRecording(
-          localPath: clip.localPath,
-          duration: clip.duration,
-          transcript: transcript,
-        ),
-      );
-    });
-  }
-
-  Future<void> _restartVoiceRecordingSegment() async {
-    if (!_listening) return;
-    try {
-      _voiceTranscriptStart = _textCtrl.text.length;
-      await _voiceNoteSvc.startRecording();
-    } catch (_) {}
-  }
-
-  Future<void> _finalizeVoiceSession({bool stopSpeech = true}) async {
-    if (stopSpeech && (_listening || _voiceSessionPending)) {
-      await _stt.stop();
-    }
-    await _commitActiveVoiceClip();
-    _micPulseCtrl.stop();
-    _micPulseCtrl.value = 0;
-    if (mounted) {
+    if (clip != null &&
+        (clip.duration.inMilliseconds >= 250 || transcript.isNotEmpty)) {
       setState(() {
-        _listening = false;
-        _voiceSessionPending = false;
-        _micHint = _sessionVoiceRecordings.isNotEmpty
-            ? '${_sessionVoiceRecordings.length} voice command(s) saved — will attach when you save the tactic.'
-            : 'Voice capture stopped. Tap mic again to add more, or tap RECORD FLOW.';
+        _sessionVoiceRecordings.add(
+          TacticalVoiceRecording(
+            localPath: clip.localPath,
+            duration: clip.duration,
+            transcript: transcript,
+          ),
+        );
+      });
+      return;
+    }
+
+    // Android often has transcript without a playable file (STT owns the mic).
+    if (transcript.isNotEmpty) {
+      setState(() {
+        _sessionVoiceRecordings.add(
+          TacticalVoiceRecording(
+            duration: Duration.zero,
+            transcript: transcript,
+          ),
+        );
+        if (_isAndroid) {
+          _micHint =
+              'Flow text saved. On Android, live dictation and file recording can’t share the mic — use RECORD FLOW to run it.';
+        }
       });
     }
   }
 
-  Future<void> _onVoiceCommandRecognized(String cleaned) async {
-    if (!_listening && !_voiceSessionPending) return;
-    await _commitActiveVoiceClip(transcriptOverride: cleaned);
-    await _runCommand(cleaned);
-    if (_listening) {
-      await _restartVoiceRecordingSegment();
+  Future<void> _finalizeVoiceSession({bool stopSpeech = true}) async {
+    if (!_voiceSessionActive && !_voiceSessionPending && !_listening) {
+      await _commitActiveVoiceClip();
+      return;
+    }
+
+    _voiceSessionFinalizing = true;
+    try {
+      if (stopSpeech && (_listening || _voiceSessionPending || _voiceSessionActive)) {
+        await _stt.stop();
+      }
+      await _commitActiveVoiceClip();
+      _micPulseCtrl.stop();
+      _micPulseCtrl.value = 0;
+      if (mounted) {
+        setState(() {
+          _listening = false;
+          _voiceSessionActive = false;
+          _voiceSessionPending = false;
+          _voiceFileRecordingStarted = false;
+          _micHint = _sessionVoiceRecordings.isNotEmpty
+              ? '${_sessionVoiceRecordings.length} voice command(s) saved — will attach when you save the tactic.'
+              : 'Voice capture stopped. Tap mic to record again, or tap RECORD FLOW to run your text.';
+        });
+      }
+    } finally {
+      _voiceSessionFinalizing = false;
     }
   }
 
   Future<void> _toggleVoiceCommand() async {
     if (_isPlayerMode) return;
 
-    if (_listening || _voiceSessionPending) {
+    if (_voiceUiActive) {
       await _finalizeVoiceSession();
       return;
     }
@@ -389,7 +492,9 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     HapticFeedback.lightImpact();
     if (mounted) {
       setState(() {
+        _voiceSessionActive = true;
         _voiceSessionPending = true;
+        _voiceFileRecordingStarted = false;
         _voiceTranscriptStart = _textCtrl.text.length;
         _micHint = null;
       });
@@ -397,50 +502,22 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     }
 
     try {
-      try {
-        await _voiceNoteSvc.startRecording();
-      } catch (e) {
-        if (mounted) {
-          setState(() => _micHint = 'Could not start voice recording: $e');
-        }
-      }
+      // Speech-to-text first so the flow text box fills while you speak.
+      await _startSttListening();
 
-      final systemLocale = await _stt.systemLocale();
-      final localeId = systemLocale?.localeId;
+      // Soft-start file recording after STT is listening (see onStatus).
+      // If the platform blocks concurrent recording, text still works.
+      unawaited(Future<void>.delayed(const Duration(milliseconds: 700), () {
+        if (!mounted || !_voiceSessionActive) return;
+        unawaited(_maybeStartFileRecording());
+      }));
 
-      await _stt.listen(
-        localeId: (localeId != null && localeId.isNotEmpty) ? localeId : null,
-        listenFor: const Duration(seconds: 90),
-        pauseFor: const Duration(seconds: 5),
-        listenOptions: stt.SpeechListenOptions(
-          listenMode: stt.ListenMode.dictation,
-          partialResults: true,
-          cancelOnError: false,
-          autoPunctuation: true,
-        ),
-        onResult: (result) {
-          final transcript = result.recognizedWords.trim();
-          if (!mounted) return;
-          if (transcript.isNotEmpty) {
-            final cleaned = _cleanVoiceTranscript(transcript);
-            _textCtrl.value = TextEditingValue(
-              text: cleaned,
-              selection: TextSelection.collapsed(offset: cleaned.length),
-            );
-            setState(() => _micHint = coachSpeechHint(cleaned));
-            if (result.finalResult && cleaned.isNotEmpty) {
-              unawaited(_onVoiceCommandRecognized(cleaned));
-            }
-          }
-          setState(() {});
-        },
-      );
-      unawaited(Future<void>.delayed(const Duration(milliseconds: 500), () {
+      unawaited(Future<void>.delayed(const Duration(seconds: 3), () {
         if (!mounted) return;
-        if (_voiceSessionPending && !_listening) {
+        if (_voiceSessionPending && !_listening && _voiceSessionActive) {
           setState(() {
-            _voiceSessionPending = false;
-            _micHint = 'Listening did not start. Check the microphone and try again.';
+            _micHint =
+                'Still connecting the mic… speak clearly after SPEAK NOW appears.';
           });
         }
       }));
@@ -449,8 +526,10 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       _micPulseCtrl.stop();
       if (mounted) {
         setState(() {
+          _voiceSessionActive = false;
           _voiceSessionPending = false;
           _listening = false;
+          _voiceFileRecordingStarted = false;
           _micHint = 'Speech plugin missing on this build.';
         });
       }
@@ -459,8 +538,10 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       _micPulseCtrl.stop();
       if (mounted) {
         setState(() {
+          _voiceSessionActive = false;
           _voiceSessionPending = false;
           _listening = false;
+          _voiceFileRecordingStarted = false;
           _micHint = 'Voice capture failed: $e';
         });
       }
@@ -823,24 +904,26 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                     var uploadFailures = 0;
                     for (final recording in _sessionVoiceRecordings) {
                       String? uploadedUrl;
-                      try {
-                        uploadedUrl = await _voiceNoteSvc.uploadClip(
-                          VoiceClip(localPath: recording.localPath, duration: recording.duration),
-                        );
-                      } catch (_) {
-                        uploadFailures++;
+                      if (recording.localPath.isNotEmpty) {
+                        try {
+                          uploadedUrl = await _voiceNoteSvc.uploadClip(
+                            VoiceClip(localPath: recording.localPath, duration: recording.duration),
+                          );
+                        } catch (_) {
+                          uploadFailures++;
+                        }
                       }
                       final entry = <String, dynamic>{
                         'durationMs': recording.duration.inMilliseconds,
                         'transcript': recording.transcript,
                         'recordedAt': recording.recordedAt.toIso8601String(),
-                        'localPath': recording.localPath,
+                        if (recording.localPath.isNotEmpty) 'localPath': recording.localPath,
                       };
                       if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
                         entry['url'] = uploadedUrl;
                         primaryVoiceUrl ??= uploadedUrl;
                         primaryVoiceDurationMs ??= recording.duration.inMilliseconds;
-                      } else {
+                      } else if (recording.localPath.isNotEmpty) {
                         entry['uploadPending'] = true;
                       }
                       voiceClipsMeta.add(entry);
@@ -967,7 +1050,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      active ? 'SPEAK NOW' : 'GET READY',
+                      active ? 'RECORDING — SPEAK YOUR FLOW' : 'GET READY',
                       style: TextStyle(
                         color: _primary.withValues(alpha: 0.98),
                         fontSize: 12,
@@ -978,8 +1061,8 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                     const SizedBox(height: 6),
                     Text(
                       active
-                          ? 'Your full flow is typed live in the box above as you talk. You can pause up to about 5 seconds between phrases. Tap the mic again when you are done.'
-                          : 'Opening the microphone — get your sentence ready; you will see SPEAK NOW when it is time to talk.',
+                          ? 'Take your time. Your words appear in the box above as you speak. When finished, tap RECORD FLOW.'
+                          : 'Opening the microphone — get your flow ready; you will see RECORDING when it is time to talk.',
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.88), fontSize: 12, height: 1.4),
                     ),
                   ],
@@ -1285,7 +1368,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                       maxLines: 4,
                       textInputAction: TextInputAction.newline,
                       decoration: InputDecoration(
-                        hintText: 'Type a flow, or tap the mic and say it — text appears as you speak',
+                        hintText: 'Type a flow, or tap the mic and say it — then tap RECORD FLOW',
                         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.38)),
                         filled: true,
                         fillColor: _surface,
@@ -1293,7 +1376,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide(
-                            color: (_listening || _voiceSessionPending) ? _primary.withValues(alpha: 0.55) : Colors.transparent,
+                            color: _voiceUiActive ? _primary.withValues(alpha: 0.55) : Colors.transparent,
                             width: 1.5,
                           ),
                         ),
@@ -1304,7 +1387,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                       ),
                       onSubmitted: _runCommand,
                     ),
-                    if (_listening || _voiceSessionPending) ...[
+                    if (_voiceUiActive) ...[
                       const SizedBox(height: 10),
                       _buildVoiceSessionBanner(),
                     ],
@@ -1348,16 +1431,14 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                             const SizedBox(width: 8),
                             IconButton(
                               onPressed: busy ? null : _toggleVoiceCommand,
-                              tooltip: _listening
-                                  ? 'Stop listening (keeps your text)'
-                                  : _voiceSessionPending
-                                      ? 'Connecting microphone…'
-                                      : 'Speak your flow — types live in the box',
+                              tooltip: _voiceUiActive
+                                  ? 'Stop recording (keeps your text — tap RECORD FLOW to run it)'
+                                  : 'Speak your flow calmly — then tap RECORD FLOW',
                               icon: Icon(
-                                (_listening || _voiceSessionPending) ? Icons.mic_rounded : Icons.mic_none_outlined,
+                                _voiceUiActive ? Icons.mic_rounded : Icons.mic_none_outlined,
                                 color: busy
                                     ? Colors.grey
-                                    : ((_listening || _voiceSessionPending)
+                                    : (_voiceUiActive
                                         ? _primary
                                         : (_sttReady ? _primary.withValues(alpha: 0.65) : _outline.withValues(alpha: 0.55))),
                                 size: 34,
@@ -1372,7 +1453,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                         );
                       },
                     ),
-                    if (_micHint != null && _micHint!.trim().isNotEmpty && !_listening && !_voiceSessionPending) ...[
+                    if (_micHint != null && _micHint!.trim().isNotEmpty && !_voiceUiActive) ...[
                       const SizedBox(height: 8),
                       Text(
                         _micHint!,

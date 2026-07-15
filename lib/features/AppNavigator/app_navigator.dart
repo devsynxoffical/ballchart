@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -41,7 +43,16 @@ class _AppNavigatorState extends State<AppNavigator> {
         final u = profileVm.user;
         if (!mounted) return;
         if (u != null) {
-          context.read<AcademyProvider>().setCurrentUser(u);
+          final academy = context.read<AcademyProvider>();
+          academy.setCurrentUser(u);
+          final role = (u.role).toLowerCase();
+          if (role == 'coach' || role == 'assistant_coach' || role == 'head_coach') {
+            unawaited(academy.loadCoachDashboard(force: true));
+          } else if (role == 'player') {
+            unawaited(academy.loadPlayerDashboard(force: true));
+          } else if (role == 'admin') {
+            unawaited(academy.loadAdminOverview(force: true));
+          }
         }
         final resolvedRole = u?.role;
         if (resolvedRole == null || resolvedRole.isEmpty) return;

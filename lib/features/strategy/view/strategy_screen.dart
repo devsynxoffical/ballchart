@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/utils/video_thumbnail.dart';
 import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
 import '../../../core/widgets/dialogues/strategy_creation_options_sheet.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
@@ -427,7 +428,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
   }
 
   Widget _reelCard(StrategyModel strategy) {
-    final thumb = ApiService.resolveMediaUrl(strategy.thumbnailUrl);
+    final thumb = resolveStrategyThumbnailDisplay(strategy);
     final hasPlayableVideo = _strategyHasVideo(strategy);
     final hasThumb = thumb.trim().isNotEmpty;
     final resolvedVideo = _normalizedVideoUrl(strategy.videoUrl);
@@ -614,6 +615,8 @@ class _StrategyScreenState extends State<StrategyScreen> {
 
   Widget _playbookItem(StrategyModel s) {
     final hasVideo = _strategyHasVideo(s);
+    final thumb = resolveStrategyThumbnailDisplay(s);
+    final hasThumb = thumb.trim().isNotEmpty;
     final subtitle = '${BasketballStrategy.categoryLabel(s.category).toUpperCase()} • ${s.sourceType.toUpperCase()}'
         '${hasVideo ? ' • VIDEO' : ''}';
     final meta = s.metadata ?? const <String, dynamic>{};
@@ -638,19 +641,26 @@ class _StrategyScreenState extends State<StrategyScreen> {
               child: Row(
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 56,
+                    height: 42,
                     decoration: BoxDecoration(
                       color: hasVideo ? primaryColor.withValues(alpha: 0.14) : surfaceHigh,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: hasVideo ? primaryColor.withValues(alpha: 0.4) : outlineColor.withValues(alpha: 0.2),
                       ),
+                      image: hasThumb
+                          ? DecorationImage(
+                              image: NetworkImage(thumb),
+                              fit: BoxFit.cover,
+                              colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.25), BlendMode.darken),
+                            )
+                          : null,
                     ),
                     child: Icon(
-                      hasVideo ? Icons.play_lesson_outlined : Icons.sports_basketball_outlined,
-                      color: hasVideo ? primaryColor : outlineColor,
-                      size: 18,
+                      hasVideo ? Icons.play_arrow_rounded : Icons.sports_basketball_outlined,
+                      color: hasThumb ? Colors.white : (hasVideo ? primaryColor : outlineColor),
+                      size: 20,
                     ),
                   ),
                   const SizedBox(width: 16),

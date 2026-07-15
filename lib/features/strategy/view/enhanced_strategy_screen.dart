@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/constants/basketball_strategy.dart';
 import '../../../core/models/strategy_model.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/utils/video_thumbnail.dart';
 import '../../../core/widgets/dialogues/CreateStrategyDialog.dart';
 import '../../../core/widgets/dialogues/strategy_creation_options_sheet.dart';
 import '../../../core/widgets/permission_wrapper.dart';
@@ -100,13 +101,31 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildSearchAndFilters(),
-            _buildViewToggle(),
-            Expanded(child: _buildContent()),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // When the keyboard shrinks height (~300px), fixed header/search
+            // would overflow — keep chrome scrollable and content flexible.
+            final chromeMaxHeight = (constraints.maxHeight * 0.55).clamp(120.0, constraints.maxHeight);
+            return Column(
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: chromeMaxHeight),
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHeader(),
+                        _buildSearchAndFilters(),
+                        _buildViewToggle(),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(child: _buildContent()),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -534,6 +553,8 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
   }
 
   Widget _strategyCard(StrategyModel strategy) {
+    final thumb = resolveStrategyThumbnailDisplay(strategy);
+    final hasThumb = thumb.trim().isNotEmpty;
     return GestureDetector(
       onTap: () => _showStrategyDetails(strategy),
       child: Container(
@@ -553,14 +574,14 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   color: surfaceContainer,
-                  image: strategy.thumbnailUrl != null
+                  image: hasThumb
                       ? DecorationImage(
-                          image: NetworkImage(strategy.thumbnailUrl!),
+                          image: NetworkImage(thumb),
                           fit: BoxFit.cover,
                         )
                       : null,
                 ),
-                child: strategy.thumbnailUrl == null
+                child: !hasThumb
                     ? const Center(
                         child: Icon(Icons.play_circle_outline, color: outlineColor, size: 48),
                       )
@@ -626,6 +647,8 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
   }
 
   Widget _strategyListItem(StrategyModel strategy) {
+    final thumb = resolveStrategyThumbnailDisplay(strategy);
+    final hasThumb = thumb.trim().isNotEmpty;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -639,16 +662,27 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               color: surfaceContainer,
-              image: strategy.thumbnailUrl != null
+              image: hasThumb
                   ? DecorationImage(
-                      image: NetworkImage(strategy.thumbnailUrl!),
+                      image: NetworkImage(thumb),
                       fit: BoxFit.cover,
                     )
                   : null,
             ),
-            child: strategy.thumbnailUrl == null
+            child: !hasThumb
                 ? const Center(child: Icon(Icons.play_arrow, color: outlineColor))
-                : null,
+                : Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.black.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      const Center(child: Icon(Icons.play_arrow_rounded, color: primaryColor, size: 28)),
+                    ],
+                  ),
           ),
           const SizedBox(width: 16),
           

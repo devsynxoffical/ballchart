@@ -44,18 +44,25 @@ class InboxViewModel extends ChangeNotifier {
     try {
       final notifications = await _notificationRepo.fetchNotifications();
       final conversations = await _messagingRepo.fetchConversations();
-      _unreadNotifications = notifications.where((n) => !n.isRead).length;
+
+      bool isMessageNotif(NotificationModel n) {
+        final t = n.type.toLowerCase();
+        return t.contains('message') || t == 'chat';
+      }
+
+      // Bell = non-message actions only. Chat icon handles message unread.
+      _unreadNotifications =
+          notifications.where((n) => !n.isRead && !isMessageNotif(n)).length;
+
       final convoUnread = conversations.fold<int>(
         0,
         (sum, ConversationSummary c) => sum + c.unreadCount,
       );
-      final notifMessageUnread = notifications.where((n) {
-        if (n.isRead) return false;
-        final t = n.type.toLowerCase();
-        return t.contains('message') || t == 'chat';
-      }).length;
+      final notifMessageUnread =
+          notifications.where((n) => !n.isRead && isMessageNotif(n)).length;
       // Use the higher count so message icon updates even when conversation counters lag.
-      _unreadMessages = convoUnread >= notifMessageUnread ? convoUnread : notifMessageUnread;
+      _unreadMessages =
+          convoUnread >= notifMessageUnread ? convoUnread : notifMessageUnread;
       notifyListeners();
     } catch (_) {
       /* keep last known counts */

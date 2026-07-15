@@ -11,6 +11,7 @@ import '../../../core/tactical/tactical_entities.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/utils/share_utils.dart';
 import '../../../core/utils/strategy_pdf_generator.dart';
+import '../../../core/utils/video_thumbnail.dart';
 import '../../../core/models/tactical/tactical_voice_clip.dart';
 import '../../../core/widgets/tactics/coach_voice_clips_panel.dart';
 import '../../tactics/view/tactical_lab_screen.dart';
@@ -273,15 +274,40 @@ class StrategyDetailScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  if (strategy.thumbnailUrl != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Image.network(ApiService.resolveMediaUrl(strategy.thumbnailUrl!), fit: BoxFit.cover),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
+                  Builder(
+                    builder: (_) {
+                      final thumb = resolveStrategyThumbnailDisplay(strategy);
+                      if (thumb.trim().isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.network(
+                                    thumb,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: surfaceHigh,
+                                      child: const Icon(Icons.videocam_off, color: outlineColor, size: 40),
+                                    ),
+                                  ),
+                                  Container(color: Colors.black.withValues(alpha: 0.25)),
+                                  const Center(
+                                    child: Icon(Icons.play_circle_filled, color: primaryColor, size: 56),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isSocial ? Colors.red : primaryColor,

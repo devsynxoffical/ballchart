@@ -1,6 +1,7 @@
 import '../constants/basketball_strategy.dart';
 import '../models/strategy_model.dart';
 import '../services/api_service.dart';
+import '../utils/video_thumbnail.dart';
 
 class StrategyRepository {
   final ApiService _apiService = ApiService();
@@ -48,16 +49,22 @@ class StrategyRepository {
     required String sourceType,
     required String sourceText,
     String videoUrl = '',
+    String? thumbnailUrl,
     List<String>? tags,
     bool isPublic = true,
     Map<String, dynamic>? metadata,
   }) async {
+    final thumb = deriveStrategyThumbnailUrl(
+      thumbnailUrl: thumbnailUrl,
+      videoUrl: videoUrl,
+    );
     final response = await _apiService.post('/strategies', {
       'title': title,
       'category': category,
       'sourceType': sourceType,
       'sourceText': sourceText,
       'videoUrl': videoUrl,
+      if (thumb != null && thumb.isNotEmpty) 'thumbnailUrl': thumb,
       'tags': tags ?? [],
       'isPublic': isPublic,
       'metadata': metadata ?? {},
@@ -71,6 +78,7 @@ class StrategyRepository {
     String? category,
     String? sourceText,
     String? videoUrl,
+    String? thumbnailUrl,
     List<String>? tags,
     bool? isPublic,
     Map<String, dynamic>? metadata,
@@ -79,7 +87,18 @@ class StrategyRepository {
     if (title != null) updateData['title'] = title;
     if (category != null) updateData['category'] = category;
     if (sourceText != null) updateData['sourceText'] = sourceText;
-    if (videoUrl != null) updateData['videoUrl'] = videoUrl;
+    if (videoUrl != null) {
+      updateData['videoUrl'] = videoUrl;
+      final thumb = deriveStrategyThumbnailUrl(
+        thumbnailUrl: thumbnailUrl,
+        videoUrl: videoUrl,
+      );
+      if (thumb != null && thumb.isNotEmpty) {
+        updateData['thumbnailUrl'] = thumb;
+      }
+    } else if (thumbnailUrl != null) {
+      updateData['thumbnailUrl'] = thumbnailUrl;
+    }
     if (tags != null) updateData['tags'] = tags;
     if (isPublic != null) updateData['isPublic'] = isPublic;
     if (metadata != null) updateData['metadata'] = metadata;

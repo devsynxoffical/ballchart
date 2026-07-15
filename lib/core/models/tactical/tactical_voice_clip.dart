@@ -76,7 +76,7 @@ class TacticalVoiceRecording {
   final DateTime recordedAt;
 
   TacticalVoiceRecording({
-    required this.localPath,
+    this.localPath = '',
     required this.duration,
     required this.transcript,
     DateTime? recordedAt,
@@ -84,7 +84,7 @@ class TacticalVoiceRecording {
 
   TacticalVoiceClip toClip({String? uploadedUrl}) => TacticalVoiceClip(
         url: uploadedUrl,
-        localPath: localPath,
+        localPath: localPath.isEmpty ? null : localPath,
         durationMs: duration.inMilliseconds,
         transcript: transcript,
         recordedAt: recordedAt,
