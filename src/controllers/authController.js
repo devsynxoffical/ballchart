@@ -36,6 +36,40 @@ const roleToTeamLeadField = (role) => {
 
 const normalizeIdList = (ids = []) => (Array.isArray(ids) ? ids.map((id) => id.toString()) : []);
 
+/** Ensure email is free across Admin / Coach / Player (excluding current user). */
+const assertEmailAvailable = async (cleanEmail, { excludeId, excludeRole } = {}) => {
+    const exclude = (doc, role) => {
+        if (!doc) return false;
+        if (!excludeId) return true;
+        const sameId = doc._id.toString() === excludeId.toString();
+        const sameRole =
+            !excludeRole ||
+            excludeRole === role ||
+            (excludeRole === 'admin' && role === 'admin') ||
+            (['coach', 'assistant_coach', 'head_coach'].includes(excludeRole) && role === 'coach');
+        return !(sameId && sameRole);
+    };
+
+    const admin = await Admin.findOne({ email: cleanEmail });
+    if (admin && exclude(admin, 'admin')) {
+        const err = new Error('Email already exists');
+        err.statusCode = 400;
+        throw err;
+    }
+    const coach = await Coach.findOne({ email: cleanEmail });
+    if (coach && exclude(coach, 'coach')) {
+        const err = new Error('Email already exists');
+        err.statusCode = 400;
+        throw err;
+    }
+    const player = await Player.findOne({ email: cleanEmail });
+    if (player && exclude(player, 'player')) {
+        const err = new Error('Email already exists');
+        err.statusCode = 400;
+        throw err;
+    }
+};
+
 const syncStaffLeadAssignments = async ({
     adminId,
     staffId,
@@ -297,10 +331,33 @@ const updateProfile = asyncHandler(async (req, res) => {
     const user = req.user; // from protect middleware
     const { role } = user;
 
+    // Login email can be changed here — next login must use the new email.
+    if (Object.prototype.hasOwnProperty.call(req.body, 'email') && req.body.email) {
+        const cleanEmail = String(req.body.email).toLowerCase().trim();
+        if (!cleanEmail.includes('@')) {
+            res.status(400);
+            throw new Error('Please enter a valid email address');
+        }
+        const current = (user.email || '').toLowerCase().trim();
+        if (cleanEmail !== current) {
+            try {
+                await assertEmailAvailable(cleanEmail, { excludeId: user._id, excludeRole: role });
+            } catch (e) {
+                res.status(e.statusCode || 400);
+                throw e;
+            }
+            req.body.email = cleanEmail;
+        } else {
+            req.body.email = current;
+        }
+    }
+
     let updatedUser;
     if (['coach', 'head_coach', 'assistant_coach'].includes(role)) {
         const payload = {};
         const allowedFields = [
+            'username',
+            'email',
             'experienceLevel',
             'sports',
             'achievements',
@@ -310,6 +367,7 @@ const updateProfile = asyncHandler(async (req, res) => {
             'assignedTeamIds',
             'position',
             'ageRange',
+            'profilePic',
         ];
         for (const key of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, key)) {
@@ -325,12 +383,15 @@ const updateProfile = asyncHandler(async (req, res) => {
     } else if (role === 'player') {
         const payload = {};
         const allowedFields = [
+            'username',
+            'email',
             'position',
             'ageRange',
             'experienceLevel',
             'goals',
             'additionalGoals',
             'teamName',
+            'profileImageUrl',
         ];
         for (const key of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, key)) {
@@ -345,7 +406,7 @@ const updateProfile = asyncHandler(async (req, res) => {
         );
     } else if (role === 'admin') {
         const payload = {};
-        const allowedFields = ['username', 'academyName', 'logoUrl'];
+        const allowedFields = ['username', 'email', 'academyName', 'logoUrl'];
         for (const key of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, key)) {
                 payload[key] = req.body[key];
@@ -499,7 +560,22 @@ const updateAdminProfile = asyncHandler(async (req, res) => {
 
     if (academyName && academyName.trim()) admin.academyName = academyName.trim();
     if (ownerName && ownerName.trim()) admin.username = ownerName.trim();
-    if (ownerEmail && ownerEmail.trim()) admin.email = ownerEmail.toLowerCase().trim();
+    if (ownerEmail && ownerEmail.trim()) {
+        const cleanEmail = ownerEmail.toLowerCase().trim();
+        if (!cleanEmail.includes('@')) {
+            res.status(400);
+            throw new Error('Please enter a valid email address');
+        }
+        if (cleanEmail !== (admin.email || '').toLowerCase().trim()) {
+            try {
+                await assertEmailAvailable(cleanEmail, { excludeId: admin._id, excludeRole: 'admin' });
+            } catch (e) {
+                res.status(e.statusCode || 400);
+                throw e;
+            }
+            admin.email = cleanEmail;
+        }
+    }
     if (logoUrl !== undefined) admin.logoUrl = logoUrl || null;
 
     if (newPassword && newPassword.trim()) {
@@ -517,6 +593,57 @@ const updateAdminProfile = asyncHandler(async (req, res) => {
         logoUrl: updated.logoUrl || null,
         role: 'admin',
     });
+});
+
+// @desc    Change password (verify current password first)
+// @route   PUT /api/auth/change-password
+// @access  Private
+const changePassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+        res.status(400);
+        throw new Error('Current password and new password are required');
+    }
+    if (String(newPassword).trim().length < 6) {
+        res.status(400);
+        throw new Error('New password must be at least 6 characters');
+    }
+
+    const role = req.user.role;
+    let Model;
+    if (role === 'admin' || role === 'head_coach') {
+        Model = Admin;
+    } else if (['coach', 'assistant_coach'].includes(role)) {
+        Model = Coach;
+    } else if (role === 'player') {
+        Model = Player;
+    } else {
+        res.status(400);
+        throw new Error('Unsupported account type');
+    }
+
+    const doc = await Model.findById(req.user._id);
+    if (!doc) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+
+    const matches = await bcrypt.compare(String(oldPassword), doc.password);
+    if (!matches) {
+        res.status(400);
+        throw new Error('Current password is incorrect');
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashed = await bcrypt.hash(String(newPassword).trim(), salt);
+    doc.password = hashed;
+    if (role === 'player' && Object.prototype.hasOwnProperty.call(doc.toObject(), 'tempPassword')) {
+        doc.tempPassword = String(newPassword).trim();
+    }
+    await doc.save();
+
+    res.status(200).json({ ok: true, message: 'Password updated successfully' });
 });
 
 // @desc    Create staff by Head Coach
@@ -1267,4 +1394,5 @@ module.exports = {
     getPlayerDashboard,
     getPlayerById,
     deleteMyAccount,
+    changePassword,
 };

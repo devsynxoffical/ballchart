@@ -27,6 +27,7 @@ const {
     getPlayerDashboard,
     getPlayerById,
     deleteMyAccount,
+    changePassword,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -39,6 +40,7 @@ router.post('/admin/login', loginAdmin);
 router.get('/me', protect, getMe);
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
+router.put('/change-password', protect, changePassword);
 router.post('/account/delete', protect, deleteMyAccount);
 
 // Management Routes
