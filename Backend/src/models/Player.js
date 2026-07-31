@@ -38,6 +38,14 @@ const playerSchema = mongoose.Schema(
         additionalGoals: {
             type: String,
         },
+        profileImageUrl: {
+            type: String,
+            default: '',
+        },
+        profilePic: {
+            type: String,
+            default: '',
+        },
         profileCompleted: {
             type: Boolean,
             default: false,

@@ -135,7 +135,7 @@ const removePlayerFromTeam = asyncHandler(async (req, res) => {
 const getManagedTeams = asyncHandler(async (req, res) => {
     const teams = await Team.find({ headCoach: req.user._id })
         .populate('coachingStaff', 'username email role')
-        .populate('players', 'username position');
+        .populate('players', 'username position profileImageUrl profilePic');
     res.status(200).json(teams);
 });
 

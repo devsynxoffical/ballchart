@@ -34,6 +34,9 @@ app.use((req, res, next) => {
     next();
 });
 
+const { serveMedia } = require('./controllers/uploadController');
+// Persistent media (Mongo). Must be registered before static /uploads fallback.
+app.get('/uploads/media/:id', serveMedia);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/', (_req, res) => {
@@ -53,6 +56,7 @@ app.use('/api/messages', require('./routes/messagingRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/player-development', require('./routes/playerDevelopmentRoutes'));
+app.use('/api/tactical', require('./routes/tacticalRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);

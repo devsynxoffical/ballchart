@@ -24,7 +24,28 @@ const ensureAdmin = (req, res) => {
 const canManagePlayerAction = (user, actionKey) => {
     if (!user) return false;
     if (['admin', 'head_coach'].includes(user.role)) return true;
-    if (!['coach', 'assistant_coach'].includes(user.role)) return false;
+    if (!['coach', 'assistant_coach', 'custom'].includes(user.role)) return false;
+    return user.permissions && user.permissions[actionKey] === true;
+};
+
+/** Normalize the full staff permission map used by Flutter admin toggles. */
+const normalizeStaffPermissions = (permissions = {}) => ({
+    createPlayer: !!permissions.createPlayer,
+    readPlayer: permissions.readPlayer !== false,
+    updatePlayer: !!permissions.updatePlayer,
+    deletePlayer: !!permissions.deletePlayer,
+    createTeam: !!permissions.createTeam,
+    manageStaff: !!permissions.manageStaff,
+    createBattle: !!permissions.createBattle,
+    manageBattle: !!permissions.manageBattle,
+    createStrategy: !!permissions.createStrategy,
+    manageStrategy: !!permissions.manageStrategy,
+});
+
+const hasStaffPermission = (user, actionKey) => {
+    if (!user) return false;
+    if (['admin', 'head_coach'].includes(user.role)) return true;
+    if (!['coach', 'assistant_coach', 'custom'].includes(user.role)) return false;
     return user.permissions && user.permissions[actionKey] === true;
 };
 
@@ -113,6 +134,25 @@ const syncStaffLeadAssignments = async ({
 
 const normalizeUserResponse = (doc) => {
     if (!doc) return null;
+    const role = doc.role;
+    let permissions = doc.permissions || null;
+    if (permissions && typeof permissions === 'object') {
+        const raw = typeof permissions.toObject === 'function' ? permissions.toObject() : { ...permissions };
+        // Legacy coach docs only had 6 flags — fill missing battle/strategy keys from role defaults.
+        if (raw.createBattle === undefined) {
+            raw.createBattle = role === 'coach';
+        }
+        if (raw.manageBattle === undefined) {
+            raw.manageBattle = role === 'coach';
+        }
+        if (raw.createStrategy === undefined) {
+            raw.createStrategy = role === 'coach';
+        }
+        if (raw.manageStrategy === undefined) {
+            raw.manageStrategy = role === 'coach';
+        }
+        permissions = normalizeStaffPermissions(raw);
+    }
     return {
         _id: doc._id,
         username: doc.username,
@@ -133,8 +173,12 @@ const normalizeUserResponse = (doc) => {
         additionalGoals: doc.additionalGoals,
         stats: doc.stats || { matchesPlayed: 0, wins: 0, points: 0 },
         rank: doc.rank || 0,
-        permissions: doc.permissions || null,
+        permissions,
         managedBy: doc.managedBy || null,
+        profilePic: doc.profilePic || doc.profileImageUrl || doc.logoUrl || null,
+        profileImageUrl: doc.profileImageUrl || doc.profilePic || doc.logoUrl || null,
+        logoUrl: doc.logoUrl || null,
+        academyName: doc.academyName || null,
     };
 };
 
@@ -315,7 +359,7 @@ const loginPlayer = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/me
 const getMe = asyncHandler(async (req, res) => {
     // req.user is set by authMiddleware
-    res.status(200).json(req.user);
+    res.status(200).json(normalizeUserResponse(req.user));
 });
 
 // @desc    Get normalized role profile
@@ -353,7 +397,7 @@ const updateProfile = asyncHandler(async (req, res) => {
     }
 
     let updatedUser;
-    if (['coach', 'head_coach', 'assistant_coach'].includes(role)) {
+    if (['coach', 'head_coach', 'assistant_coach', 'custom'].includes(role)) {
         const payload = {};
         const allowedFields = [
             'username',
@@ -368,17 +412,23 @@ const updateProfile = asyncHandler(async (req, res) => {
             'position',
             'ageRange',
             'profilePic',
+            'profileImageUrl',
         ];
         for (const key of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, key)) {
                 payload[key] = req.body[key];
             }
         }
+        const pic = payload.profilePic || payload.profileImageUrl;
+        if (pic) {
+            payload.profilePic = pic;
+            payload.profileImageUrl = pic;
+        }
         payload.profileCompleted = true;
         updatedUser = await Coach.findByIdAndUpdate(
             user._id,
             payload,
-            { new: true }
+            { new: true, runValidators: false }
         );
     } else if (role === 'player') {
         const payload = {};
@@ -392,17 +442,23 @@ const updateProfile = asyncHandler(async (req, res) => {
             'additionalGoals',
             'teamName',
             'profileImageUrl',
+            'profilePic',
         ];
         for (const key of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, key)) {
                 payload[key] = req.body[key];
             }
         }
+        const pic = payload.profileImageUrl || payload.profilePic;
+        if (pic) {
+            payload.profileImageUrl = pic;
+            payload.profilePic = pic;
+        }
         payload.profileCompleted = true;
         updatedUser = await Player.findByIdAndUpdate(
             user._id,
             payload,
-            { new: true }
+            { new: true, runValidators: false }
         );
     } else if (role === 'admin') {
         const payload = {};
@@ -700,14 +756,7 @@ const createStaff = asyncHandler(async (req, res) => {
         assignedTeamIds: normalizedAssignedTeamIds,
         assignedTeams: normalizedAssignedTeamIds,
         customRoleName: role === 'custom' ? (customRoleName || null) : null,
-        permissions: {
-            createPlayer: !!permissions.createPlayer,
-            readPlayer: permissions.readPlayer ?? true,
-            updatePlayer: !!permissions.updatePlayer,
-            deletePlayer: !!permissions.deletePlayer,
-            createTeam: !!permissions.createTeam,
-            manageStaff: !!permissions.manageStaff,
-        },
+        permissions: normalizeStaffPermissions(permissions),
     });
 
     await syncStaffLeadAssignments({
@@ -736,9 +785,9 @@ const createStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/player/create
 // @access  Private (Coach/Asst Coach/Head Coach)
 const createPlayerByCoach = asyncHandler(async (req, res) => {
-    const { username, email, password, teamId, position, ageRange } = req.body;
+    const { username, email, password, teamId, position, ageRange, profileImageUrl, profilePic } = req.body;
 
-    if (!['head_coach', 'coach', 'assistant_coach', 'admin'].includes(req.user.role)) {
+    if (!['head_coach', 'coach', 'assistant_coach', 'admin', 'custom'].includes(req.user.role)) {
         res.status(403);
         throw new Error('Not authorized to create players');
     }
@@ -766,6 +815,7 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    const avatar = profileImageUrl || profilePic || '';
     const player = await Player.create({
         username,
         email: cleanEmail,
@@ -777,6 +827,8 @@ const createPlayerByCoach = asyncHandler(async (req, res) => {
         isVerified: true,
         position,
         ageRange,
+        profileImageUrl: avatar,
+        profilePic: avatar,
     });
 
     if (teamId) {
@@ -809,7 +861,7 @@ const getStaffCredentials = asyncHandler(async (req, res) => {
     ensureAdmin(req, res);
 
     const staff = await Coach.find({ managedBy: req.user._id }).select('-password');
-    res.status(200).json(staff);
+    res.status(200).json(staff.map((s) => normalizeUserResponse(s)));
 });
 
 // @desc    Update staff account by admin
@@ -853,21 +905,22 @@ const updateStaff = asyncHandler(async (req, res) => {
     }
     if (role && ['coach', 'assistant_coach', 'custom'].includes(role)) staff.role = role;
     if (customRoleName !== undefined) staff.customRoleName = customRoleName;
-    if (profilePic !== undefined) staff.profilePic = profilePic;
+    if (profilePic !== undefined) {
+        staff.profilePic = profilePic;
+        staff.profileImageUrl = profilePic;
+    }
+    if (req.body.profileImageUrl !== undefined) {
+        staff.profileImageUrl = req.body.profileImageUrl;
+        staff.profilePic = req.body.profileImageUrl;
+    }
     if (Array.isArray(assignedTeamIds)) {
         const normalizedAssignedTeamIds = normalizeIdList(assignedTeamIds);
         staff.assignedTeamIds = normalizedAssignedTeamIds;
         staff.assignedTeams = normalizedAssignedTeamIds;
     }
     if (permissions) {
-        staff.permissions = {
-            createPlayer: !!permissions.createPlayer,
-            readPlayer: permissions.readPlayer ?? true,
-            updatePlayer: !!permissions.updatePlayer,
-            deletePlayer: !!permissions.deletePlayer,
-            createTeam: !!permissions.createTeam,
-            manageStaff: !!permissions.manageStaff,
-        };
+        staff.permissions = normalizeStaffPermissions(permissions);
+        staff.markModified('permissions');
     }
     if (password && password.trim()) {
         const salt = await bcrypt.genSalt(10);
@@ -887,15 +940,22 @@ const updateStaff = asyncHandler(async (req, res) => {
 
     req.io.emit('STAFF_UPDATED', { academyId: req.user._id, staffId: updated._id });
 
+    const savedPerms = normalizeStaffPermissions(
+        updated.permissions && typeof updated.permissions.toObject === 'function'
+            ? updated.permissions.toObject()
+            : (updated.permissions || {})
+    );
+
     res.status(200).json({
         _id: updated._id,
         username: updated.username,
         email: updated.email,
         role: updated.role,
         assignedTeamIds: updated.assignedTeamIds || [],
-        permissions: updated.permissions,
+        permissions: savedPerms,
         customRoleName: updated.customRoleName || null,
-        profilePic: updated.profilePic || null,
+        profilePic: updated.profilePic || updated.profileImageUrl || null,
+        profileImageUrl: updated.profileImageUrl || updated.profilePic || null,
     });
 });
 
@@ -934,7 +994,13 @@ const deleteStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/team/create
 // @access  Private (Admin)
 const createTeamByAdmin = asyncHandler(async (req, res) => {
-    ensureAdmin(req, res);
+    const isOwner = ['admin', 'head_coach'].includes(req.user.role);
+    if (!isOwner && !hasStaffPermission(req.user, 'createTeam')) {
+        res.status(403);
+        throw new Error('You do not have permission to create teams');
+    }
+
+    const academyId = isOwner ? req.user._id : (req.user.managedBy || req.user._id);
     const { 
         name, 
         ageGroup, 
@@ -950,7 +1016,7 @@ const createTeamByAdmin = asyncHandler(async (req, res) => {
         throw new Error('Please add a team name');
     }
 
-    const exists = await Team.findOne({ name: name.trim(), managedBy: req.user._id });
+    const exists = await Team.findOne({ name: name.trim(), managedBy: academyId });
     if (exists) {
         res.status(400);
         throw new Error('Team already exists');
@@ -962,15 +1028,15 @@ const createTeamByAdmin = asyncHandler(async (req, res) => {
         colorValue: typeof colorValue === 'number' ? colorValue : 0xFFF59E0B,
         logoPath: logoPath || null,
         description,
-        headCoach: req.user._id,
-        managedBy: req.user._id,
+        headCoach: academyId,
+        managedBy: academyId,
         coachStaffId: coachStaffId || null,
         assistantCoachStaffId: assistantCoachStaffId || null,
         coachingStaff: [],
         players: [],
     });
 
-    req.io.emit('TEAM_CREATED', { academyId: req.user._id, teamId: team._id });
+    req.io.emit('TEAM_CREATED', { academyId, teamId: team._id });
 
     res.status(201).json(team);
 });
@@ -1219,10 +1285,12 @@ const getAdminOverview = asyncHandler(async (req, res) => {
         throw new Error('Admin not found');
     }
 
-    const [staff, teams] = await Promise.all([
+    const [staffRaw, teams] = await Promise.all([
         Coach.find({ managedBy: req.user._id }).select('-password'),
-        Team.find({ managedBy: req.user._id }).populate('players', 'username position ageRange'),
+        Team.find({ managedBy: req.user._id }).populate('players', 'username position ageRange profileImageUrl profilePic'),
     ]);
+
+    const staff = staffRaw.map((s) => normalizeUserResponse(s));
 
     res.status(200).json({
         admin: {
@@ -1264,9 +1332,9 @@ const getCoachDashboard = asyncHandler(async (req, res) => {
         };
 
     const teams = await Team.find(teamQuery)
-        .populate('players', 'username email position ageRange stats')
-        .populate('coachStaffId', 'username email role')
-        .populate('assistantCoachStaffId', 'username email role');
+        .populate('players', 'username email position ageRange stats profileImageUrl profilePic')
+        .populate('coachStaffId', 'username email role profilePic profileImageUrl')
+        .populate('assistantCoachStaffId', 'username email role profilePic profileImageUrl');
 
     let staff = [];
     if (req.user.role === 'admin') {
@@ -1300,7 +1368,7 @@ const getPlayerDashboard = asyncHandler(async (req, res) => {
     const team = await Team.findOne({ players: player._id })
         .populate('coachStaffId', 'username email role')
         .populate('assistantCoachStaffId', 'username email role')
-        .populate('players', 'username position ageRange stats');
+        .populate('players', 'username position ageRange stats profileImageUrl profilePic');
 
     const teammates = (team?.players || [])
         .filter((p) => p._id.toString() !== player._id.toString());
@@ -1336,7 +1404,8 @@ const getPlayerById = asyncHandler(async (req, res) => {
         position: player.position,
         ageRange: player.ageRange,
         jersey: player.jersey,
-        profileImageUrl: player.profileImageUrl || player.profilePic,
+        profileImageUrl: player.profileImageUrl || player.profilePic || null,
+        profilePic: player.profilePic || player.profileImageUrl || null,
         teamName: team?.name,
         teamId: team?._id,
     });

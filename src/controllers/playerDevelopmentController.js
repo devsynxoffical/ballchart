@@ -1,11 +1,14 @@
 const asyncHandler = require('express-async-handler');
-const PDFDocument = require('pdfkit');
 const PeriodReport = require('../models/PeriodReport');
 const TrainingAssignment = require('../models/TrainingAssignment');
 const DevelopmentCatalog = require('../models/DevelopmentCatalog');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const { academyScopeId, isStaff } = require('../utils/userLookup');
+const {
+    buildPerformanceReportPdf,
+    buildAssignmentCompletionPdf,
+} = require('../utils/performanceReportPdf');
 
 const STANDARD_AREAS = [
     'Technical Skills',
@@ -66,53 +69,31 @@ function reportDto(report) {
     };
 }
 
-async function assertPlayerAccess(req, playerId) {
+async function assertPlayerAccess(req, res, playerId) {
     const scope = academyScopeId(req.user);
     if (`${req.user._id}` === `${playerId}`) return;
+
     if (!isStaff(req.user)) {
         res.status(403);
         throw new Error('Access denied');
     }
-    const teams = await Team.find({ managedBy: scope, players: playerId });
-    if (!teams.length) {
-        res.status(404);
-        throw new Error('Player not found in academy');
-    }
+
+    // Fast academy membership check (indexed) — avoids scanning every team.
+    const player = await Player.findOne({ _id: playerId, managedBy: scope })
+        .select('_id')
+        .lean();
+    if (player) return;
+
+    // Fallback for older records that may lack managedBy on Player.
+    const inTeam = await Team.exists({ managedBy: scope, players: playerId });
+    if (inTeam) return;
+
+    res.status(404);
+    throw new Error('Player not found in academy');
 }
 
 function buildPdfBuffer(report, playerName) {
-    return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ margin: 48 });
-        const chunks = [];
-        doc.on('data', (c) => chunks.push(c));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', reject);
-
-        doc.fontSize(20).text('Performance Development Report', { underline: true });
-        doc.moveDown();
-        doc.fontSize(12).text(`Player: ${playerName}`);
-        doc.text(`Period: ${report.evaluationPeriod || `${report.month}/${report.year}`}`);
-        if (report.ageCategory) doc.text(`Age category: ${report.ageCategory}`);
-        doc.moveDown();
-        doc.fontSize(14).text('Development areas');
-        doc.moveDown(0.5);
-        for (const area of mergeAreas(report.areas)) {
-            doc.fontSize(11).text(`${area.label}${area.rating ? ` — ${area.rating}/5` : ''}`, { continued: false });
-            if (area.performanceComment) doc.fontSize(10).text(`Comment: ${area.performanceComment}`);
-            if (area.strengths) doc.fontSize(10).text(`Strengths: ${area.strengths}`);
-            if (area.focusArea) doc.fontSize(10).text(`Focus: ${area.focusArea}`);
-            doc.moveDown(0.4);
-        }
-        if (report.summary) {
-            doc.moveDown().fontSize(14).text('Summary');
-            doc.fontSize(10).text(report.summary);
-        }
-        if ((report.goals || []).length) {
-            doc.moveDown().fontSize(14).text('Coach goals');
-            for (const g of report.goals) doc.fontSize(10).text(`• ${g}`);
-        }
-        doc.end();
-    });
+    return buildPerformanceReportPdf(report, playerName, mergeAreas(report.areas));
 }
 
 const getCatalog = asyncHandler(async (req, res) => {
@@ -159,11 +140,22 @@ const getPeriodReport = asyncHandler(async (req, res) => {
     const playerId = req.params.playerId;
     const year = parseInt(req.query.year, 10);
     const month = parseInt(req.query.month, 10);
-    await assertPlayerAccess(req, playerId);
-    const report = await PeriodReport.findOne({ playerId, year, month });
+    await assertPlayerAccess(req, res, playerId);
+    const report = await PeriodReport.findOne({ playerId, year, month }).lean();
     if (!report) {
-        res.status(404);
-        throw new Error('Period report not found');
+        // New report — return empty template (no 404) so the editor opens instantly.
+        return res.json(reportDto({
+            playerId,
+            year,
+            month,
+            ageCategory: '',
+            evaluationPeriod: '',
+            areas: [],
+            summary: '',
+            goals: [],
+            playerGoals: [],
+            nextEvaluationDate: '',
+        }));
     }
     res.json(reportDto(report));
 });
@@ -175,7 +167,7 @@ const savePeriodReport = asyncHandler(async (req, res) => {
     }
     const playerId = req.params.playerId;
     const { year, month, ageCategory, evaluationPeriod, areas, summary, goals, nextEvaluationDate } = req.body;
-    await assertPlayerAccess(req, playerId);
+    await assertPlayerAccess(req, res, playerId);
     const scope = academyScopeId(req.user);
     const report = await PeriodReport.findOneAndUpdate(
         { playerId, year, month },
@@ -223,7 +215,7 @@ const monthlyReportPdf = asyncHandler(async (req, res) => {
     const playerId = req.params.playerId;
     const year = parseInt(req.params.year, 10);
     const month = parseInt(req.params.month, 10);
-    await assertPlayerAccess(req, playerId);
+    await assertPlayerAccess(req, res, playerId);
     const report = await PeriodReport.findOne({ playerId, year, month });
     if (!report) {
         res.status(404);
@@ -242,23 +234,8 @@ const assignmentPdf = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Assignment not found');
     }
-    await assertPlayerAccess(req, assignment.playerId);
-    const pdf = await new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ margin: 48 });
-        const chunks = [];
-        doc.on('data', (c) => chunks.push(c));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', reject);
-        doc.fontSize(18).text('Training Completion Report');
-        doc.moveDown();
-        doc.fontSize(12).text(`Focus: ${assignment.focusArea}`);
-        doc.text(`Drill: ${assignment.drillName}`);
-        doc.text(`Points: ${assignment.pointsValue}`);
-        doc.text(`Status: ${assignment.status}`);
-        if (assignment.completedAt) doc.text(`Completed: ${assignment.completedAt.toISOString()}`);
-        if (assignment.playerNotes) doc.text(`Player notes: ${assignment.playerNotes}`);
-        doc.end();
-    });
+    await assertPlayerAccess(req, res, assignment.playerId);
+    const pdf = await buildAssignmentCompletionPdf(assignment);
     res.setHeader('Content-Type', 'application/pdf');
     res.send(pdf);
 });
@@ -274,7 +251,7 @@ const listAssignmentsForPlayer = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('playerId required');
     }
-    await assertPlayerAccess(req, playerId);
+    await assertPlayerAccess(req, res, playerId);
     const list = await TrainingAssignment.find({ playerId }).sort({ createdAt: -1 });
     res.json(list);
 });
@@ -288,7 +265,7 @@ const createAssignment = asyncHandler(async (req, res) => {
     const {
         playerId, focusArea, drillName, sessionIntent = 'training', dueAt, notes = '', pointsValue = 10,
     } = req.body;
-    await assertPlayerAccess(req, playerId);
+    await assertPlayerAccess(req, res, playerId);
     const created = await TrainingAssignment.create({
         playerId,
         managedBy: scope,

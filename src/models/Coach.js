@@ -48,13 +48,28 @@ const coachSchema = mongoose.Schema(
         customRoleName: {
             type: String,
         },
+        profilePic: {
+            type: String,
+            default: '',
+        },
+        profileImageUrl: {
+            type: String,
+            default: '',
+        },
         permissions: {
-            createPlayer: { type: Boolean, default: false },
-            readPlayer: { type: Boolean, default: true },
-            updatePlayer: { type: Boolean, default: false },
-            deletePlayer: { type: Boolean, default: false },
-            createTeam: { type: Boolean, default: false },
-            manageStaff: { type: Boolean, default: false },
+            type: mongoose.Schema.Types.Mixed,
+            default: () => ({
+                createPlayer: false,
+                readPlayer: true,
+                updatePlayer: false,
+                deletePlayer: false,
+                createTeam: false,
+                manageStaff: false,
+                createBattle: false,
+                manageBattle: false,
+                createStrategy: false,
+                manageStrategy: false,
+            }),
         },
         managedBy: {
             type: mongoose.Schema.Types.ObjectId,

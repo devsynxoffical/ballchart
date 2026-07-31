@@ -3,7 +3,14 @@ const Strategy = require('../models/Strategy');
 const Admin = require('../models/Admin');
 const Coach = require('../models/Coach');
 
-const createAllowedRoles = ['admin', 'head_coach', 'coach', 'assistant_coach'];
+const createAllowedRoles = ['admin', 'head_coach', 'coach', 'assistant_coach', 'custom'];
+
+const hasStaffFlag = (user, key) => {
+    if (!user) return false;
+    if (['admin', 'head_coach'].includes(user.role)) return true;
+    if (!createAllowedRoles.includes(user.role)) return false;
+    return !!(user.permissions && user.permissions[key] === true);
+};
 
 const toIdString = (value) => (value ? value.toString() : '');
 
@@ -33,9 +40,14 @@ const resolveAcademyScopeId = async (user) => {
 
 const resolveCreator = async (createdBy, role) => {
     if (role === 'admin') {
-        return Admin.findById(createdBy).select('_id username role');
+        return Admin.findById(createdBy).select('_id username role logoUrl');
     }
-    return Coach.findById(createdBy).select('_id username role');
+    return Coach.findById(createdBy).select('_id username role profilePic profileImageUrl');
+};
+
+const creatorAvatar = (creator) => {
+    if (!creator) return null;
+    return creator.profilePic || creator.profileImageUrl || creator.logoUrl || null;
 };
 
 const isValidHttpUrl = (value) => {
@@ -102,6 +114,9 @@ const serializeStrategy = (item, creator) => ({
             _id: creator._id,
             username: creator.username,
             role: creator.role,
+            profilePic: creator.profilePic || null,
+            profileImageUrl: creator.profileImageUrl || creator.logoUrl || null,
+            avatarUrl: creatorAvatar(creator),
         }
         : null,
 });
@@ -113,6 +128,10 @@ const createStrategy = asyncHandler(async (req, res) => {
     if (!createAllowedRoles.includes(req.user.role)) {
         res.status(403);
         throw new Error('Only academy staff can create strategies');
+    }
+    if (!hasStaffFlag(req.user, 'createStrategy')) {
+        res.status(403);
+        throw new Error('You do not have permission to create strategies');
     }
 
     const { title, category, sourceType, sourceText, videoUrl, thumbnailUrl, metadata, tags, revisionState } = req.body;
@@ -183,8 +202,8 @@ const getStrategies = asyncHandler(async (req, res) => {
     });
 
     const [admins, staffs] = await Promise.all([
-        Admin.find({ _id: { $in: creatorIdsByRole.admin } }).select('_id username role').lean(),
-        Coach.find({ _id: { $in: creatorIdsByRole.staff } }).select('_id username role').lean(),
+        Admin.find({ _id: { $in: creatorIdsByRole.admin } }).select('_id username role logoUrl').lean(),
+        Coach.find({ _id: { $in: creatorIdsByRole.staff } }).select('_id username role profilePic profileImageUrl').lean(),
     ]);
 
     const creatorMap = new Map();
@@ -210,6 +229,10 @@ const updateStrategy = asyncHandler(async (req, res) => {
     if (!createAllowedRoles.includes(req.user.role)) {
         res.status(403);
         throw new Error('Only academy staff can update strategies');
+    }
+    if (!hasStaffFlag(req.user, 'manageStrategy') && !hasStaffFlag(req.user, 'createStrategy')) {
+        res.status(403);
+        throw new Error('You do not have permission to manage strategies');
     }
 
     const strategy = await Strategy.findById(req.params.id);

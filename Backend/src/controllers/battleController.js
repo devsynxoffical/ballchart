@@ -4,7 +4,14 @@ const Admin = require('../models/Admin');
 const Coach = require('../models/Coach');
 const Player = require('../models/Player');
 
-const createAllowedRoles = ['admin', 'head_coach', 'coach', 'assistant_coach'];
+const createAllowedRoles = ['admin', 'head_coach', 'coach', 'assistant_coach', 'custom'];
+
+const hasStaffFlag = (user, key) => {
+    if (!user) return false;
+    if (['admin', 'head_coach'].includes(user.role)) return true;
+    if (!createAllowedRoles.includes(user.role)) return false;
+    return !!(user.permissions && user.permissions[key] === true);
+};
 
 const toIdString = (value) => (value ? value.toString() : '');
 
@@ -40,17 +47,21 @@ const resolveUsersByIds = async (ids) => {
     if (!uniqueIds.length) return new Map();
 
     const [admins, coaches, players] = await Promise.all([
-        Admin.find({ _id: { $in: uniqueIds } }).select('_id username role'),
-        Coach.find({ _id: { $in: uniqueIds } }).select('_id username role'),
-        Player.find({ _id: { $in: uniqueIds } }).select('_id username role'),
+        Admin.find({ _id: { $in: uniqueIds } }).select('_id username role logoUrl'),
+        Coach.find({ _id: { $in: uniqueIds } }).select('_id username role profilePic profileImageUrl'),
+        Player.find({ _id: { $in: uniqueIds } }).select('_id username role profileImageUrl profilePic'),
     ]);
 
     const map = new Map();
     [...admins, ...coaches, ...players].forEach((doc) => {
+        const avatar = doc.profilePic || doc.profileImageUrl || doc.logoUrl || null;
         map.set(doc._id.toString(), {
             _id: doc._id,
             username: doc.username,
             role: doc.role,
+            profilePic: doc.profilePic || null,
+            profileImageUrl: doc.profileImageUrl || doc.logoUrl || null,
+            avatarUrl: avatar,
         });
     });
     return map;
@@ -93,6 +104,10 @@ const createBattle = asyncHandler(async (req, res) => {
         res.status(403);
         throw new Error('Only academy staff can create battles');
     }
+    if (!hasStaffFlag(req.user, 'createBattle')) {
+        res.status(403);
+        throw new Error('You do not have permission to schedule games');
+    }
 
     if (!location || !dateTime) {
         res.status(400);
@@ -110,7 +125,7 @@ const createBattle = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Invalid battle date/time');
     }
-    if (parsedDate.getTime() <= Date.now()) {
+    if (parsedDate.getTime() <= Date.now() - 60_000) {
         res.status(400);
         throw new Error('Battle time must be in the future');
     }
@@ -249,6 +264,10 @@ const updateBattle = asyncHandler(async (req, res) => {
     if (!createAllowedRoles.includes(req.user.role)) {
         res.status(403);
         throw new Error('Only academy staff can update battles');
+    }
+    if (!hasStaffFlag(req.user, 'manageBattle') && !hasStaffFlag(req.user, 'createBattle')) {
+        res.status(403);
+        throw new Error('You do not have permission to manage games');
     }
 
     const academyScopeId = await resolveAcademyScopeId(req.user);

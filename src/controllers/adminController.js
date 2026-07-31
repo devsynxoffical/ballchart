@@ -120,7 +120,7 @@ const getAcademyDetails = asyncHandler(async (req, res) => {
 
     const staff = await Coach.find({ managedBy: academyId }).select('-password');
     const teams = await Team.find({ managedBy: academyId })
-        .populate('players', 'username email role position ageRange isVerified profileCompleted')
+        .populate('players', 'username email role position ageRange isVerified profileCompleted profileImageUrl profilePic')
         .populate('coachStaffId', 'username email role isVerified')
         .populate('assistantCoachStaffId', 'username email role isVerified');
 
