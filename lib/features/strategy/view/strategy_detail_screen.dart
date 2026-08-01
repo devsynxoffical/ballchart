@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -14,6 +15,7 @@ import '../../../core/utils/strategy_pdf_generator.dart';
 import '../../../core/utils/video_thumbnail.dart';
 import '../../../core/models/tactical/tactical_voice_clip.dart';
 import '../../../core/widgets/tactics/coach_voice_clips_panel.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../tactics/view/tactical_lab_screen.dart';
 
 class StrategyDetailScreen extends StatelessWidget {
@@ -96,7 +98,7 @@ class StrategyDetailScreen extends StatelessWidget {
         if (opened) return;
       } catch (_) {}
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(
             content: const Text('Unable to open YouTube app. Link copied.'),
             backgroundColor: Colors.redAccent,
@@ -182,10 +184,13 @@ class StrategyDetailScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 12,
+                    UserAvatar(
+                      name: strategy.createdByName,
+                      imageUrl: strategy.createdByAvatarUrl,
+                      size: 24,
+                      usePersonIconFallback: true,
                       backgroundColor: outlineColor.withOpacity(0.2),
-                      child: const Icon(Icons.person, size: 14, color: outlineColor),
+                      accentColor: outlineColor,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -428,7 +433,7 @@ class StrategyDetailScreen extends StatelessWidget {
   Future<void> _shareStrategy(BuildContext context) async {
     try {
       // Show loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(
           content: Row(
             children: [
@@ -443,7 +448,11 @@ class StrategyDetailScreen extends StatelessWidget {
 
       final pdfBytes = await StrategyPdfGenerator.generate(strategy);
       final tempDir = await getTemporaryDirectory();
-      final fileName = 'Strategy_${strategy.title.replaceAll(' ', '_')}.pdf';
+      final safeName = strategy.title
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim()
+          .replaceAll(RegExp(r'\s+'), '_');
+      final fileName = 'BallChart_Strategy_${safeName.isEmpty ? 'Report' : safeName}.pdf';
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsBytes(pdfBytes);
 
@@ -451,12 +460,12 @@ class StrategyDetailScreen extends StatelessWidget {
       await shareFiles(
         context,
         files: [XFile(file.path)],
-        text: 'HoopStar Strategy: ${strategy.title}\nCategory: ${BasketballStrategy.categoryLabel(strategy.category)}',
-        subject: 'Coaching Strategy: ${strategy.title}',
+        text: 'BallChart Strategy: ${strategy.title}\nCategory: ${BasketballStrategy.categoryLabel(strategy.category)}',
+        subject: 'BallChart Strategy: ${strategy.title}',
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('Failed to share PDF: $e'), backgroundColor: Colors.red),
         );
       }

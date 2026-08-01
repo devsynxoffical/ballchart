@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '13.0'
+platform :ios, '15.6'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -27,6 +27,31 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# whisper_ggml is a Dart FFI plugin: Dart looks up its C symbols at runtime
+# with dlsym(). Under static linkage the linker drops those symbols from the
+# app binary (nothing references them at link time), so this one pod must be
+# a dynamic framework. Everything else stays static.
+pre_install do |installer|
+  installer.pod_targets.each do |pod|
+    if pod.name == 'whisper_ggml'
+      def pod.build_type
+        Pod::BuildType.dynamic_framework
+      end
+    end
+  end
+end
+
+# CocoaPods flags whisper_ggml's dependency on the 'Flutter' pod as a static
+# transitive dependency, but Flutter.xcframework is a dynamic framework, so
+# the check is a false positive here.
+def skip_transitive_static_check
+  Pod::Installer::Xcode::TargetValidator.send(
+    :define_method,
+    :verify_no_static_framework_transitive_dependencies,
+  ) {}
+end
+skip_transitive_static_check
+
 target 'Runner' do
   use_frameworks! :linkage => :static
 
@@ -43,7 +68,6 @@ post_install do |installer|
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
         'PERMISSION_MICROPHONE=1',
-        'PERMISSION_SPEECH_RECOGNIZER=1',
       ]
     end
   end

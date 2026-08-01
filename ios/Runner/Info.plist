@@ -26,10 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>BallChart uses the camera to take team, player, and profile photos.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>BallChart uses the microphone for tactical voice commands, voice notes in chat, and saving coach explanations.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>BallChart uses speech recognition to turn voice into tactical commands.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BallChart accesses your photo library so you can choose team, player, and profile photos.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

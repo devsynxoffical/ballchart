@@ -136,6 +136,7 @@ class BattleParticipant {
   final String role;
   final String? teamId;
   final String? teamName;
+  final String? avatarUrl;
   final Map<String, dynamic>? stats;
   final DateTime joinedAt;
 
@@ -146,11 +147,15 @@ class BattleParticipant {
     required this.role,
     this.teamId,
     this.teamName,
+    this.avatarUrl,
     this.stats,
     required this.joinedAt,
   });
 
   factory BattleParticipant.fromJson(Map<String, dynamic> json) {
+    final avatar = (json['avatarUrl'] ?? json['profileImageUrl'] ?? json['profilePic'] ?? json['logoUrl'])
+        ?.toString()
+        .trim();
     return BattleParticipant(
       id: (json['_id'] ?? json['id'] ?? '').toString(),
       name: (json['name'] ?? json['username'] ?? '').toString(),
@@ -158,6 +163,7 @@ class BattleParticipant {
       role: (json['role'] ?? '').toString(),
       teamId: json['teamId']?.toString(),
       teamName: json['teamName']?.toString(),
+      avatarUrl: (avatar != null && avatar.isNotEmpty) ? avatar : null,
       stats: json['stats'] as Map<String, dynamic>?,
       joinedAt: DateTime.tryParse(json['joinedAt']?.toString() ?? '') ?? DateTime.now(),
     );

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'strategy_creation_entry.dart';
@@ -71,8 +72,18 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
   bool _looksLikeHttpUrl(String value) {
     final t = value.trim();
     if (t.isEmpty) return false;
-    final uri = Uri.tryParse(t);
-    return uri != null && uri.hasAbsolutePath && (uri.isScheme('http') || uri.isScheme('https'));
+    final withScheme = t.contains('://') ? t : 'https://$t';
+    final uri = Uri.tryParse(withScheme);
+    if (uri == null) return false;
+    if (!(uri.isScheme('http') || uri.isScheme('https'))) return false;
+    return uri.host.isNotEmpty;
+  }
+
+  String _normalizeVideoUrl(String value) {
+    final t = value.trim();
+    if (t.isEmpty) return t;
+    if (t.startsWith('http://') || t.startsWith('https://')) return t;
+    return 'https://$t';
   }
 
   bool _isLikelyUnsupportedVideoUrl(String value) {
@@ -154,7 +165,7 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
     }
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
       return false;
@@ -277,11 +288,40 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
                     _buildInputField('DESCRIPTION', _descriptionController, 'Coaching points, reads, counters…', maxLines: 3),
                     const SizedBox(height: 24),
 
+                    if (widget.entry == StrategyCreationEntry.videoFirst) ...[
+                      _sectionTitle('2', 'VIDEO LINK (REQUIRED)'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Paste a YouTube, Hudl, or direct .mp4 / HLS link. Players open it from the strategy card.',
+                        style: TextStyle(color: outlineColor.withOpacity(0.85), fontSize: 10, height: 1.3),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInputField(
+                        'VIDEO URL',
+                        _videoUrlController,
+                        'https://youtube.com/watch?v=… or https://youtu.be/…',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _urlChip('YouTube', 'https://www.youtube.com/watch?v='),
+                          _urlChip('youtu.be', 'https://youtu.be/'),
+                          _urlChip('https://', 'https://'),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     if (widget.entry == StrategyCreationEntry.diagramFirst ||
                         widget.entry == StrategyCreationEntry.fullPlaybook ||
                         widget.entry == StrategyCreationEntry.videoFirst ||
                         widget.entry == StrategyCreationEntry.linkLibrary) ...[
-                      _sectionTitle('2', 'DIAGRAM (OPTIONAL)'),
+                      _sectionTitle(
+                        widget.entry == StrategyCreationEntry.videoFirst ? '3' : '2',
+                        'DIAGRAM (OPTIONAL)',
+                      ),
                       const SizedBox(height: 12),
                       GestureDetector(
                         onTap: _pickImage,
@@ -315,18 +355,21 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
                       const SizedBox(height: 24),
                     ],
 
-                    if (widget.entry != StrategyCreationEntry.textOnly) ...[
-                      _sectionTitle('3', 'VIDEO / STREAM (OPTIONAL)'),
+                    if (widget.entry != StrategyCreationEntry.videoFirst) ...[
+                      _sectionTitle(
+                        widget.entry == StrategyCreationEntry.textOnly ? '2' : '3',
+                        'VIDEO LINK (OPTIONAL)',
+                      ),
                       const SizedBox(height: 8),
                       Text(
-                        'Direct .mp4, HLS, or page URLs your player can open. YouTube often needs embed or share links your backend accepts.',
+                        'Add a YouTube, Hudl, or direct video URL so players can watch the play.',
                         style: TextStyle(color: outlineColor.withOpacity(0.85), fontSize: 10, height: 1.3),
                       ),
                       const SizedBox(height: 12),
                       _buildInputField(
                         'VIDEO URL',
                         _videoUrlController,
-                        'https://…',
+                        'https://youtube.com/watch?v=… or https://youtu.be/…',
                       ),
                       const SizedBox(height: 10),
                       Wrap(
@@ -334,13 +377,19 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
                         runSpacing: 8,
                         children: [
                           _urlChip('YouTube', 'https://www.youtube.com/watch?v='),
-                          _urlChip('Storage', 'https://'),
+                          _urlChip('youtu.be', 'https://youtu.be/'),
+                          _urlChip('https://', 'https://'),
                         ],
                       ),
                       const SizedBox(height: 24),
                     ],
 
-                    _sectionTitle('4', 'REFERENCE LINK (OPTIONAL)'),
+                    _sectionTitle(
+                      widget.entry == StrategyCreationEntry.videoFirst
+                          ? '4'
+                          : (widget.entry == StrategyCreationEntry.textOnly ? '3' : '4'),
+                      'REFERENCE LINK (OPTIONAL)',
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'Hudl, Google Doc, or long-form scouting — separate from the clip above.',
@@ -350,7 +399,12 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
                     _buildInputField('REFERENCE URL', _referenceUrlController, 'https://…'),
                     const SizedBox(height: 24),
 
-                    _sectionTitle('5', 'KEY PLAYS / CUES'),
+                    _sectionTitle(
+                      widget.entry == StrategyCreationEntry.videoFirst
+                          ? '5'
+                          : (widget.entry == StrategyCreationEntry.textOnly ? '4' : '5'),
+                      'KEY PLAYS / CUES',
+                    ),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -718,7 +772,7 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
     setState(() => _isLoading = true);
 
     try {
-      final videoRaw = _videoUrlController.text.trim();
+      final videoRaw = _normalizeVideoUrl(_videoUrlController.text);
       final refRaw = _referenceUrlController.text.trim();
       await widget.onStrategyCreated(
         _titleController.text.trim(),
@@ -731,10 +785,10 @@ class _CreateStrategyDialogState extends State<CreateStrategyDialog> {
         List<String>.from(_tags),
         refRaw.isEmpty ? null : refRaw,
       );
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         SnackBar(
           content: Text('Failed to create strategy: $e'),
           backgroundColor: Colors.red,

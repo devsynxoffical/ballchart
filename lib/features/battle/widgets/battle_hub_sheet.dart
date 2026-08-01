@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
+import 'package:ballchart/core/widgets/user_avatar.dart';
 import 'package:provider/provider.dart';
 
 import 'package:ballchart/core/models/battle_model.dart';
@@ -145,13 +147,11 @@ class _BattleHubContent extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: primaryColor.withValues(alpha: 0.2),
-                  child: Text(
-                    p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
-                    style: const TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
-                  ),
+                UserAvatar(
+                  name: p.name,
+                  imageUrl: p.avatarUrl,
+                  size: 36,
+                  usePersonIconFallback: true,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -184,10 +184,18 @@ class _BattleHubContent extends StatelessWidget {
               if (context.mounted) {
                 final err = battleVm.errorMessage;
                 if (err != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: Colors.redAccent));
+                  AppMessenger.show(
+                    context,
+                    message: err,
+                    kind: AppMessageKind.error,
+                  );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Joined battle')));
                   Navigator.pop(context);
+                  AppMessenger.show(
+                    context,
+                    message: 'Joined battle',
+                    kind: AppMessageKind.success,
+                  );
                 }
               }
             },
@@ -202,7 +210,7 @@ class _BattleHubContent extends StatelessWidget {
               minimumSize: const Size(double.infinity, 48),
             ),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppMessenger.showSnackBar(context, 
                 const SnackBar(content: Text('Leave game will be available in a future update.')),
               );
             },

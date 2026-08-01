@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:ballchart/core/services/api_service.dart';
 import 'package:ballchart/core/widgets/inbox_header_icons.dart';
 import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
 import '../../../profile/viewmodel/profile_viewmodel.dart';
@@ -13,10 +13,10 @@ class CoachHomeScreen extends StatefulWidget {
   const CoachHomeScreen({super.key});
 
   @override
-  State<CoachHomeScreen> createState() => _CoachHomeScreenState();
+  State<CoachHomeScreen> createState() => CoachHomeScreenState();
 }
 
-class _CoachHomeScreenState extends State<CoachHomeScreen> {
+class CoachHomeScreenState extends State<CoachHomeScreen> {
   int _currentTab = 0;
 
   // BallChart Redesign Tokens - Same as Admin Panel
@@ -26,6 +26,16 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
   static const Color surfaceHigh = Color(0xFF2A2A2A);
   static const Color surfaceHighest = Color(0xFF353534);
   static const Color outlineColor = Color(0xFF9D8F79);
+
+  /// Used by [AppNavigator] for a single shared exit flow.
+  /// Returns true if this screen consumed the back (switched to home tab).
+  bool handleSystemBack() {
+    if (_currentTab != 0) {
+      setState(() => _currentTab = 0);
+      return true;
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -39,24 +49,14 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
   Widget build(BuildContext context) {
     context.watch<ProfileViewmodel>();
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        if (_currentTab != 0) {
-          setState(() => _currentTab = 0);
-          return;
-        }
-        final shouldExit = await _showExitDialog(context);
-        if (shouldExit == true && context.mounted) {
-          SystemNavigator.pop();
-        }
-      },
-      child: Scaffold(
+    // Exit popup is owned by AppNavigator so coach / player / admin all share
+    // one consistent back → exit flow.
+    return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: _buildEnhancedHeader(),
       ),
       body: IndexedStack(
@@ -69,22 +69,6 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
         ],
       ),
       bottomNavigationBar: _buildBottomNavigation(),
-      ),
-    );
-  }
-
-  Future<bool?> _showExitDialog(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: surfaceContainer,
-        title: const Text('Exit App', style: TextStyle(color: Colors.white)),
-        content: const Text('Do you want to exit the application?', style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No', style: TextStyle(color: Colors.white60))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes', style: TextStyle(color: primaryColor))),
-        ],
-      ),
     );
   }
 
@@ -94,42 +78,34 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
     final role = user?.role ?? 'coach';
     final academyName = (user?.academyName ?? user?.teamName)?.trim() ?? '';
     final displayName = name.trim().isEmpty ? 'Coach' : name.split(' ').first;
+    final picRaw = user?.profileImageUrl;
+    final picUrl = (picRaw != null && picRaw.trim().isNotEmpty)
+        ? ApiService.resolveMediaUrl(picRaw)
+        : '';
+    final hasPhoto = picUrl.isNotEmpty &&
+        (picUrl.startsWith('http://') || picUrl.startsWith('https://'));
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          // Enhanced Avatar with Golden Accent
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [primaryColor, primaryColor.withOpacity(0.7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          if (hasPhoto) ...[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: primaryColor.withValues(alpha: 0.55), width: 2),
               ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: primaryColor.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'C',
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.network(
+                picUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,6 +120,8 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                     fontFamily: 'Space Grotesk',
                     height: 1.2,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -151,13 +129,13 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.15),
+                        color: primaryColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: primaryColor.withOpacity(0.4)),
+                        border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
                       ),
                       child: Text(
                         role.toUpperCase().replaceAll('_', ' '),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: primaryColor,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -167,12 +145,16 @@ class _CoachHomeScreenState extends State<CoachHomeScreen> {
                     ),
                     if (academyName.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Text(
-                        '• $academyName',
-                        style: const TextStyle(
-                          color: outlineColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Text(
+                          academyName,
+                          style: const TextStyle(
+                            color: outlineColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

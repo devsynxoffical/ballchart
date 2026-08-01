@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/battle_model.dart';
@@ -6,7 +7,6 @@ import '../../../features/battle/viewmodel/battle_viewmodel.dart';
 import '../../../features/management/viewmodel/academy_provider.dart';
 
 /// Richer "schedule session" flow: title, format, roster size, notes, quick time presets.
-/// Use [scaffoldMessenger] from the screen that opened the sheet (not the sheet context) for snackbars after close.
 /// Pass [existing] to edit a scheduled game.
 String _staffNotesFromBattle(BattleModel? existing) {
   if (existing == null) return '';
@@ -20,8 +20,7 @@ String _staffNotesFromBattle(BattleModel? existing) {
 }
 
 Future<void> showCreateBattleSheet(
-  BuildContext context, {
-  required ScaffoldMessengerState scaffoldMessenger,
+  BuildContext hostContext, {
   BattleModel? existing,
 }) async {
   final editing = existing != null;
@@ -59,7 +58,7 @@ Future<void> showCreateBattleSheet(
   ];
 
   await showModalBottomSheet<void>(
-    context: context,
+    context: hostContext,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) {
@@ -217,10 +216,12 @@ Future<void> showCreateBattleSheet(
                           subtitle: Text('Tap to pick date & time', style: TextStyle(color: outlineColor.withOpacity(0.85))),
                           trailing: const Icon(Icons.calendar_month, color: primaryColor),
                           onTap: () async {
+                            final now = DateTime.now();
+                            final today = DateTime(now.year, now.month, now.day);
                             final date = await showDatePicker(
                               context: context,
-                              initialDate: sessionTime,
-                              firstDate: DateTime.now(),
+                              initialDate: sessionTime.isBefore(today) ? today : sessionTime,
+                              firstDate: today,
                               lastDate: DateTime.now().add(const Duration(days: 365)),
                             );
                             if (date == null || !context.mounted) return;
@@ -309,13 +310,14 @@ Future<void> showCreateBattleSheet(
                         ),
                         onPressed: () async {
                           if (locationCtrl.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            AppMessenger.showSnackBar(context, 
                               const SnackBar(content: Text('Add a location'), backgroundColor: Colors.redAccent),
                             );
                             return;
                           }
-                          if (sessionTime.isBefore(DateTime.now())) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                          // Allow a small grace window so "now + a few seconds" still schedules.
+                          if (sessionTime.isBefore(DateTime.now().subtract(const Duration(seconds: 30)))) {
+                            AppMessenger.showSnackBar(context, 
                               const SnackBar(
                                 content: Text('Pick a time in the future'),
                                 backgroundColor: Colors.redAccent,
@@ -323,20 +325,22 @@ Future<void> showCreateBattleSheet(
                             );
                             return;
                           }
-                          final vm = context.read<BattleViewmodel>();
-                          final academyVm = context.read<AcademyProvider>();
+                          // Read providers from the host (sheet context is disposed after pop).
+                          final vm = hostContext.read<BattleViewmodel>();
+                          final academyVm = hostContext.read<AcademyProvider>();
                           final tags = tagState.entries.where((e) => e.value).map((e) => e.key.toLowerCase()).toList();
-                          Navigator.pop(context);
+                          final location = locationCtrl.text.trim();
+                          final description = notesCtrl.text.trim();
+                          final meta = {
+                            'sessionTitle': titleCtrl.text.trim(),
+                            'formatLabel': formats.firstWhere((e) => e['id'] == battleType, orElse: () => formats[0])['label'],
+                          };
+                          // Keep sheet open until create succeeds so errors don't lose the form.
                           try {
-                            final meta = {
-                              'sessionTitle': titleCtrl.text.trim(),
-                              'formatLabel': formats.firstWhere((e) => e['id'] == battleType, orElse: () => formats[0])['label'],
-                            };
-                            final description = notesCtrl.text.trim();
                             if (editing) {
                               await vm.updateBattle(
                                 existing.id,
-                                location: locationCtrl.text.trim(),
+                                location: location,
                                 dateTime: sessionTime,
                                 battleType: battleType,
                                 maxParticipants: maxParticipants,
@@ -346,7 +350,7 @@ Future<void> showCreateBattleSheet(
                               );
                             } else {
                               await vm.createBattle(
-                                location: locationCtrl.text.trim(),
+                                location: location,
                                 dateTime: sessionTime,
                                 battleType: battleType,
                                 maxParticipants: maxParticipants,
@@ -355,21 +359,35 @@ Future<void> showCreateBattleSheet(
                                 metadata: meta,
                               );
                             }
-                            await vm.loadBattles();
-                            await academyVm.loadCoachDashboard(force: true);
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  editing ? 'Game updated' : 'Game scheduled',
-                                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                            if (context.mounted) Navigator.pop(context);
+                            try {
+                              await vm.loadBattles();
+                            } catch (_) {}
+                            try {
+                              await academyVm.loadCoachDashboard(force: true);
+                            } catch (_) {}
+                            if (hostContext.mounted) {
+                              AppMessenger.showSnackBar(
+                                hostContext,
+                                SnackBar(
+                                  content: Text(
+                                    editing ? 'Game updated' : 'Game scheduled',
+                                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                                  ),
+                                  backgroundColor: primaryColor,
                                 ),
-                                backgroundColor: primaryColor,
-                              ),
-                            );
+                              );
+                            }
                           } catch (e) {
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(content: Text(e.toString()), backgroundColor: Colors.redAccent),
-                            );
+                            if (context.mounted) {
+                              AppMessenger.showSnackBar(
+                                context,
+                                SnackBar(
+                                  content: Text(e.toString().replaceFirst('Exception: ', '')),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
                           }
                         },
                         child: Text(

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
@@ -69,7 +70,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         if (i == retryCount - 1) {
           // Last retry failed, show error
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppMessenger.showSnackBar(context, 
               SnackBar(
                 content: Text('Failed to load team data: ${e.toString()}'),
                 backgroundColor: Colors.red,
@@ -112,7 +113,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       classYear: p['classYear']?.toString() ?? 'N/A',
       isEliteProspect: p['isEliteProspect'] as bool? ?? false,
       profileImageUrl: () {
-        final raw = p['profileImageUrl']?.toString().trim();
+        final raw = (p['profileImageUrl'] ?? p['profilePic'])?.toString().trim();
         if (raw == null || raw.isEmpty) return null;
         final u = ApiService.resolveMediaUrl(raw);
         return u.isEmpty ? null : u;
@@ -361,7 +362,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
     await provider.updateTeamInBackend(updated);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(content: Text('Team photo updated'), backgroundColor: _AcademyTheme.primaryColor),
       );
     }
@@ -777,7 +778,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
     final provider = context.read<AcademyProvider>();
     if (provider.currentUser?.role != 'admin') {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(content: Text('Only the academy admin can assign coaches to teams.')),
       );
       return;
@@ -828,11 +829,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           teamId: teamId,
                           coachStaffId: isAssistant ? currentCoachId : staff.id,
                           assistantCoachStaffId: isAssistant ? staff.id : currentAsstId,
+                          showSuccessMessage: false,
                         );
                         
                         if (context.mounted) {
                           Navigator.pop(context);
-                          setState(() {}); // Re-fetch dashboard data via FutureBuilder
+                          setState(() {});
+                          AppMessenger.show(
+                            context,
+                            message: 'Team leads assigned successfully!',
+                            kind: AppMessageKind.success,
+                          );
                         }
                       },
                       leading: const CircleAvatar(backgroundColor: _AcademyTheme.surfaceContainer, child: Icon(Icons.face, color: _AcademyTheme.primaryContainer, size: 20)),

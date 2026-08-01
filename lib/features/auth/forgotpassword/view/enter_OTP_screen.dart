@@ -14,6 +14,7 @@ class EnterOtpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: bgColor,
       body: Stack(
         children: [
@@ -33,12 +34,15 @@ class EnterOtpScreen extends StatelessWidget {
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          Positioned.fill(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
@@ -142,7 +146,7 @@ class EnterOtpScreen extends StatelessWidget {
                     ),
                   ),
                   
-                  const Spacer(),
+                  const SizedBox(height: 48),
                   // Branding Icons
                   const Center(
                     child: Row(
@@ -157,7 +161,8 @@ class EnterOtpScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

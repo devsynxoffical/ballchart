@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
@@ -307,7 +308,7 @@ class _CreateStaffDialogState extends State<CreateStaffDialog> {
           GestureDetector(
             onTap: () {
               Clipboard.setData(ClipboardData(text: 'Email: ${_emailController.text}\nPassword: ${_passwordController.text}'));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CREDENTIALS COPIED')));
+              AppMessenger.showSnackBar(context, const SnackBar(content: Text('CREDENTIALS COPIED')));
             },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/features/coach/team_details/view/team_detail_screen.dart';
 import 'package:ballchart/features/player_development/view/coach_training_assignment_screen.dart';
@@ -59,7 +60,7 @@ class _TeamsTabState extends State<TeamsTab> {
               errorMessage = errorMessage.replaceAll('Exception: ', '');
             }
             
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppMessenger.showSnackBar(context, 
               SnackBar(
                 content: Text('Failed to load coach data: $errorMessage'),
                 backgroundColor: Colors.redAccent,
@@ -683,7 +684,7 @@ class _TeamsTabState extends State<TeamsTab> {
   }
 
   Widget _topPerformerLeadAvatar(Map<String, dynamic> top) {
-    final resolved = ApiService.resolveMediaUrl(top['profileImageUrl']?.toString());
+    final resolved = ApiService.resolveMediaUrl(top['profileImageUrl']?.toString() ?? top['profilePic']?.toString());
     if (resolved.isNotEmpty && resolved.startsWith('http')) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -901,8 +902,8 @@ class _TeamsTabState extends State<TeamsTab> {
     );
   }
 
-  void _showCreateTeamDialog() {
-    showDialog(
+  Future<void> _showCreateTeamDialog() async {
+    final created = await showDialog<bool>(
       context: context,
       builder: (_) => CreateTeamDialog(
         onTeamCreated: (name, age, color, logoPath, coachId, assistantId) async {
@@ -918,11 +919,17 @@ class _TeamsTabState extends State<TeamsTab> {
               coachStaffId: coachId,
               assistantCoachStaffId: assistantId,
             ),
+            showSuccessMessage: false,
           );
-          if (context.mounted) Navigator.pop(context);
-          // Teams are now handled by AcademyProvider
         },
       ),
     );
+    if (created == true && mounted) {
+      AppMessenger.show(
+        context,
+        message: 'Team created successfully!',
+        kind: AppMessageKind.success,
+      );
+    }
   }
 }

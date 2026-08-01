@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.2+8
+version: 1.0.3+9
 
 environment:
   sdk: ^3.9.2
@@ -41,7 +41,6 @@ dependencies:
   image_picker: ^1.1.2
   video_player: ^2.11.1
   socket_io_client: ^2.0.3
-  speech_to_text: ^7.3.0
   permission_handler: ^11.3.1
   flutter_slidable: ^4.0.0
   path_provider: ^2.1.4
@@ -52,6 +51,15 @@ dependencies:
   url_launcher: ^6.3.2
   record: ^6.2.1
   audioplayers: ^6.7.1
+  whisper_ggml: ^2.4.0
+  ffi: ^2.1.0
+
+# whisper_ggml pins ffmpeg_kit 2.x, which lacks the arm64 iOS-simulator
+# slice and breaks simulator builds on Apple Silicon (Xcode 26). 3.3.0+
+# ships proper xcframeworks with the simulator slice; the FFmpegKit API
+# whisper_ggml uses is unchanged.
+dependency_overrides:
+  ffmpeg_kit_flutter_new_min: ^3.5.2
 
 dev_dependencies:
   flutter_test:
@@ -70,6 +78,11 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  config:
+    # CocoaPods is used for iOS plugins. Flutter's generated Swift package
+    # defaults to iOS 13 before the build can raise it, while FFmpeg requires
+    # iOS 14+, causing Xcode package-resolution failures after `flutter clean`.
+    enable-swift-package-manager: false
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

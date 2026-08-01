@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/academy_provider.dart';
 import '../../../../core/models/local_academy_models.dart';
@@ -89,67 +90,57 @@ class _ManagementScreenState extends State<ManagementScreen> {
     );
   }
 
-  void _showCreateTeam(BuildContext context) {
-    showDialog(
+  Future<void> _showCreateTeam(BuildContext context) async {
+    final created = await showDialog<bool>(
       context: context,
       builder: (_) => CreateTeamDialog(
         onTeamCreated: (name, age, color, logo, coachId, assistantId) async {
           final provider = context.read<AcademyProvider>();
           await provider.addTeamToBackend(
             Team(
-              id: '', 
-              name: name, 
-              ageGroup: age, 
-              colorValue: color.value, 
-              logoPath: logo, 
+              id: '',
+              name: name,
+              ageGroup: age,
+              colorValue: color.value,
+              logoPath: logo,
               players: [],
               coachStaffId: coachId,
               assistantCoachStaffId: assistantId,
-            )
+            ),
+            showSuccessMessage: false,
           );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Team $name created!'), backgroundColor: Colors.green),
-            );
-            Navigator.pop(context);
-          }
         },
       ),
     );
+    if (created == true && mounted) {
+      AppMessenger.show(
+        context,
+        message: 'Team created successfully!',
+        kind: AppMessageKind.success,
+      );
+    }
   }
 
-  void _showCreateStaff(BuildContext context) {
-    showDialog(
+  Future<void> _showCreateStaff(BuildContext context) async {
+    await showDialog<void>(
       context: context,
       builder: (context) => CreateStaffDialog(
         initialRole: 'Coach',
         onStaffCreated: (staffData) async {
           final provider = context.read<AcademyProvider>();
-          try {
-            await provider.addStaffToBackend(
-              Staff(
-                id: provider.nextId('s'),
-                name: staffData['name'] ?? '',
-                email: staffData['email'] ?? '',
-                password: staffData['password'] ?? '',
-                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
-                customRoleName: staffData['customRoleName']?.toString(),
-                assignedTeamIds: const [],
-                permissions: Permissions.fromDynamic(staffData['permissions']),
-              ),
-            );
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${staffData['name']} account created!'), backgroundColor: AppColors.green),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-              );
-            }
-          }
+          await provider.addStaffToBackend(
+            Staff(
+              id: provider.nextId('s'),
+              name: staffData['name'] ?? '',
+              email: staffData['email'] ?? '',
+              password: staffData['password'] ?? '',
+              role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+              customRoleName: staffData['customRoleName']?.toString(),
+              assignedTeamIds: const [],
+              permissions: Permissions.fromDynamic(staffData['permissions']),
+            ),
+            showSuccessMessage: false,
+          );
         },
       ),
     );

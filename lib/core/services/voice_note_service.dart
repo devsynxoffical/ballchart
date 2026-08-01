@@ -72,9 +72,9 @@ class VoiceNoteService {
     return result.granted;
   }
 
-  Future<String> _newTempPath() async {
+  Future<String> _newTempPath({String extension = 'm4a'}) async {
     final dir = await getTemporaryDirectory();
-    return '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    return '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.$extension';
   }
 
   Future<bool> get isRecording async {
@@ -82,32 +82,37 @@ class VoiceNoteService {
     return _rec.isRecording();
   }
 
-  Future<void> startRecording() async {
+  /// [forTranscription] records 16 kHz mono WAV — the exact format Whisper
+  /// consumes natively, so speech-to-text needs no FFmpeg conversion step.
+  Future<void> startRecording({bool forTranscription = false}) async {
     if (await isRecording) return;
     final permission = await ensureVoicePermissions();
     if (!permission.granted) {
       throw Exception(permission.message ?? 'Microphone permission denied');
     }
-    _activePath = await _newTempPath();
+    _activePath = await _newTempPath(extension: forTranscription ? 'wav' : 'm4a');
     _startedAt = DateTime.now();
 
-    // On Android prefer the recognition audio source so STT + recorder can
-    // share better (default exclusive mic would kill live transcription).
-    final config = !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-        ? const RecordConfig(
-            encoder: AudioEncoder.aacLc,
-            bitRate: 128000,
-            sampleRate: 44100,
+    // On Android prefer the recognition audio source so speech capture is
+    // clean; other platforms use the default source.
+    const androidConfig = AndroidRecordConfig(
+      audioSource: AndroidAudioSource.voiceRecognition,
+    );
+    final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+    final config = forTranscription
+        ? RecordConfig(
+            encoder: AudioEncoder.wav,
+            sampleRate: 16000,
             numChannels: 1,
-            androidConfig: AndroidRecordConfig(
-              audioSource: AndroidAudioSource.voiceRecognition,
-            ),
+            androidConfig: isAndroid ? androidConfig : const AndroidRecordConfig(),
           )
-        : const RecordConfig(
+        : RecordConfig(
             encoder: AudioEncoder.aacLc,
             bitRate: 128000,
             sampleRate: 44100,
             numChannels: 1,
+            androidConfig: isAndroid ? androidConfig : const AndroidRecordConfig(),
           );
 
     await _rec.start(config, path: _activePath!);

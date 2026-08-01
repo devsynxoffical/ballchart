@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -80,13 +81,13 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
         playerGoals: list,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           const SnackBar(content: Text('Your goals were saved for this month')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }
@@ -122,7 +123,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
         final friendly = raw.contains('404') || raw.contains('not found')
             ? 'No report for this month yet. Complete training sessions and ask your coach to publish your period report.'
             : raw;
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text(friendly), backgroundColor: Colors.redAccent),
         );
       }
@@ -230,7 +231,7 @@ class _MyDevelopmentScreenState extends State<MyDevelopmentScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }

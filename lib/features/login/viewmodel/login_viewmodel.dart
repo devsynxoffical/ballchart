@@ -8,6 +8,7 @@ class LoginViewmodel {
   }
 
   static void goToMainPage(BuildContext context) {
-    Navigator.pushNamed(context, RouteNames.mainApp);
+    Navigator.pushNamedAndRemoveUntil(
+      context, RouteNames.mainApp, (route) => false);
   }
 }

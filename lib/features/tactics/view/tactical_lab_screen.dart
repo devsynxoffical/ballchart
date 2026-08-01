@@ -1,20 +1,21 @@
 import 'dart:async' show unawaited;
-import 'dart:math' show min, sin, pi;
+import 'dart:math' show sin, pi;
 
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter/services.dart' show MissingPluginException, HapticFeedback;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:speech_to_text/speech_recognition_result.dart';
 
 import '../../../core/services/api_service.dart';
 import '../../../core/services/voice_note_service.dart';
+import '../../../core/services/whisper_transcription_service.dart';
 import '../../../core/utils/mic_permission.dart';
 import '../../../core/models/tactical/tactical_voice_clip.dart';
 import '../../../core/widgets/tactics/coach_voice_clips_panel.dart';
 import '../../../core/tactical/coach_speech_normalizer.dart';
+import '../../../core/tactical/court_geometry.dart';
 import '../../../core/tactical/tactical_ai_suggestions.dart';
 import '../../../core/tactical/tactical_animation_engine.dart';
 import '../../../core/tactical/tactical_court_canvas.dart';
@@ -49,32 +50,40 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   final _textCtrl = TextEditingController();
   final _commandFocus = FocusNode();
   final _playback = TacticalPlaybackController();
-  final _stt = stt.SpeechToText();
-  bool _sttReady = false;
+  final _whisper = WhisperTranscriptionService();
+  bool _whisperReady = false;
   bool _listening = false;
   /// True after user taps mic until they stop or tap RECORD FLOW.
   bool _voiceSessionActive = false;
   /// True after user taps mic until the platform reports listening (covers connect latency).
   bool _voiceSessionPending = false;
-  bool _voiceSessionFinalizing = false;
-  bool _voiceListenRestartScheduled = false;
   bool _voiceFileRecordingStarted = false;
+  /// True while Whisper is converting the finished recording into text.
+  bool _isTranscribing = false;
+  int _transcribeProgress = 0;
   String? _micHint;
   final _api = ApiService();
   final _voiceNoteSvc = VoiceNoteService();
   final List<TacticalVoiceRecording> _sessionVoiceRecordings = [];
   List<TacticalVoiceClip> _playbackVoiceClips = [];
-  int _voiceTranscriptStart = 0;
 
   bool get _voiceUiActive => _voiceSessionActive || _voiceSessionPending;
 
   int? _draggingSlot;
-  /// Throttle drag → recorded keyframes so replay stays seconds, not minutes.
+  /// Freehand finger drawing on the court (coach mode).
+  bool _drawMode = false;
+  /// When true, one-finger pans/zooms the court. When false (default),
+  /// one-finger drags players.
+  bool _courtNavigateMode = false;
+  final GlobalKey _courtKey = GlobalKey();
+  final List<List<Offset>> _drawStrokes = [];
+  List<Offset>? _activeStroke;
+  /// Throttle drag → recorded keyframes (keep dense for smooth replay).
   DateTime? _lastDragKeyframeAt;
   Offset? _lastDragKeyframeNorm;
   Offset? _dragPointerStartNorm;
-  static const Duration _dragKeyframeMinInterval = Duration(milliseconds: 40);
-  static const double _dragKeyframeMinDistance = 0.013;
+  static const Duration _dragKeyframeMinInterval = Duration(milliseconds: 16);
+  static const double _dragKeyframeMinDistance = 0.006;
   final _saveNameCtrl = TextEditingController();
   final _coachTipsCtrl = TextEditingController();
   String? _selectedTeamId;
@@ -212,132 +221,128 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       if (role == 'player' && !_isPlayerMode) {
         setState(() => _isPlayerMode = true);
       }
-      await _setupSpeech();
+      _setupSpeech();
       _api.connectSocket();
     });
   }
 
-  Future<void> _setupSpeech() async {
+  void _setupSpeech() {
     if (kIsWeb || _isPlayerMode) return;
-    final ok = await _stt.initialize(
-      onError: (e) {
-        if (!mounted) return;
-        // Keep the session open on transient errors so the user can keep speaking.
-        setState(() {
-          _micHint = 'Speech hiccup: ${e.errorMsg}. Keep talking, or tap mic to stop.';
-          _listening = false;
-        });
-        if (_voiceSessionActive && !_voiceSessionFinalizing) {
-          _scheduleListenRestart();
-        } else {
-          _micPulseCtrl.stop();
-          _micPulseCtrl.value = 0;
-          setState(() => _voiceSessionPending = false);
-        }
+    setState(() {
+      _whisperReady = true;
+      _micHint = null;
+    });
+  }
+
+  /// Makes sure the Whisper model is on the device, showing a progress
+  /// dialog for the one-time ~142 MB download. Returns true when ready.
+  Future<bool> _ensureWhisperModel() async {
+    try {
+      if (await _whisper.isModelReady()) return true;
+    } catch (_) {}
+    if (!mounted) return false;
+
+    final progress = ValueNotifier<double>(0);
+    final receivedMb = ValueNotifier<double>(0);
+    var cancelled = false;
+
+    final download = _whisper.downloadModel(
+      onProgress: (p, bytes) {
+        progress.value = p;
+        receivedMb.value = bytes / (1024 * 1024);
       },
-      onStatus: (status) {
-        if (!mounted) return;
-        final now = status == stt.SpeechToText.listeningStatus;
-        if (now) {
-          _micPulseCtrl.repeat(reverse: true);
-          // Start file recording only after STT owns the mic so text keeps working.
-          unawaited(_maybeStartFileRecording());
-        } else if (!_voiceSessionActive || _voiceSessionFinalizing) {
-          _micPulseCtrl.stop();
-          _micPulseCtrl.value = 0;
-        }
-        setState(() {
-          _listening = now;
-          if (now) {
-            _voiceSessionPending = false;
-            _micHint = null;
+      isCancelled: () => cancelled,
+    );
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        download.then((_) {
+          if (ctx.mounted) Navigator.pop(ctx, true);
+        }).catchError((Object e) {
+          if (ctx.mounted) Navigator.pop(ctx, false);
+          if (mounted && e is! WhisperDownloadCancelled) {
+            setState(() => _micHint = 'Voice model download failed: $e');
           }
         });
-        // Platform often ends listen on short silence — keep session alive until user submits.
-        if (!now && _voiceSessionActive && !_voiceSessionFinalizing) {
-          _scheduleListenRestart();
-        }
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            backgroundColor: _surface,
+            title: const Text('Preparing voice recognition',
+                style: TextStyle(color: Colors.white, fontSize: 16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Downloading the offline speech model (one time, ~142 MB). '
+                  'After this, voice commands work without internet.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 18),
+                ValueListenableBuilder<double>(
+                  valueListenable: progress,
+                  builder: (_, p, __) => ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: p >= 0 ? p : null,
+                      minHeight: 8,
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(_primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ValueListenableBuilder<double>(
+                  valueListenable: receivedMb,
+                  builder: (_, mb, __) => ValueListenableBuilder<double>(
+                    valueListenable: progress,
+                    builder: (_, p, __) => Text(
+                      p >= 0
+                          ? '${(p * 100).toStringAsFixed(0)}% — ${mb.toStringAsFixed(1)} MB downloaded'
+                          : '${mb.toStringAsFixed(1)} MB downloaded',
+                      style: const TextStyle(color: _outline, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  cancelled = true;
+                },
+                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+              ),
+            ],
+          ),
+        );
       },
     );
-    setState(() {
-      _sttReady = ok;
-      _micHint = ok ? null : 'Speech recognition unavailable.';
-    });
-  }
 
-  bool get _isAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    progress.dispose();
+    receivedMb.dispose();
 
-  void _scheduleListenRestart() {
-    if (_voiceListenRestartScheduled || !_voiceSessionActive || _voiceSessionFinalizing) {
-      return;
+    if (ok != true && mounted && cancelled) {
+      setState(() => _micHint =
+          'Voice model download cancelled. Tap the mic again to resume.');
     }
-    _voiceListenRestartScheduled = true;
-    unawaited(Future<void>.delayed(const Duration(milliseconds: 400), () async {
-      _voiceListenRestartScheduled = false;
-      if (!mounted || !_voiceSessionActive || _voiceSessionFinalizing || _listening) {
-        return;
-      }
-      _voiceTranscriptStart = _textCtrl.text.length;
-      await _startSttListening();
-    }));
-  }
-
-  void _onSttResult(SpeechRecognitionResult result) {
-    final transcript = result.recognizedWords.trim();
-    if (!mounted || !_voiceSessionActive || transcript.isEmpty) return;
-
-    final cleaned = _cleanVoiceTranscript(transcript);
-    final start = _voiceTranscriptStart.clamp(0, _textCtrl.text.length);
-    final prefix = _textCtrl.text.substring(0, start).trimRight();
-    final combined = prefix.isEmpty ? cleaned : '$prefix $cleaned';
-    _textCtrl.value = TextEditingValue(
-      text: combined,
-      selection: TextSelection.collapsed(offset: combined.length),
-    );
-    // Force a rebuild so the TextField reflects STT updates immediately.
-    setState(() {
-      _micHint = coachSpeechHint(cleaned);
-    });
-    // Do not auto-run the flow on finalResult — user submits via RECORD FLOW or stops mic.
-  }
-
-  Future<void> _startSttListening() async {
-    if (!_voiceSessionActive || _voiceSessionFinalizing || !_sttReady) return;
-
-    final systemLocale = await _stt.systemLocale();
-    final localeId = systemLocale?.localeId;
-
-    await _stt.listen(
-      localeId: (localeId != null && localeId.isNotEmpty) ? localeId : null,
-      listenFor: const Duration(minutes: 3),
-      pauseFor: const Duration(seconds: 30),
-      listenOptions: stt.SpeechListenOptions(
-        listenMode: stt.ListenMode.dictation,
-        partialResults: true,
-        cancelOnError: false,
-        autoPunctuation: true,
-      ),
-      onResult: _onSttResult,
-      onSoundLevelChange: (_) {
-        // Keep pulse alive while the platform reports audio levels.
-        if (_voiceSessionActive && !_micPulseCtrl.isAnimating) {
-          _micPulseCtrl.repeat(reverse: true);
-        }
-      },
-    );
+    return ok == true;
   }
 
   Future<void> _maybeStartFileRecording() async {
     if (_voiceFileRecordingStarted || !_voiceSessionActive) return;
-    // Android SpeechRecognizer needs exclusive mic access for live text.
-    // Concurrent AAC recording would kill transcription on most devices.
-    if (_isAndroid) return;
     _voiceFileRecordingStarted = true;
     try {
-      await _voiceNoteSvc.startRecording();
+      // WAV @16 kHz mono: Whisper reads it natively, no conversion needed.
+      await _voiceNoteSvc.startRecording(forTranscription: true);
     } catch (_) {
+      // Let _toggleVoiceCommand's error handler surface the failure instead
+      // of pulsing a fake "recording" state that captures nothing.
       _voiceFileRecordingStarted = false;
+      rethrow;
     }
   }
 
@@ -374,8 +379,6 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     return _playbackVoiceClips;
   }
 
-  String _cleanVoiceTranscript(String text) => normalizeCoachSpeech(text);
-
   String get _combinedVoiceTranscript {
     final fromClips = _sessionVoiceRecordings
         .map((r) => r.transcript.trim())
@@ -386,17 +389,53 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
   }
 
   Future<void> _commitActiveVoiceClip({String? transcriptOverride}) async {
-    final spoken = _textCtrl.text
-        .substring(_voiceTranscriptStart.clamp(0, _textCtrl.text.length))
-        .trim();
-    var transcript = transcriptOverride ?? spoken;
-    transcript = _cleanVoiceTranscript(transcript);
-    if (transcript.isEmpty) {
-      transcript = _cleanVoiceTranscript(_textCtrl.text.trim());
-    }
-
     final clip = await _voiceNoteSvc.stopRecording();
     if (!mounted) return;
+
+    var transcript = transcriptOverride?.trim() ?? '';
+    String? transcribeError;
+    if (clip != null && transcript.isEmpty) {
+      setState(() {
+        _isTranscribing = true;
+        _transcribeProgress = 0;
+      });
+      try {
+        transcript = await _whisper.transcribe(
+          clip.localPath,
+          onProgress: (percent) {
+            if (mounted) {
+              setState(() => _transcribeProgress = percent);
+            }
+          },
+        );
+      } catch (e) {
+        transcribeError = e.toString().replaceFirst('Exception: ', '');
+        if (kDebugMode) print('Whisper transcription failed: $e');
+      }
+      if (mounted) {
+        setState(() => _isTranscribing = false);
+      }
+    }
+
+    if (!mounted) return;
+    if (transcript.isNotEmpty) {
+      final existing = _textCtrl.text.trim();
+      final combined = existing.isEmpty ? transcript : '$existing, then $transcript';
+      _textCtrl.value = TextEditingValue(
+        text: combined,
+        selection: TextSelection.collapsed(offset: combined.length),
+      );
+    } else if (clip != null) {
+      setState(() {
+        _micHint = transcribeError != null
+            ? 'Voice-to-text failed: $transcribeError — your audio is still saved below.'
+            : 'No speech detected — speak louder and closer to the phone, then try again.';
+      });
+    } else {
+      setState(() {
+        _micHint = 'Nothing was recorded — hold the phone closer and tap the mic to try again.';
+      });
+    }
 
     if (clip != null &&
         (clip.duration.inMilliseconds >= 250 || transcript.isNotEmpty)) {
@@ -412,7 +451,6 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       return;
     }
 
-    // Android often has transcript without a playable file (STT owns the mic).
     if (transcript.isNotEmpty) {
       setState(() {
         _sessionVoiceRecordings.add(
@@ -421,41 +459,44 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
             transcript: transcript,
           ),
         );
-        if (_isAndroid) {
-          _micHint =
-              'Flow text saved. On Android, live dictation and file recording can’t share the mic — use RECORD FLOW to run it.';
-        }
       });
     }
   }
 
-  Future<void> _finalizeVoiceSession({bool stopSpeech = true}) async {
+  Future<void> _finalizeVoiceSession() async {
     if (!_voiceSessionActive && !_voiceSessionPending && !_listening) {
-      await _commitActiveVoiceClip();
       return;
     }
 
-    _voiceSessionFinalizing = true;
-    try {
-      if (stopSpeech && (_listening || _voiceSessionPending || _voiceSessionActive)) {
-        await _stt.stop();
-      }
-      await _commitActiveVoiceClip();
-      _micPulseCtrl.stop();
-      _micPulseCtrl.value = 0;
-      if (mounted) {
-        setState(() {
-          _listening = false;
-          _voiceSessionActive = false;
-          _voiceSessionPending = false;
-          _voiceFileRecordingStarted = false;
+    // Flip the UI out of "recording" immediately so the user sees the
+    // session ended; transcription state is shown separately.
+    _micPulseCtrl.stop();
+    _micPulseCtrl.value = 0;
+    if (mounted) {
+      setState(() {
+        _listening = false;
+        _voiceSessionActive = false;
+        _voiceSessionPending = false;
+        _voiceFileRecordingStarted = false;
+        _micHint = null;
+      });
+    }
+
+    final hadTextBefore = _textCtrl.text.trim();
+    await _commitActiveVoiceClip();
+    if (mounted) {
+      setState(() {
+        final gotNewText = _textCtrl.text.trim() != hadTextBefore &&
+            _textCtrl.text.trim().isNotEmpty;
+        if (gotNewText) {
+          _micHint =
+              'Your words are in the box above — tap RECORD FLOW to animate them.';
+        } else if (_micHint == null || _micHint!.isEmpty) {
           _micHint = _sessionVoiceRecordings.isNotEmpty
               ? '${_sessionVoiceRecordings.length} voice command(s) saved — will attach when you save the tactic.'
               : 'Voice capture stopped. Tap mic to record again, or tap RECORD FLOW to run your text.';
-        });
-      }
-    } finally {
-      _voiceSessionFinalizing = false;
+        }
+      });
     }
   }
 
@@ -467,17 +508,15 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       return;
     }
 
-    if (!_sttReady) {
+    if (!_whisperReady) {
       if (mounted) {
-        setState(() => _micHint = 'Speech recognition unavailable.');
+        setState(() => _micHint = 'Local Whisper is unavailable on this device.');
       }
       return;
     }
 
-    if (!kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS)) {
-      final permission = await ensureVoicePermissions(speechRecognition: true);
+    if (!kIsWeb) {
+      final permission = await ensureVoicePermissions();
       if (!permission.granted) {
         if (mounted) {
           setState(() => _micHint = permission.message);
@@ -489,38 +528,30 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       }
     }
 
+    // One-time model download with visible progress before first recording.
+    if (!await _ensureWhisperModel()) return;
+    if (!mounted) return;
+
     HapticFeedback.lightImpact();
     if (mounted) {
       setState(() {
         _voiceSessionActive = true;
         _voiceSessionPending = true;
         _voiceFileRecordingStarted = false;
-        _voiceTranscriptStart = _textCtrl.text.length;
         _micHint = null;
       });
       FocusScope.of(context).requestFocus(_commandFocus);
     }
 
     try {
-      // Speech-to-text first so the flow text box fills while you speak.
-      await _startSttListening();
-
-      // Soft-start file recording after STT is listening (see onStatus).
-      // If the platform blocks concurrent recording, text still works.
-      unawaited(Future<void>.delayed(const Duration(milliseconds: 700), () {
-        if (!mounted || !_voiceSessionActive) return;
-        unawaited(_maybeStartFileRecording());
-      }));
-
-      unawaited(Future<void>.delayed(const Duration(seconds: 3), () {
-        if (!mounted) return;
-        if (_voiceSessionPending && !_listening && _voiceSessionActive) {
-          setState(() {
-            _micHint =
-                'Still connecting the mic… speak clearly after SPEAK NOW appears.';
-          });
-        }
-      }));
+      await _maybeStartFileRecording();
+      if (mounted) {
+        setState(() {
+          _voiceSessionPending = false;
+          _listening = true;
+        });
+        _micPulseCtrl.repeat(reverse: true);
+      }
     } on MissingPluginException {
       await _voiceNoteSvc.cancelRecording();
       _micPulseCtrl.stop();
@@ -530,7 +561,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
           _voiceSessionPending = false;
           _listening = false;
           _voiceFileRecordingStarted = false;
-          _micHint = 'Speech plugin missing on this build.';
+          _micHint = 'Audio recording plugin missing on this build.';
         });
       }
     } catch (e) {
@@ -554,7 +585,6 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     _playbackSequenceActiveUi.dispose();
     _micPulseCtrl.dispose();
     _commandFocus.dispose();
-    _stt.stop();
     unawaited(_voiceNoteSvc.cancelRecording());
     _voiceNoteSvc.dispose();
     _textCtrl.dispose();
@@ -572,27 +602,23 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
     setState(() {
       _isParsingCommand = true;
-      if (_textCtrl.text.trim() != normalized) {
-        _textCtrl.text = normalized;
-      }
     });
 
     ParsedCoachCommand parsed = parseCoachCommand(normalized);
-    bool usedGemini = false;
+    bool usedAi = false;
 
-    if (parsed.confidence < 0.72 || parsed.intent == CoachIntent.unknown) {
-      try {
-        final res = await _api.parseVoiceCommand(normalized);
-        final aiParsed = ParsedCoachCommand.fromJson(res, normalized);
-        if (aiParsed.confidence > parsed.confidence &&
-            aiParsed.intent != CoachIntent.unknown) {
-          parsed = aiParsed;
-          usedGemini = true;
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print('AI voice parse unavailable, using local parser: $e');
-        }
+    try {
+      // The backend AI sees the complete natural sentence and converts it to
+      // the small, validated PlayStep schema used by the animation engine.
+      final res = await _api.parseVoiceCommand(raw.trim());
+      final aiParsed = ParsedCoachCommand.fromJson(res, raw.trim());
+      if (aiParsed.intent != CoachIntent.unknown && aiParsed.steps.isNotEmpty) {
+        parsed = aiParsed;
+        usedAi = true;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('AI voice parse unavailable, using local parser: $e');
       }
     }
 
@@ -604,11 +630,15 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
     if (parsed.confidence >= 0.5 && parsed.intent != CoachIntent.unknown) {
       _playback.applyParsedCommand(parsed);
+      // Command consumed — clear the bar so it is ready for the next one.
+      // On failure the text stays so the coach can edit and retry.
+      _textCtrl.clear();
+      setState(() => _micHint = null);
       final stepCount = parsed.steps.length;
       final label = stepCount > 1 ? 'Sequence: $stepCount steps' : 'Command: ${parsed.intent.name.toUpperCase()}';
-      final modeLabel = usedGemini ? 'AI' : 'Local';
+      final modeLabel = usedAi ? 'AI' : 'Local';
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         SnackBar(
           content: Text('Recognized ($modeLabel): $label', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           backgroundColor: _primary,
@@ -617,7 +647,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
         )
       );
     } else if (normalized.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         SnackBar(
           content: Text(
             'Try: "Player one pass player two" or "P1 shoot"\nHeard: $normalized',
@@ -629,49 +659,58 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     }
   }
 
-  void _onPointerDown(PointerDownEvent event, double w, double h) {
-    if (_isPlayerMode || _playback.isPlaybackSequenceActive) return;
-    final local = event.localPosition;
-    
-    int? foundSlot;
-    double minAt = 40.0; 
-    for (int i = 0; i < 5; i++) {
-      final p = _playback.frame.offenseNorm[i];
-      final px = p.dx * w;
-      final py = p.dy * h;
-      final dist = (Offset(px, py) - local).distance;
-      if (dist < minAt) {
-        minAt = dist;
-        foundSlot = i + 1;
-      }
-    }
-    if (foundSlot != null) {
-      final idx = foundSlot - 1;
-      final startNorm = _playback.frame.offenseNorm[idx];
-      setState(() {
-        _draggingSlot = foundSlot;
-        _dragPointerStartNorm = startNorm;
-        _lastDragKeyframeAt = null;
-        _lastDragKeyframeNorm = null;
-      });
-    }
+  Offset? _courtLocalFromGlobal(Offset global) {
+    final box = _courtKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.globalToLocal(global);
   }
 
-  void _onPointerMove(PointerMoveEvent event, double w, double h) {
-    if (_draggingSlot == null) return;
+  void _beginPlayerDrag(int slot) {
+    if (_isPlayerMode || _playback.isPlaybackSequenceActive) return;
+    final startNorm = _playback.frame.offenseNorm[slot - 1];
+    setState(() {
+      _draggingSlot = slot;
+      _dragPointerStartNorm = startNorm;
+      _lastDragKeyframeAt = null;
+      _lastDragKeyframeNorm = null;
+    });
+    _playback.updateOffenseDragLive(slot, startNorm);
+  }
+
+  void _dragPlayerToGlobal(Offset global, double w, double h) {
+    final slot = _draggingSlot;
+    if (slot == null) return;
+    final local = _courtLocalFromGlobal(global);
+    if (local == null) return;
+    final norm = CourtSlots.pixelToNorm(local, Size(w, h));
+    _playback.updateOffenseDragLive(slot, norm);
+    _maybeRecordDragKeyframe(slot, norm, force: false);
+  }
+
+  void _onDrawPointerDown(PointerDownEvent event, double w, double h) {
+    if (!_drawMode || _isPlayerMode || _playback.isPlaybackSequenceActive) return;
     final local = event.localPosition;
-    final norm = Offset(
-      (local.dx / w).clamp(0.0, 1.0),
-      (local.dy / h).clamp(0.0, 1.0),
-    );
-    _playback.updateOffenseDragLive(_draggingSlot!, norm);
-    _maybeRecordDragKeyframe(_draggingSlot!, norm, force: false);
+    final norm = CourtSlots.pixelToNorm(local, Size(w, h));
+    setState(() {
+      _activeStroke = [norm];
+      _drawStrokes.add(_activeStroke!);
+    });
+  }
+
+  void _onDrawPointerMove(PointerMoveEvent event, double w, double h) {
+    if (!_drawMode) return;
+    final stroke = _activeStroke;
+    if (stroke == null) return;
+    final norm = CourtSlots.pixelToNorm(event.localPosition, Size(w, h));
+    if (stroke.isEmpty || (stroke.last - norm).distance > 0.003) {
+      setState(() => stroke.add(norm));
+    }
   }
 
   int _dragKeyframeDurationMs(Offset? prev, Offset norm) {
-    if (prev == null) return 115;
+    if (prev == null) return 55;
     final d = (norm - prev).distance;
-    return (48 + d * 720).round().clamp(45, 240);
+    return (28 + d * 480).round().clamp(28, 110);
   }
 
   void _maybeRecordDragKeyframe(int slot, Offset norm, {required bool force}) {
@@ -681,14 +720,13 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
     if (!force) {
       if (lastAt != null && now.difference(lastAt) < _dragKeyframeMinInterval) {
-        if (prevNorm == null || (norm - prevNorm).distance < _dragKeyframeMinDistance) {
-          return;
-        }
-      } else if (prevNorm != null && (norm - prevNorm).distance < _dragKeyframeMinDistance * 0.65) {
+        return;
+      }
+      if (prevNorm != null && (norm - prevNorm).distance < _dragKeyframeMinDistance) {
         return;
       }
     } else {
-      if (prevNorm != null && (norm - prevNorm).distance < 0.004) return;
+      if (prevNorm != null && (norm - prevNorm).distance < 0.003) return;
     }
 
     _lastDragKeyframeAt = now;
@@ -701,12 +739,16 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     );
   }
 
-  void _onPointerUp(PointerUpEvent event) {
+  void _endPointerInteraction() {
+    if (_drawMode) {
+      setState(() => _activeStroke = null);
+      return;
+    }
     if (_draggingSlot != null) {
       final slot = _draggingSlot!;
       final cur = _playback.frame.offenseNorm[slot - 1];
       final started = _dragPointerStartNorm;
-      if (started != null && (cur - started).distance > 0.008) {
+      if (started != null && (cur - started).distance > 0.005) {
         _maybeRecordDragKeyframe(slot, cur, force: true);
       }
       setState(() {
@@ -718,13 +760,52 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     }
   }
 
+  List<Widget> _buildOffenseDragHandles(double w, double h) {
+    final size = Size(w, h);
+    const handle = 64.0;
+    final handles = <Widget>[];
+    for (int i = 0; i < 5; i++) {
+      final slot = i + 1;
+      final pixel = CourtSlots.normToPixel(_playback.frame.offenseNorm[i], size);
+      final selected = _draggingSlot == slot;
+      handles.add(
+        Positioned(
+          left: pixel.dx - handle / 2,
+          top: pixel.dy - handle / 2,
+          width: handle,
+          height: handle,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanStart: (_) => _beginPlayerDrag(slot),
+            onPanUpdate: (d) => _dragPlayerToGlobal(d.globalPosition, w, h),
+            onPanEnd: (_) => _endPointerInteraction(),
+            onPanCancel: _endPointerInteraction,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 80),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? _primary.withValues(alpha: 0.30) : Colors.white.withValues(alpha: 0.05),
+                border: Border.all(
+                  color: selected ? _primary : Colors.white.withValues(alpha: 0.45),
+                  width: selected ? 2.5 : 1.4,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return handles;
+  }
+
   Future<void> _savePlaybook() async {
     if (_playback.recordedSteps.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No actions recorded to save.')));
+      AppMessenger.showSnackBar(context, const SnackBar(content: Text('No actions recorded to save.')));
       return;
     }
 
     await _finalizeVoiceSession();
+    if (!mounted) return;
 
     final academy = context.read<AcademyProvider>();
     final strategyVm = context.read<StrategyViewmodel>();
@@ -732,6 +813,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
     // Ensure coach dashboard data is available for team/player assignment.
     if (academy.coachDashboard == null) {
       await academy.loadCoachDashboard(force: true);
+      if (!mounted) return;
     }
 
     showDialog(
@@ -878,7 +960,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                 ),
                 onPressed: _isSaving ? null : () async {
                   if (_saveNameCtrl.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a name for the tactic.')));
+                    AppMessenger.showSnackBar(context, const SnackBar(content: Text('Please enter a name for the tactic.')));
                     return;
                   }
 
@@ -960,7 +1042,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                       final msg = uploadFailures > 0
                           ? 'Tactic saved. Voice text + plays saved; $uploadFailures clip(s) waiting on audio upload.'
                           : 'Tactic saved with coach voice — players can replay it from Strategy.';
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      AppMessenger.showSnackBar(context, 
                         SnackBar(
                           content: Text(msg),
                           backgroundColor: uploadFailures > 0 ? Colors.orange : Colors.green,
@@ -984,7 +1066,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                     }
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      AppMessenger.showSnackBar(context, 
                         SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.redAccent)
                       );
                     }
@@ -1049,20 +1131,36 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      active ? 'RECORDING — SPEAK YOUR FLOW' : 'GET READY',
-                      style: TextStyle(
-                        color: _primary.withValues(alpha: 0.98),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.4,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: active
+                                ? Colors.redAccent.withValues(alpha: 0.6 + 0.4 * wave)
+                                : _outline,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          active ? 'RECORDING — PLEASE SPEAK NOW' : 'GET READY…',
+                          style: TextStyle(
+                            color: _primary.withValues(alpha: 0.98),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(
                       active
-                          ? 'Take your time. Your words appear in the box above as you speak. When finished, tap RECORD FLOW.'
-                          : 'Opening the microphone — get your flow ready; you will see RECORDING when it is time to talk.',
+                          ? 'Say your play, e.g. "Player one pass to player two, player two shoot". '
+                              'Tap the mic again when you finish — your words will appear in the box above.'
+                          : 'Opening the microphone — start speaking when you see RECORDING.',
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.88), fontSize: 12, height: 1.4),
                     ),
                   ],
@@ -1100,6 +1198,45 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
           ],
         ),
         actions: [
+          if (!_isPlayerMode) ...[
+            IconButton(
+              onPressed: () => setState(() {
+                _courtNavigateMode = !_courtNavigateMode;
+                if (_courtNavigateMode) {
+                  _drawMode = false;
+                  _draggingSlot = null;
+                  _activeStroke = null;
+                }
+              }),
+              icon: Icon(
+                _courtNavigateMode ? Icons.pan_tool_alt : Icons.pan_tool_alt_outlined,
+                color: _courtNavigateMode ? _primary : Colors.white70,
+              ),
+              tooltip: _courtNavigateMode ? 'Exit pan/zoom' : 'Pan & zoom court',
+            ),
+            IconButton(
+              onPressed: () => setState(() {
+                _drawMode = !_drawMode;
+                _draggingSlot = null;
+                _activeStroke = null;
+                if (_drawMode) _courtNavigateMode = false;
+              }),
+              icon: Icon(
+                _drawMode ? Icons.edit : Icons.edit_outlined,
+                color: _drawMode ? _primary : Colors.white70,
+              ),
+              tooltip: _drawMode ? 'Exit draw mode' : 'Finger draw on court',
+            ),
+            if (_drawStrokes.isNotEmpty)
+              IconButton(
+                onPressed: () => setState(() {
+                  _drawStrokes.clear();
+                  _activeStroke = null;
+                }),
+                icon: const Icon(Icons.delete_outline, color: Colors.white70),
+                tooltip: 'Clear drawings',
+              ),
+          ],
           if (widget.returnOnSave)
             TextButton.icon(
               onPressed: () => Navigator.pop(context, _playback.recordedSteps),
@@ -1114,6 +1251,8 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                 onPressed: () => setState(() {
                   _isPlayerMode = !_isPlayerMode;
                   _activePlaybook = null;
+                  _drawMode = false;
+                  _courtNavigateMode = false;
                 }),
                 icon: Icon(_isPlayerMode ? Icons.admin_panel_settings_outlined : Icons.person_search_outlined, color: _primary),
                 tooltip: _isPlayerMode ? 'Switch to Coach' : 'Switch to Player',
@@ -1231,7 +1370,13 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
             builder: (context, seqActive, _) {
               if (seqActive) return const SizedBox.shrink();
               return Text(
-                _isPlayerMode ? 'Watching animation...' : 'Coach Mode · Full court active · Drag to design',
+                _isPlayerMode
+                    ? 'Watching animation...'
+                    : (_drawMode
+                        ? 'Draw mode · Finger sketch routes on the court'
+                        : (_courtNavigateMode
+                            ? 'Pan/zoom mode · Pinch or drag to move the court'
+                            : 'Drag the ring on O1–O5 — player follows your finger')),
                 style: TextStyle(color: _outline, fontSize: 11, fontWeight: FontWeight.bold),
               );
             },
@@ -1257,39 +1402,81 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        border: Border.all(color: _draggingSlot != null ? _primary : Colors.white10, width: 2),
+                        border: Border.all(
+                          color: (_draggingSlot != null || _drawMode || _courtNavigateMode)
+                              ? _primary
+                              : Colors.white10,
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(6),
-                        child: Listener(
-                          onPointerDown: (e) => _onPointerDown(e, w, h),
-                          onPointerMove: (e) => _onPointerMove(e, w, h),
-                          onPointerUp: _onPointerUp,
-                          child: InteractiveViewer(
-                            panEnabled: _draggingSlot == null,
-                            scaleEnabled: _draggingSlot == null,
-                            minScale: 0.5,
-                            maxScale: 3.0,
-                            child: SizedBox(
+                        child: Builder(
+                          builder: (context) {
+                            final court = SizedBox(
+                              key: _courtKey,
                               width: w,
                               height: h,
-                              child: RepaintBoundary(
-                                child: ListenableBuilder(
-                                  listenable: _playback,
-                                  builder: (context, _) {
-                                    return TacticalCourtCanvas(
-                                      frame: _playback.frame,
-                                      ballOwnerSlot: _playback.ballOwnerSlot,
-                                      maxHeight: h,
-                                      currentStep: _playback.currentStep,
-                                      animationProgress: _playback.animationProgress,
-                                    );
-                                  },
-                                ),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                clipBehavior: Clip.none,
+                                children: [
+                                  ListenableBuilder(
+                                    listenable: _playback,
+                                    builder: (context, _) {
+                                      return TacticalCourtCanvas(
+                                        frame: _playback.frame,
+                                        ballOwnerSlot: _playback.ballOwnerSlot,
+                                        maxHeight: h,
+                                        currentStep: _playback.currentStep,
+                                        animationProgress: _playback.animationProgress,
+                                      );
+                                    },
+                                  ),
+                                  if (_drawStrokes.isNotEmpty)
+                                    IgnorePointer(
+                                      child: CustomPaint(
+                                        painter: _FingerDrawPainter(strokes: _drawStrokes),
+                                        size: Size(w, h),
+                                      ),
+                                    ),
+                                  // Visible drag handles on each offense player.
+                                  if (!_isPlayerMode && !_drawMode && !_courtNavigateMode)
+                                    ListenableBuilder(
+                                      listenable: _playback,
+                                      builder: (context, _) {
+                                        return Stack(
+                                          children: _buildOffenseDragHandles(w, h),
+                                        );
+                                      },
+                                    ),
+                                  if (_drawMode)
+                                    Positioned.fill(
+                                      child: Listener(
+                                        behavior: HitTestBehavior.opaque,
+                                        onPointerDown: (e) => _onDrawPointerDown(e, w, h),
+                                        onPointerMove: (e) => _onDrawPointerMove(e, w, h),
+                                        onPointerUp: (_) => _endPointerInteraction(),
+                                        onPointerCancel: (_) => _endPointerInteraction(),
+                                        child: const ColoredBox(color: Colors.transparent),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                          ),
+                            );
+
+                            if (_courtNavigateMode && !_drawMode) {
+                              return InteractiveViewer(
+                                panEnabled: true,
+                                scaleEnabled: true,
+                                minScale: 0.5,
+                                maxScale: 3.0,
+                                child: court,
+                              );
+                            }
+                            return court;
+                          },
                         ),
                       ),
                     ),
@@ -1391,11 +1578,46 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                       const SizedBox(height: 10),
                       _buildVoiceSessionBanner(),
                     ],
+                    if (_isTranscribing) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _primary.withValues(alpha: 0.5), width: 1.5),
+                        ),
+                        child: Row(
+                          children: [
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _transcribeProgress > 0
+                                    ? 'CONVERTING YOUR VOICE TO TEXT… $_transcribeProgress%'
+                                    : 'CONVERTING YOUR VOICE TO TEXT…',
+                                style: const TextStyle(
+                                  color: _primary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     ListenableBuilder(
                       listenable: _playback,
                       builder: (context, _) {
-                        final busy = _playback.isPlaybackSequenceActive || _isParsingCommand;
+                        final busy = _playback.isPlaybackSequenceActive || _isParsingCommand || _isTranscribing;
                         return Row(
                           children: [
                             Expanded(
@@ -1432,15 +1654,15 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                             IconButton(
                               onPressed: busy ? null : _toggleVoiceCommand,
                               tooltip: _voiceUiActive
-                                  ? 'Stop recording (keeps your text — tap RECORD FLOW to run it)'
-                                  : 'Speak your flow calmly — then tap RECORD FLOW',
+                                  ? 'Stop and transcribe locally'
+                                  : 'Speak your flow — then tap RECORD FLOW',
                               icon: Icon(
                                 _voiceUiActive ? Icons.mic_rounded : Icons.mic_none_outlined,
                                 color: busy
                                     ? Colors.grey
                                     : (_voiceUiActive
                                         ? _primary
-                                        : (_sttReady ? _primary.withValues(alpha: 0.65) : _outline.withValues(alpha: 0.55))),
+                                        : (_whisperReady ? _primary.withValues(alpha: 0.65) : _outline.withValues(alpha: 0.55))),
                                 size: 34,
                               ),
                             ),
@@ -1453,7 +1675,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                         );
                       },
                     ),
-                    if (_micHint != null && _micHint!.trim().isNotEmpty && !_voiceUiActive) ...[
+                    if (_micHint != null && _micHint!.trim().isNotEmpty && !_voiceUiActive && !_isTranscribing) ...[
                       const SizedBox(height: 8),
                       Text(
                         _micHint!,
@@ -1568,7 +1790,13 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () => _playback.reset(),
+                        onPressed: () {
+                          _playback.reset();
+                          setState(() {
+                            _drawStrokes.clear();
+                            _activeStroke = null;
+                          });
+                        },
                         style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white24), padding: const EdgeInsets.symmetric(vertical: 14)),
                         child: const Text('RESET BOARD', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                       ),
@@ -1582,4 +1810,41 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
       ),
     );
   }
+}
+
+/// Finger-drawn strokes in normalized court coordinates (0–1).
+class _FingerDrawPainter extends CustomPainter {
+  final List<List<Offset>> strokes;
+
+  _FingerDrawPainter({required this.strokes});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokePaint = Paint()
+      ..color = const Color(0xFFFFD900)
+      ..strokeWidth = 3.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final dotPaint = Paint()
+      ..color = const Color(0xFFFFD900)
+      ..style = PaintingStyle.fill;
+
+    for (final stroke in strokes) {
+      if (stroke.isEmpty) continue;
+      final points = stroke.map((n) => CourtSlots.normToPixel(n, size)).toList();
+      if (points.length < 2) {
+        canvas.drawCircle(points.first, 2.5, dotPaint);
+        continue;
+      }
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (var i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+      canvas.drawPath(path, strokePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FingerDrawPainter oldDelegate) => true;
 }

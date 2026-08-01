@@ -61,7 +61,9 @@ class ProfileSetupViewmodel extends ChangeNotifier {
         final profileVm = Provider.of<ProfileViewmodel>(context, listen: false);
         await profileVm.loadProfile(forceRefresh: true);
         final updatedRole = profileVm.user?.role ?? 'coach';
-        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: updatedRole);
+        Navigator.pushNamedAndRemoveUntil(
+          context, RouteNames.mainApp, (route) => false,
+          arguments: updatedRole);
       }
     } catch (e) {
       _setLoading(false);
@@ -109,7 +111,9 @@ class ProfileSetupViewmodel extends ChangeNotifier {
         final profileVm = Provider.of<ProfileViewmodel>(context, listen: false);
         await profileVm.loadProfile(forceRefresh: true);
         final updatedRole = profileVm.user?.role ?? 'player';
-        Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: updatedRole);
+        Navigator.pushNamedAndRemoveUntil(
+          context, RouteNames.mainApp, (route) => false,
+          arguments: updatedRole);
       }
     } catch (e) {
       _setLoading(false);

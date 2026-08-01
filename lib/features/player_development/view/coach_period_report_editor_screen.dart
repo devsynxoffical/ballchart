@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:ballchart/core/constants/relentless_program.dart';
 import 'package:ballchart/core/models/development_models.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
@@ -70,25 +71,28 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
         _loading = false;
       });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _areas = RelentlessProgram.mergeReportAreas(const <PeriodReportAreaDto>[]);
-          _loading = false;
-        });
-        final raw = e.toString().replaceAll('Exception: ', '');
-        if (!raw.contains('404') && !raw.toLowerCase().contains('not found')) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not load saved report — starting a new one. ($raw)'),
-              backgroundColor: Colors.orangeAccent,
-            ),
-          );
-        }
+      if (!mounted) return;
+      // Backend now returns an empty template for missing reports, but keep a
+      // safe local fallback if the request fails for any other reason.
+      setState(() {
+        _areas = RelentlessProgram.mergeReportAreas(const <PeriodReportAreaDto>[]);
+        _loading = false;
+      });
+      final raw = e.toString().replaceAll('Exception: ', '');
+      if (!raw.contains('404') && !raw.toLowerCase().contains('not found')) {
+        AppMessenger.showSnackBar(
+          context,
+          SnackBar(
+            content: Text('Could not load saved report — starting fresh. ($raw)'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
       }
     }
   }
 
   Future<void> _save() async {
+    if (_saving || _loading) return;
     setState(() => _saving = true);
     try {
       final goals = _goals.text
@@ -107,20 +111,24 @@ class _CoachPeriodReportEditorScreenState extends State<CoachPeriodReportEditorS
         goals: goals,
         nextEvaluationDate: _nextEval.text.trim(),
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report saved')),
-        );
-        Navigator.of(context).pop(true);
-      }
+      if (!mounted) return;
+      // Pop first — parent shows the success toast. Do not use context after pop.
+      Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      if (!mounted) return;
+      setState(() => _saving = false);
+      final raw = e.toString().replaceAll('Exception: ', '');
+      AppMessenger.showSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            raw.contains('timeout') || raw.toLowerCase().contains('timeout')
+                ? 'Save timed out — check your connection and try again.'
+                : raw,
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 

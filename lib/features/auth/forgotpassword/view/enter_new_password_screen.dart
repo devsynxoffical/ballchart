@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import '../../../../routes/routes_names.dart';
 
 class EnterNewPasswordScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _EnterNewPasswordScreenState extends State<EnterNewPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: bgColor,
       body: Stack(
         children: [
@@ -50,12 +52,15 @@ class _EnterNewPasswordScreenState extends State<EnterNewPasswordScreen> {
               ),
             ),
           ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          Positioned.fill(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
@@ -168,13 +173,13 @@ class _EnterNewPasswordScreenState extends State<EnterNewPasswordScreen> {
                       onPressed: () {
                         if (_passwordController.text.trim().isEmpty ||
                             _confirmController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          AppMessenger.showSnackBar(context, 
                             const SnackBar(content: Text('Please fill password fields')),
                           );
                           return;
                         }
                         if (_passwordController.text.trim() != _confirmController.text.trim()) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          AppMessenger.showSnackBar(context, 
                             const SnackBar(content: Text('Passwords do not match')),
                           );
                           return;
@@ -193,7 +198,8 @@ class _EnterNewPasswordScreenState extends State<EnterNewPasswordScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

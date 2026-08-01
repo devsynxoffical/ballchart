@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
@@ -57,9 +58,24 @@ class _EditAcademyDialogState extends State<EditAcademyDialog> {
   Future<void> _updateAcademy() async {
     final name = _nameController.text.trim();
     final owner = _ownerController.text.trim();
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     
-    if (name.isEmpty || owner.isEmpty || email.isEmpty) return;
+    if (name.isEmpty || owner.isEmpty || email.isEmpty) {
+      AppMessenger.show(
+        context,
+        message: 'Please fill academy name, director name, and email',
+        kind: AppMessageKind.warning,
+      );
+      return;
+    }
+    if (!email.contains('@')) {
+      AppMessenger.show(
+        context,
+        message: 'Please enter a valid email address',
+        kind: AppMessageKind.warning,
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
@@ -69,12 +85,16 @@ class _EditAcademyDialogState extends State<EditAcademyDialog> {
         ownerName: owner,
         ownerEmail: email,
         logoUrl: _logoDataUri,
+        showSuccessMessage: false,
       );
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+        AppMessenger.show(
+          context,
+          message: e.toString().replaceAll('Exception: ', ''),
+          kind: AppMessageKind.error,
         );
       }
     } finally {

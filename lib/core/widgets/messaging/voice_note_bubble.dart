@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 
 import '../../services/api_service.dart';
 import '../../services/voice_note_service.dart';
@@ -147,14 +148,11 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
   }
 
   void _showPlayError(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
+    AppMessenger.show(
+      context,
+      message: message,
+      kind: AppMessageKind.error,
+      title: 'Playback',
     );
   }
 

@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:ballchart/core/constants/relentless_program.dart';
 import 'package:ballchart/core/models/development_models.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
-import 'package:ballchart/core/services/api_service.dart';
+import 'package:ballchart/core/widgets/user_avatar.dart';
 import 'package:ballchart/features/player_development/view/my_development_screen.dart';
 import 'package:ballchart/features/player_development/view/training_completion_report_screen.dart';
 import '../../management/viewmodel/academy_provider.dart';
@@ -444,34 +444,20 @@ class PlayerStatsTabState extends State<PlayerStatsTab> {
   }
 
   Widget _buildPlayerIdentityRow(Map<String, dynamic> playerData) {
-    final raw = playerData['profileImageUrl']?.toString().trim();
-    final url = (raw != null && raw.isNotEmpty) ? ApiService.resolveMediaUrl(raw) : '';
-    final hasImg = url.isNotEmpty && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:'));
+    final url = pickAvatarUrl(raw: playerData);
     final name = (playerData['username'] ?? 'Player').toString();
     final pos = (playerData['position'] ?? '').toString();
-    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'P';
 
     return Row(
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: primaryColor.withOpacity(0.35), width: 2),
-            color: surfaceHigh,
-          ),
-          child: ClipOval(
-            child: hasImg
-                ? Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    width: 72,
-                    height: 72,
-                    errorBuilder: (_, __, ___) => Center(child: Text(initial, style: const TextStyle(color: primaryColor, fontSize: 28, fontWeight: FontWeight.w900))),
-                  )
-                : Center(child: Text(initial, style: const TextStyle(color: primaryColor, fontSize: 28, fontWeight: FontWeight.w900))),
-          ),
+        UserAvatar(
+          name: name,
+          imageUrl: url,
+          size: 72,
+          borderColor: primaryColor.withOpacity(0.35),
+          borderWidth: 2,
+          usePersonIconFallback: true,
+          backgroundColor: surfaceHigh,
         ),
         const SizedBox(width: 16),
         Expanded(

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/legal/app_legal_urls.dart';
+import '../../../core/widgets/app_exit_scope.dart';
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/routes/routes_names.dart';
-import 'package:flutter/services.dart';
 
 class AuthScreen extends StatefulWidget {
   final String initialRole;
@@ -41,29 +42,8 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  Future<bool?> _showExitDialog(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Exit App', style: TextStyle(color: Colors.white)),
-        content: const Text('Do you want to exit the application?', style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No', style: TextStyle(color: Colors.white60)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes', style: TextStyle(color: primaryColor)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppMessenger.showSnackBar(context, 
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
@@ -74,15 +54,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final shouldExit = await _showExitDialog(context);
-        if (shouldExit == true) {
-          SystemNavigator.pop();
-        }
-      },
+    return AppExitScope(
       child: Scaffold(
         backgroundColor: bgColor,
         body: Stack(

@@ -54,19 +54,23 @@ class InboxViewModel extends ChangeNotifier {
       _unreadNotifications =
           notifications.where((n) => !n.isRead && !isMessageNotif(n)).length;
 
-      final convoUnread = conversations.fold<int>(
+      // Message icon = conversation unread only (clears when chats are opened/seen).
+      // Do not keep the dot from message notifications — those can lag after mark-read.
+      _unreadMessages = conversations.fold<int>(
         0,
         (sum, ConversationSummary c) => sum + c.unreadCount,
       );
-      final notifMessageUnread =
-          notifications.where((n) => !n.isRead && isMessageNotif(n)).length;
-      // Use the higher count so message icon updates even when conversation counters lag.
-      _unreadMessages =
-          convoUnread >= notifMessageUnread ? convoUnread : notifMessageUnread;
       notifyListeners();
     } catch (_) {
       /* keep last known counts */
     }
+  }
+
+  /// Optimistically clear the chat badge (e.g. right after opening/reading a thread).
+  void clearMessageBadge() {
+    if (_unreadMessages == 0) return;
+    _unreadMessages = 0;
+    notifyListeners();
   }
 
   @override

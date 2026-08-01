@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:ballchart/core/repositories/development_repository.dart';
 
 /// Staff: set play recognition % and drill completion % (stored on academy training catalog).
-Future<void> showStrategyKpisSheet(BuildContext context) async {
-  await showModalBottomSheet<void>(
-    context: context,
+Future<void> showStrategyKpisSheet(BuildContext hostContext) async {
+  final result = await showModalBottomSheet<String>(
+    context: hostContext,
     isScrollControlled: true,
     backgroundColor: const Color(0xFF2A2A2A),
     shape: const RoundedRectangleBorder(
@@ -12,6 +13,20 @@ Future<void> showStrategyKpisSheet(BuildContext context) async {
     ),
     builder: (ctx) => const _StrategyKpisBody(),
   );
+  if (!hostContext.mounted || result == null) return;
+  if (result == 'saved') {
+    AppMessenger.show(
+      hostContext,
+      message: 'Strategy KPIs saved',
+      kind: AppMessageKind.success,
+    );
+  } else if (result == 'cleared') {
+    AppMessenger.show(
+      hostContext,
+      message: 'KPIs cleared — players will see dashes until you set new targets',
+      kind: AppMessageKind.success,
+    );
+  }
 }
 
 class _StrategyKpisBody extends StatefulWidget {
@@ -47,7 +62,7 @@ class _StrategyKpisBodyState extends State<_StrategyKpisBody> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }
@@ -62,15 +77,11 @@ class _StrategyKpisBodyState extends State<_StrategyKpisBody> {
         drillCompletionPct: _drill.round(),
       );
       if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        Navigator.pop(context);
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Strategy KPIs saved')),
-        );
+        Navigator.pop(context, 'saved');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }
@@ -87,15 +98,11 @@ class _StrategyKpisBodyState extends State<_StrategyKpisBody> {
         clearDrillCompletionPct: true,
       );
       if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        Navigator.pop(context);
-        messenger.showSnackBar(
-          const SnackBar(content: Text('KPIs cleared — players will see dashes until you set new targets')),
-        );
+        Navigator.pop(context, 'cleared');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }

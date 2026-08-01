@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter/services.dart'; // Add for Clipboard
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +15,7 @@ import 'package:ballchart/features/auth/viewmodel/auth_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 import 'package:ballchart/features/staff/service/staff_service.dart';
+import 'package:ballchart/core/widgets/square_image_crop_screen.dart';
 
 class PlayerDetailScreen extends StatefulWidget {
   final Player player;
@@ -122,7 +124,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         if (i == retryCount - 1) {
           // Last retry failed, show error
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppMessenger.showSnackBar(context, 
               SnackBar(
                 content: Text('Failed to load player data: ${e.toString().replaceAll('Exception: ', '')}'),
                 backgroundColor: Colors.red,
@@ -160,22 +162,16 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AcademyProvider>(
-      builder: (context, provider, _) {
-        final isOwnProfile = _isOwnProfile(provider);
-        
-        return Scaffold(
-          backgroundColor: background,
-          body: CustomScrollView(
-            slivers: [
-              if (widget.showHeader) _buildSliverAppBar(context),
-              SliverToBoxAdapter(
-                child: _buildContent(context),
-              ),
-            ],
+    return Scaffold(
+      backgroundColor: background,
+      body: CustomScrollView(
+        slivers: [
+          if (widget.showHeader) _buildSliverAppBar(context),
+          SliverToBoxAdapter(
+            child: _buildContent(context),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -183,16 +179,68 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 8),
         _buildHeroProfile(widget.player.name),
+        const SizedBox(height: 28),
         _buildBiometricsBento(),
-        _buildCredentialsSection(), 
+        const SizedBox(height: 28),
+        _buildCredentialsSection(),
+        const SizedBox(height: 8),
         _buildPerformanceStats(),
         _buildBattleStats(),
         _buildScoutingNotes(),
         _buildLegalAndDeleteSection(context),
         _buildLogoutSection(context),
-        const SizedBox(height: 120),
+        const SizedBox(height: 100),
       ],
+    );
+  }
+
+  String _displayValue(dynamic raw, {String empty = '—'}) {
+    final s = raw?.toString().trim() ?? '';
+    if (s.isEmpty || s.toUpperCase() == 'N/A') return empty;
+    return s;
+  }
+
+  Widget _sectionLabel(String title, {String? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: primaryContainer,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
+                fontFamily: headlineFont,
+              ),
+            ),
+          ),
+          if (trailing != null && trailing.isNotEmpty)
+            Text(
+              trailing,
+              style: TextStyle(
+                color: primaryContainer.withValues(alpha: 0.9),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                fontFamily: bodyFont,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -201,20 +249,24 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
       builder: (context, provider, _) {
         if (!_isOwnProfile(provider)) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(child: AppLegalUrls.inlineTextButtons(context)),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => showDeleteAccountDialog(context),
-                icon: const Icon(Icons.delete_forever_outlined, color: Colors.white70, size: 20),
-                label: const Text('DELETE MY ACCOUNT', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+                icon: const Icon(Icons.delete_forever_outlined, color: Colors.white54, size: 18),
+                label: const Text(
+                  'DELETE ACCOUNT',
+                  style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w700, letterSpacing: 0.6, fontSize: 12),
+                ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white70,
-                  side: const BorderSide(color: Colors.white24),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  foregroundColor: Colors.white54,
+                  side: const BorderSide(color: Colors.white12),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -229,28 +281,29 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
       builder: (context, provider, _) {
         if (!_isOwnProfile(provider)) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 8),
           child: GestureDetector(
             onTap: () => context.read<AuthViewmodel>().logout(context),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.symmetric(vertical: 15),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                color: Colors.redAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.28)),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.logout_rounded, color: Colors.redAccent),
-                  SizedBox(width: 10),
+                  Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
+                  SizedBox(width: 8),
                   Text(
-                    'LOGOUT',
+                    'LOG OUT',
                     style: TextStyle(
                       color: Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -266,208 +319,138 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final isOwnProfile = _isOwnProfile(provider);
-        
-        // For players viewing their own profile, check loading state
+
         if (isOwnProfile && provider.isPlayerLoading) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(20)),
-              child: const Center(
-                child: Column(
-                  children: [
-                    SizedBox(height: 20),
-                    CircularProgressIndicator(color: primaryContainer),
-                    SizedBox(height: 16),
-                    Text('Loading credentials...', style: TextStyle(color: outline, fontSize: 14)),
-                    SizedBox(height: 20),
-                  ],
-                ),
-              ),
+              height: 120,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(18)),
+              child: const CircularProgressIndicator(color: primaryContainer, strokeWidth: 2),
             ),
           );
         }
-        
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('ACCOUNT CREDENTIALS', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(20)),
+
+        final ownPlayerData = _asStringMap(provider.playerDashboard?['player']);
+        final fallbackPlayer = provider.academy.teams
+            .expand((t) => t.players)
+            .where((p) => p.id == widget.player.id)
+            .cast<Player?>()
+            .firstWhere((p) => p != null, orElse: () => null);
+
+        final emailValue = isOwnProfile
+            ? (ownPlayerData['email'] ?? ownPlayerData['loginEmail'] ?? widget.player.email)?.toString()
+            : _staffStr(
+                'email',
+                (widget.player.email.isNotEmpty ? widget.player.email : fallbackPlayer?.email) ?? '',
+              );
+
+        final passwordValue = isOwnProfile
+            ? (ownPlayerData['tempPassword'] ?? ownPlayerData['password'] ?? widget.player.tempPassword)?.toString()
+            : _staffStr(
+                'tempPassword',
+                (widget.player.tempPassword?.isNotEmpty == true ? widget.player.tempPassword : fallbackPlayer?.tempPassword) ?? '',
+              );
+
+        final safeEmail = (emailValue == null || emailValue.trim().isEmpty) ? 'Not available' : emailValue;
+        final safePassword = (passwordValue == null || passwordValue.trim().isEmpty) ? 'Not available' : passwordValue;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('ACCOUNT'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: surfaceHigh,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                ),
                 child: Column(
                   children: [
-                    Builder(
-                      builder: (context) {
-                        final ownPlayerData = _asStringMap(provider.playerDashboard?['player']);
-                        final fallbackPlayer = provider.academy.teams
-                            .expand((t) => t.players)
-                            .where((p) => p.id == widget.player.id)
-                            .cast<Player?>()
-                            .firstWhere((p) => p != null, orElse: () => null);
-
-                        final emailValue = isOwnProfile
-                            ? (ownPlayerData['email'] ?? ownPlayerData['loginEmail'] ?? widget.player.email)?.toString()
-                            : _staffStr(
-                                'email',
-                                (widget.player.email.isNotEmpty ? widget.player.email : fallbackPlayer?.email) ?? '',
-                              );
-
-                        final passwordValue = isOwnProfile
-                            ? (ownPlayerData['tempPassword'] ?? ownPlayerData['password'] ?? widget.player.tempPassword)?.toString()
-                            : _staffStr(
-                                'tempPassword',
-                                (widget.player.tempPassword?.isNotEmpty == true ? widget.player.tempPassword : fallbackPlayer?.tempPassword) ?? '',
-                              );
-
-                        final safeEmail = (emailValue == null || emailValue.trim().isEmpty)
-                            ? 'Not available'
-                            : emailValue;
-                        final safePassword = (passwordValue == null || passwordValue.trim().isEmpty)
-                            ? 'Not available'
-                            : passwordValue;
-
-                        return Column(
-                          children: [
-                    // Profile Picture Section
-                    Row(
-                      children: [
-                        Builder(
-                          builder: (context) {
-                            final ownPlayerData = _asStringMap(provider.playerDashboard?['player']);
-                            final resolvedProfileImage = _resolvePlayerImageUrl(
-                              isOwnProfile
-                                  ? (ownPlayerData['profileImageUrl'] ?? widget.player.profileImageUrl)
-                                  : (_staffPlayerJson?['profileImageUrl'] ?? widget.player.profileImageUrl),
-                            );
-                            final hasValidImage = _isRenderableImageUrl(resolvedProfileImage);
-                            return GestureDetector(
-                              onTap: isOwnProfile ? () => _showPlayerProfilePhotoMenu(context) : null,
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  Container(
-                                    width: 80,
-                                    height: 80,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: surfaceHighest,
-                                      border: Border.all(color: primaryContainer.withOpacity(0.3), width: 2),
-                                    ),
-                                    child: hasValidImage
-                                        ? ClipOval(
-                                            child: Image.network(
-                                              resolvedProfileImage!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return const Icon(Icons.person, color: outline, size: 32);
-                                              },
-                                              loadingBuilder: (context, child, loadingProgress) {
-                                                if (loadingProgress == null) return child;
-                                                return const Center(
-                                                  child: CircularProgressIndicator(color: primaryContainer, strokeWidth: 2),
-                                                );
-                                              },
-                                            ),
-                                          )
-                                        : const Icon(Icons.person, color: outline, size: 32),
-                                  ),
-                                  if (isOwnProfile)
-                                    Positioned(
-                                      right: -2,
-                                      bottom: -2,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                                        child: Icon(Icons.edit, size: 12, color: primaryContainer),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.player.name.toUpperCase(),
-                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: headlineFont),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                widget.player.position.toUpperCase(),
-                                style: const TextStyle(color: primaryContainer, fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    _credentialTile('LOGIN EMAIL', safeEmail, Icons.email_outlined),
-                    const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(color: Colors.white10)),
+                    _credentialTile('LOGIN EMAIL', safeEmail, Icons.mail_outline_rounded),
+                    Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
                     _credentialTile(
-                      'SECURED PASSWORD', 
+                      'PASSWORD',
                       safePassword,
                       Icons.lock_outline_rounded,
                       isPassword: true,
                     ),
-                          ],
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
   }
 
   Widget _credentialTile(String label, String value, IconData icon, {bool isPassword = false}) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: primaryContainer, size: 18),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(color: outline, fontSize: 8, letterSpacing: 1.5, fontWeight: FontWeight.bold, fontFamily: bodyFont)),
-              const SizedBox(height: 4),
-              Text(
-                isPassword && !_isPasswordVisible ? '••••••••' : value,
-                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, fontFamily: bodyFont),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: primaryContainer, size: 18),
           ),
-        ),
-        if (isPassword)
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: outline.withValues(alpha: 0.95),
+                    fontSize: 10,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: bodyFont,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  isPassword && !_isPasswordVisible ? '••••••••' : value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: bodyFont,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (isPassword)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(_isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: outline, size: 18),
+              onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+            ),
           IconButton(
-            icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility, color: outline, size: 18),
-            onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.copy_rounded, color: outline, size: 18),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: value));
+              AppMessenger.showSnackBar(
+                context,
+                const SnackBar(content: Text('Copied', style: TextStyle(fontWeight: FontWeight.bold))),
+              );
+            },
           ),
-        IconButton(
-          icon: const Icon(Icons.copy_rounded, color: outline, size: 18),
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: value));
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('COPIED TO CLIPBOARD', style: TextStyle(fontWeight: FontWeight.bold))));
-          },
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -529,9 +512,9 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         // Admin/coach: live data from GET /auth/player/:id
         if (!isOwnProfile) {
           if (_staffPlayerLoading && _staffPlayerJson == null) {
-            return const SizedBox(
-              height: 380,
-              child: Center(child: CircularProgressIndicator(color: primaryContainer)),
+            return const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Center(child: CircularProgressIndicator(color: primaryContainer, strokeWidth: 2)),
             );
           }
           final s = _staffPlayerJson;
@@ -540,7 +523,9 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             isEliteProspect: (s?['isEliteProspect'] == true) || widget.player.isEliteProspect,
             classYear: _staffStr('classYear', widget.player.classYear),
             position: _staffStr('position', widget.player.position),
-            heroImageUrl: _resolvePlayerImageUrl(s?['profileImageUrl'] ?? widget.player.profileImageUrl),
+            heroImageUrl: _resolvePlayerImageUrl(
+              s?['profileImageUrl'] ?? s?['profilePic'] ?? widget.player.profileImageUrl,
+            ),
             jerseyNumber: _staffStr('jerseyNumber', widget.player.jerseyNumber),
             onTapHeroPhoto: null,
           );
@@ -548,44 +533,47 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         
         // For players viewing their own profile
         if (provider.isPlayerLoading) {
-          return const SizedBox(
-            height: 380,
-            child: Center(child: CircularProgressIndicator(color: primaryContainer)),
+          return const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Center(child: CircularProgressIndicator(color: primaryContainer, strokeWidth: 2)),
           );
         }
         
         if (error != null) {
-          return SizedBox(
-            height: 380,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red.withOpacity(0.7), size: 48),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load player data',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: surfaceHigh,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.redAccent, size: 32),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Could not load profile',
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    error,
+                    style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton(
+                    onPressed: () => _loadDataWithRetry(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryContainer,
+                      foregroundColor: Colors.black,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error,
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => _loadDataWithRetry(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryContainer,
-                        foregroundColor: Colors.black,
-                      ),
-                      child: const Text('RETRY'),
-                    ),
-                  ],
-                ),
+                    child: const Text('RETRY'),
+                  ),
+                ],
               ),
             ),
           );
@@ -594,7 +582,9 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         final playerData = _asStringMap(dashboard?['player']);
         final isEliteProspect = playerData['isEliteProspect'] ?? widget.player.isEliteProspect;
         final classYear = playerData['classYear'] ?? widget.player.classYear;
-        final heroPic = _resolvePlayerImageUrl(playerData['profileImageUrl'] ?? widget.player.profileImageUrl);
+        final heroPic = _resolvePlayerImageUrl(
+          playerData['profileImageUrl'] ?? playerData['profilePic'] ?? widget.player.profileImageUrl,
+        );
 
         return _buildPlayerHeroContent(
           name: widget.player.name,
@@ -656,23 +646,42 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
 
   Future<void> _pickAndSavePlayerPhoto(BuildContext context) async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
     if (file == null || !context.mounted) return;
+    final cropped = await Navigator.of(context).push<File>(
+      MaterialPageRoute(
+        builder: (_) => SquareImageCropScreen(imageFile: File(file.path)),
+      ),
+    );
+    if (cropped == null || !context.mounted) return;
     try {
-      final url = await StaffService().uploadImage(File(file.path));
+      final url = await StaffService().uploadImage(cropped);
       if (url == null || url.isEmpty) throw Exception('Upload returned no URL');
-      await ProfileRepository().completeProfile({'profileImageUrl': url});
+      final resolved = ApiService.resolveMediaUrl(url);
+      final updated = await ProfileRepository().completeProfile({
+        'profileImageUrl': url,
+        'profilePic': url,
+      });
       if (!context.mounted) return;
+      final withPhoto = (updated.profileImageUrl == null || updated.profileImageUrl!.trim().isEmpty)
+          ? updated.copyWith(profileImageUrl: resolved.isNotEmpty ? resolved : url)
+          : updated;
+      context.read<ProfileViewmodel>().setUser(withPhoto);
+      context.read<AcademyProvider>().setCurrentUser(withPhoto);
       await context.read<AcademyProvider>().loadPlayerDashboard(force: true);
-      await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: const Text('Profile photo updated'), backgroundColor: primaryContainer),
+      setState(() {});
+      AppMessenger.show(
+        context,
+        message: 'Profile photo updated',
+        kind: AppMessageKind.success,
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update photo: $e'), backgroundColor: Colors.redAccent),
+        AppMessenger.show(
+          context,
+          message: 'Could not update photo: $e',
+          kind: AppMessageKind.error,
         );
       }
     }
@@ -687,130 +696,199 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     required String jerseyNumber,
     VoidCallback? onTapHeroPhoto,
   }) {
-        final showPhoto = _isRenderableImageUrl(heroImageUrl);
+    final showPhoto = _isRenderableImageUrl(heroImageUrl);
+    final pos = _displayValue(position);
+    final jersey = _displayValue(jerseyNumber);
+    final year = _displayValue(classYear);
 
-        final imageLayer = showPhoto
-            ? Image.network(
-                heroImageUrl!,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: surfaceHigh,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              surfaceHigh,
+              surfaceContainer,
+            ],
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: onTapHeroPhoto,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 92,
+                    height: 92,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [surfaceHigh, surfaceDim],
+                      shape: BoxShape.circle,
+                      border: Border.all(color: primaryContainer.withValues(alpha: 0.55), width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryContainer.withValues(alpha: 0.18),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: showPhoto
+                          ? Image.network(
+                              heroImageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _avatarFallback(),
+                            )
+                          : _avatarFallback(),
+                    ),
+                  ),
+                  if (onTapHeroPhoto != null)
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: primaryContainer,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: surfaceHigh, width: 2),
+                        ),
+                        child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.black),
                       ),
                     ),
-                    child: const Center(
-                      child: Icon(Icons.person, color: Colors.white24, size: 80),
-                    ),
-                  );
-                },
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [surfaceHigh, surfaceDim],
-                  ),
-                ),
-                child: const Center(
-                  child: Icon(Icons.person, color: Colors.white24, size: 80),
-                ),
-              );
-
-        return RelativeStack(
-          children: [
-            SizedBox(
-              height: 380,
-              width: double.infinity,
-              child: onTapHeroPhoto == null
-                  ? imageLayer
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onTapHeroPhoto,
-                          child: imageLayer,
-                        ),
-                        Positioned(
-                          top: 16,
-                          right: 16,
-                          child: Material(
-                            color: Colors.black45,
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              icon: Icon(Icons.camera_alt_rounded, color: primaryContainer, size: 22),
-                              onPressed: onTapHeroPhoto,
-                              tooltip: 'Change photo',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                ],
+              ),
             ),
-            Positioned(
-              bottom: 24,
-              left: 24,
-              right: 24,
-              top: 24,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [background.withOpacity(0), background.withOpacity(0.4), background],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isEliteProspect || year != '—')
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (isEliteProspect)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: primaryContainer,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'ELITE',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 9,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                          if (year != '—')
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: Text(
+                                year.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 9,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      height: 1.15,
+                      fontFamily: headlineFont,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (isEliteProspect)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(color: primaryContainer, borderRadius: BorderRadius.circular(2)),
-                            child: const Text('ELITE PROSPECT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: bodyFont)),
-                          ),
-                        Text(classYear.toString().toUpperCase(), style: const TextStyle(color: Colors.white54, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      name.toUpperCase().replaceAll(' ', '\n'), 
-                      style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w900, height: 1.0, fontFamily: headlineFont),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        _infoBit('POSITION', position),
-                        const SizedBox(width: 24),
-                        Container(width: 1, height: 32, color: Colors.white10),
-                        const SizedBox(width: 24),
-                        _infoBit('JERSEY', jerseyNumber, isPrimary: true),
-                      ],
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _metaChip(pos == '—' ? 'POS —' : pos),
+                      const SizedBox(width: 8),
+                      _metaChip(jersey == '—' ? '# —' : '#$jersey', accent: true),
+                    ],
+                  ),
+                  if (onTapHeroPhoto != null) ...[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: onTapHeroPhoto,
+                      child: Text(
+                        'Edit profile',
+                        style: TextStyle(
+                          color: primaryContainer.withValues(alpha: 0.95),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
           ],
-        );
+        ),
+      ),
+    );
   }
 
-  Widget _infoBit(String label, String value, {bool isPrimary = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(color: outline, fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.bold, fontFamily: bodyFont)),
-        Text(value, style: TextStyle(color: isPrimary ? primaryContainer : Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-      ],
+  Widget _avatarFallback() {
+    return Container(
+      color: surfaceHighest,
+      alignment: Alignment.center,
+      child: const Icon(Icons.person_outline_rounded, color: primaryContainer, size: 36),
+    );
+  }
+
+  Widget _metaChip(String text, {bool accent = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: accent ? primaryContainer.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: accent ? primaryContainer.withValues(alpha: 0.35) : Colors.white12,
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: accent ? primaryContainer : Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          fontFamily: bodyFont,
+        ),
+      ),
     );
   }
 
@@ -868,88 +946,113 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     required String age,
     required bool isOwnProfile,
   }) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('BIOMETRICS', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _biometricBit(
-                      Icons.height,
-                      'Height',
-                      height,
-                      onTap: isOwnProfile
-                          ? () => _showQuickFieldEditDialog(
-                                context: context,
-                                title: 'Edit Height',
-                                fieldKey: 'height',
-                                initialValue: height,
-                              )
-                          : null,
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('BIOMETRICS', trailing: isOwnProfile ? 'TAP TO EDIT' : null),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            decoration: BoxDecoration(
+              color: surfaceHigh,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _biometricBit(
+                    Icons.height_rounded,
+                    'Height',
+                    _displayValue(height),
+                    onTap: isOwnProfile
+                        ? () => _showQuickFieldEditDialog(
+                              context: context,
+                              title: 'Edit Height',
+                              fieldKey: 'height',
+                              initialValue: height,
+                            )
+                        : null,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _biometricBit(
-                      Icons.monitor_weight_outlined,
-                      'Weight',
-                      weight,
-                      onTap: isOwnProfile
-                          ? () => _showQuickFieldEditDialog(
-                                context: context,
-                                title: 'Edit Weight',
-                                fieldKey: 'weight',
-                                initialValue: weight,
-                              )
-                          : null,
-                    ),
+                ),
+                Container(width: 1, height: 52, color: Colors.white.withValues(alpha: 0.08)),
+                Expanded(
+                  child: _biometricBit(
+                    Icons.monitor_weight_outlined,
+                    'Weight',
+                    _displayValue(weight),
+                    onTap: isOwnProfile
+                        ? () => _showQuickFieldEditDialog(
+                              context: context,
+                              title: 'Edit Weight',
+                              fieldKey: 'weight',
+                              initialValue: weight,
+                            )
+                        : null,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _biometricBit(
-                      Icons.straighten,
-                      'Wingspan',
-                      wingspan,
-                      onTap: isOwnProfile
-                          ? () => _showQuickFieldEditDialog(
-                                context: context,
-                                title: 'Edit Wingspan',
-                                fieldKey: 'wingspan',
-                                initialValue: wingspan,
-                              )
-                          : null,
-                    ),
+                ),
+                Container(width: 1, height: 52, color: Colors.white.withValues(alpha: 0.08)),
+                Expanded(
+                  child: _biometricBit(
+                    Icons.straighten_rounded,
+                    'Wingspan',
+                    _displayValue(wingspan),
+                    onTap: isOwnProfile
+                        ? () => _showQuickFieldEditDialog(
+                              context: context,
+                              title: 'Edit Wingspan',
+                              fieldKey: 'wingspan',
+                              initialValue: wingspan,
+                            )
+                        : null,
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
-        );
+        ),
+      ],
+    );
   }
 
   Widget _biometricBit(IconData icon, String label, String value, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        children: [
-          Icon(icon, color: primaryContainer, size: 24),
-          const SizedBox(height: 8),
-          Text(label.toUpperCase(), style: TextStyle(color: outline, fontSize: 9, letterSpacing: 1, fontFamily: bodyFont)),
-          Text(value, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: bodyFont)),
-        ],
-      ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          child: Column(
+            children: [
+              Icon(icon, color: primaryContainer, size: 20),
+              const SizedBox(height: 8),
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  color: outline.withValues(alpha: 0.95),
+                  fontSize: 9,
+                  letterSpacing: 0.8,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: bodyFont,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: headlineFont,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -993,8 +1096,10 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     if (!mounted) return;
     await Provider.of<AcademyProvider>(context, listen: false).loadPlayerDashboard(force: true);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Updated successfully'), backgroundColor: primaryContainer),
+      AppMessenger.show(
+        context,
+        message: 'Updated successfully',
+        kind: AppMessageKind.success,
       );
     }
   }
@@ -1048,55 +1153,58 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     required int matchesPlayed,
     required int wins,
   }) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 32, 24, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('SEASON PERFORMANCE', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-                  Text('LAST 10 GAMES', style: TextStyle(color: primaryContainer, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
-                ],
-              ),
-            ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  _statTile('PPG', ppg.toStringAsFixed(1), 'SEASON AVG', true),
-                  const SizedBox(width: 16),
-                  _statTile('APG', apg.toStringAsFixed(1), 'SEASON AVG', true),
-                  const SizedBox(width: 16),
-                  _statTile('RPG', rpg.toStringAsFixed(1), 'SEASON AVG', true),
-                ],
-              ),
-            ),
-          ],
-        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        _sectionLabel('SEASON', trailing: 'AVERAGES'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Expanded(child: _statTile('PPG', ppg.toStringAsFixed(1))),
+              const SizedBox(width: 10),
+              Expanded(child: _statTile('APG', apg.toStringAsFixed(1))),
+              const SizedBox(width: 10),
+              Expanded(child: _statTile('RPG', rpg.toStringAsFixed(1))),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _statTile(String label, String value, String change, bool isPositive) {
+  Widget _statTile(String label, String value) {
     return Container(
-      width: 128,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: surfaceContainer, borderRadius: BorderRadius.circular(20)),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: surfaceHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 2, height: 16, color: isPositive ? primaryContainer : outline),
-          const SizedBox(height: 8),
-          Text(label, style: TextStyle(color: outline, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
-          Text(value, style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, fontFamily: headlineFont)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(isPositive ? Icons.trending_up : Icons.trending_down, color: isPositive ? tertiary : Colors.redAccent, size: 14),
-              const SizedBox(width: 4),
-              Text(change, style: TextStyle(color: isPositive ? tertiary : Colors.redAccent, fontSize: 10, fontFamily: bodyFont)),
-            ],
+          Text(
+            label,
+            style: TextStyle(
+              color: outline.withValues(alpha: 0.95),
+              fontSize: 10,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w700,
+              fontFamily: bodyFont,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              fontFamily: headlineFont,
+              height: 1,
+            ),
           ),
         ],
       ),
@@ -1173,134 +1281,164 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     required bool isOwnProfile,
     Map<String, dynamic>? battleStats,
   }) {
-        final losses = totalBattles - wins;
-        final winRate = totalBattles > 0 ? ((wins / totalBattles) * 100).round() : 0;
-        
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 32, 24, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('GAME PERFORMANCE', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-                  Text('CAREER STATS', style: TextStyle(color: primaryContainer, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
-                ],
-              ),
+    final losses = (totalBattles - wins).clamp(0, totalBattles);
+    final winRate = totalBattles > 0 ? ((wins / totalBattles) * 100).round() : 0;
+    final recent = (battleStats?['recentBattles'] is List) ? (battleStats!['recentBattles'] as List) : const [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 28),
+        _sectionLabel('GAMES', trailing: 'CAREER'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: surfaceHigh,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
             ),
-            // Team Info Card
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: surfaceContainer,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: primaryContainer.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: primaryContainer.withOpacity(0.2),
-                            shape: BoxShape.circle,
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: primaryContainer.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.groups_rounded, color: primaryContainer, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'TEAM',
+                            style: TextStyle(
+                              color: outline.withValues(alpha: 0.95),
+                              fontSize: 10,
+                              letterSpacing: 1.1,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                          child: Icon(Icons.group, color: primaryContainer, size: 24),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('CURRENT TEAM', style: TextStyle(color: outline, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
-                              Text(teamName, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-                            ],
+                          const SizedBox(height: 2),
+                          Text(
+                            teamName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: headlineFont,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '$winRate% WR',
+                      style: const TextStyle(
+                        color: primaryContainer,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Battle Stats Cards
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  _battleStatTile('WINS', wins.toString(), 'Victories', true),
-                  const SizedBox(width: 16),
-                  _battleStatTile('LOSSES', losses.toString(), 'Defeats', false),
-                  const SizedBox(width: 16),
-                  _battleStatTile('WIN %', '$winRate%', 'Win Rate', winRate >= 50),
-                  const SizedBox(width: 16),
-                  _battleStatTile('POINTS', points.toString(), 'Total Points', true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Recent Battles
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(20)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    Text('RECENT GAMES', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-                    const SizedBox(height: 16),
-                    if (!isOwnProfile)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: surfaceContainer.withOpacity(0.3), borderRadius: BorderRadius.circular(12)),
-                        child: Center(
-                          child: Text('Game history available for own profile only', style: TextStyle(color: outline, fontSize: 14, fontFamily: bodyFont)),
-                        ),
-                      )
-                    else if (battleStats?['recentBattles'] != null && battleStats?['recentBattles'].isNotEmpty == true)
-                      ...(battleStats?['recentBattles'] ?? []).take(3).map((battle) => _recentBattleItem(battle)).toList()
-                    else
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: surfaceContainer.withOpacity(0.3), borderRadius: BorderRadius.circular(12)),
-                        child: Center(
-                          child: Text('No recent battles', style: TextStyle(color: outline, fontSize: 14, fontFamily: bodyFont)),
-                        ),
-                      ),
+                    Expanded(child: _battleStatTile('W', wins.toString(), accent: true)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _battleStatTile('L', losses.toString())),
+                    const SizedBox(width: 8),
+                    Expanded(child: _battleStatTile('GP', totalBattles.toString())),
+                    const SizedBox(width: 8),
+                    Expanded(child: _battleStatTile('PTS', points.toString(), accent: true)),
                   ],
                 ),
-              ),
+              ],
             ),
-          ],
-        );
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: surfaceHigh,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'RECENT',
+                  style: TextStyle(
+                    color: outline.withValues(alpha: 0.95),
+                    fontSize: 10,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (!isOwnProfile)
+                  Text('Visible on your own profile', style: TextStyle(color: outline, fontSize: 13))
+                else if (recent.isEmpty)
+                  Text('No recent games yet', style: TextStyle(color: outline, fontSize: 13))
+                else
+                  ...recent.take(3).map((b) {
+                    if (b is Map) return _recentBattleItem(Map<String, dynamic>.from(b));
+                    return const SizedBox.shrink();
+                  }),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _battleStatTile(String label, String value, String subtitle, bool isPositive) {
+  Widget _battleStatTile(String label, String value, {bool accent = false}) {
     return Container(
-      width: 100,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
-        color: isPositive ? primaryContainer.withOpacity(0.1) : surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isPositive ? primaryContainer.withOpacity(0.3) : Colors.transparent),
+        color: accent ? primaryContainer.withValues(alpha: 0.1) : background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: accent ? primaryContainer.withValues(alpha: 0.28) : Colors.white.withValues(alpha: 0.05),
+        ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(label, style: TextStyle(color: outline, fontSize: 10, letterSpacing: 2, fontFamily: bodyFont)),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(color: isPositive ? primaryContainer : Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: headlineFont)),
+          Text(
+            label,
+            style: TextStyle(
+              color: outline.withValues(alpha: 0.95),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(color: outline, fontSize: 9, fontFamily: bodyFont)),
+          Text(
+            value,
+            style: TextStyle(
+              color: accent ? primaryContainer : Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              fontFamily: headlineFont,
+            ),
+          ),
         ],
       ),
     );
@@ -1311,44 +1449,47 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     final opponent = battle['opponent'] ?? 'Unknown';
     final points = battle['points'] ?? 0;
     final date = battle['date'] ?? 'Recent';
-    
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: surfaceContainer.withOpacity(0.3),
+        color: background,
         borderRadius: BorderRadius.circular(12),
-        border: Border(left: BorderSide(color: isWin ? primaryContainer : Colors.redAccent, width: 3)),
+        border: Border(
+          left: BorderSide(color: isWin ? primaryContainer : Colors.redAccent, width: 3),
+        ),
       ),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: isWin ? primaryContainer.withOpacity(0.2) : Colors.redAccent.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(isWin ? Icons.emoji_events : Icons.sports_kabaddi, 
-                       color: isWin ? primaryContainer : Colors.redAccent, size: 16),
+          Icon(
+            isWin ? Icons.emoji_events_rounded : Icons.close_rounded,
+            color: isWin ? primaryContainer : Colors.redAccent,
+            size: 18,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('vs $opponent', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: bodyFont)),
-                Text(date, style: TextStyle(color: outline, fontSize: 12, fontFamily: bodyFont)),
+                Text(
+                  'vs $opponent',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                Text('$date', style: TextStyle(color: outline, fontSize: 11)),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(isWin ? 'WIN' : 'LOSS', style: TextStyle(color: isWin ? primaryContainer : Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: bodyFont)),
-              Text('$points pts', style: TextStyle(color: outline, fontSize: 10, fontFamily: bodyFont)),
-            ],
+          Text(
+            isWin ? 'W' : 'L',
+            style: TextStyle(
+              color: isWin ? primaryContainer : Colors.redAccent,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
+          const SizedBox(width: 8),
+          Text('$points', style: TextStyle(color: outline, fontSize: 11)),
         ],
       ),
     );
@@ -1375,44 +1516,58 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         final scoutingNotes = isOwnProfile
             ? (playerData['scoutingNotes'] ?? widget.player.scoutingNotes)
             : _staffStr('scoutingNotes', widget.player.scoutingNotes);
+        final notes = scoutingNotes.toString().trim();
+        final displayNotes = (notes.isEmpty || notes.toUpperCase() == 'N/A') ? '' : notes;
         
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(0, 28, 0, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('SCOUTING NOTES', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: headlineFont)),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(20)),
-                child: Stack(
-                  children: [
-                    const Positioned(
-                      top: -10,
-                      right: -10,
-                      child: Icon(Icons.format_quote_rounded, color: Colors.white10, size: 80),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          (scoutingNotes.toString() ?? '"No tactical analysis recorded yet for this prospect."').isEmpty 
-                            ? '"No tactical analysis recorded yet for this prospect."' 
-                            : '"${scoutingNotes}"',
-                          style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic, height: 1.6, fontFamily: bodyFont),
+              _sectionLabel('SCOUTING'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: surfaceHigh,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayNotes.isEmpty
+                            ? 'No scouting notes yet.'
+                            : displayNotes,
+                        style: TextStyle(
+                          color: displayNotes.isEmpty ? outline : Colors.white70,
+                          fontSize: 14,
+                          height: 1.55,
+                          fontStyle: displayNotes.isEmpty ? FontStyle.normal : FontStyle.italic,
+                          fontFamily: bodyFont,
                         ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Container(width: 24, height: 24, decoration: BoxDecoration(color: primaryContainer.withOpacity(0.2), shape: BoxShape.circle), child: const Icon(Icons.verified, color: primaryContainer, size: 12)),
-                            const SizedBox(width: 8),
-                            const Text('HEAD COACH ANALYSIS', style: TextStyle(color: outline, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 2, fontFamily: bodyFont)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Icon(Icons.verified_rounded, color: primaryContainer.withValues(alpha: 0.9), size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            'HEAD COACH',
+                            style: TextStyle(
+                              color: outline.withValues(alpha: 0.95),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1573,7 +1728,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             onPressed: () async {
               final jersey = jerseyController.text.trim();
               if (jersey.isNotEmpty && (jersey.length > 2 || int.tryParse(jersey) == null)) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                AppMessenger.showSnackBar(context, 
                   const SnackBar(content: Text('Jersey number must be 1–2 digits (00–99).'), backgroundColor: Colors.redAccent),
                 );
                 return;
@@ -1599,20 +1754,18 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                   final provider = Provider.of<AcademyProvider>(context, listen: false);
                   await provider.loadPlayerDashboard(force: true);
                   
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile updated successfully!', style: TextStyle(color: Colors.black)),
-                      backgroundColor: primaryContainer,
-                    ),
+                  AppMessenger.show(
+                    context,
+                    message: 'Profile updated successfully!',
+                    kind: AppMessageKind.success,
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error updating profile: $e', style: const TextStyle(color: Colors.white)),
-                      backgroundColor: Colors.red,
-                    ),
+                  AppMessenger.show(
+                    context,
+                    message: 'Error updating profile: $e',
+                    kind: AppMessageKind.error,
                   );
                 }
               }
@@ -1623,15 +1776,5 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         ],
       ),
     );
-  }
-}
-
-class RelativeStack extends StatelessWidget {
-  final List<Widget> children;
-  const RelativeStack({super.key, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(children: children);
   }
 }

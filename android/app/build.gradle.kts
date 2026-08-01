@@ -17,7 +17,9 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.devsynx.courtiq"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // whisper_ggml needs NDK 29; all other plugins want 27 or lower and NDK
+    // versions are backward compatible, so pin the highest one required.
+    ndkVersion = "29.0.13113456"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

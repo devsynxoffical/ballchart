@@ -56,6 +56,13 @@ class UserModel {
     this.profileImageUrl,
   });
 
+  static String? _avatarFromJson(Map<String, dynamic> json) {
+    final raw = (json['profileImageUrl'] ?? json['profilePic'] ?? json['logoUrl'])?.toString().trim();
+    if (raw == null || raw.isEmpty) return null;
+    // Keep relative paths; UI resolves via ApiService.resolveMediaUrl.
+    return raw;
+  }
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final role = (json['role'] ?? '').toString();
     final resolvedAcademyName = (json['academyName'] ??
@@ -63,9 +70,13 @@ class UserModel {
             (json['academy'] is Map ? json['academy']['name'] : null))
         ?.toString();
     final resolvedTeamName = json['teamName']?.toString();
+    final rawId = json['_id'] ?? json['id'];
+    final id = rawId is Map
+        ? (rawId['_id'] ?? rawId['id'] ?? '').toString()
+        : (rawId ?? '').toString();
 
     return UserModel(
-      id: json['_id'] ?? '',
+      id: id,
       username: json['username'] ?? '',
       email: json['email'] ?? '',
       role: role,
@@ -93,7 +104,7 @@ class UserModel {
       ageRange: json['ageRange'],
       goals: json['goals'] != null ? List<String>.from(json['goals']) : null,
       additionalGoals: json['additionalGoals'],
-      profileImageUrl: json['profileImageUrl']?.toString(),
+      profileImageUrl: _avatarFromJson(json),
     );
   }
 
@@ -123,5 +134,62 @@ class UserModel {
       'additionalGoals': additionalGoals,
       'profileImageUrl': profileImageUrl,
     };
+  }
+
+  UserModel copyWith({
+    String? id,
+    String? username,
+    String? email,
+    String? role,
+    String? token,
+    Map<String, dynamic>? stats,
+    int? rank,
+    bool? profileCompleted,
+    String? academyId,
+    String? parentId,
+    String? managedBy,
+    Map<String, dynamic>? permissions,
+    bool clearPermissions = false,
+    String? experienceLevel,
+    List<String>? sports,
+    List<String>? achievements,
+    String? additionalInfo,
+    String? teamName,
+    String? academyName,
+    List<String>? assignedTeams,
+    List<String>? assignedTeamIds,
+    String? position,
+    String? ageRange,
+    List<String>? goals,
+    String? additionalGoals,
+    String? profileImageUrl,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      token: token ?? this.token,
+      stats: stats ?? this.stats,
+      rank: rank ?? this.rank,
+      profileCompleted: profileCompleted ?? this.profileCompleted,
+      academyId: academyId ?? this.academyId,
+      parentId: parentId ?? this.parentId,
+      managedBy: managedBy ?? this.managedBy,
+      permissions: clearPermissions ? null : (permissions ?? this.permissions),
+      experienceLevel: experienceLevel ?? this.experienceLevel,
+      sports: sports ?? this.sports,
+      achievements: achievements ?? this.achievements,
+      additionalInfo: additionalInfo ?? this.additionalInfo,
+      teamName: teamName ?? this.teamName,
+      academyName: academyName ?? this.academyName,
+      assignedTeams: assignedTeams ?? this.assignedTeams,
+      assignedTeamIds: assignedTeamIds ?? this.assignedTeamIds,
+      position: position ?? this.position,
+      ageRange: ageRange ?? this.ageRange,
+      goals: goals ?? this.goals,
+      additionalGoals: additionalGoals ?? this.additionalGoals,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+    );
   }
 }

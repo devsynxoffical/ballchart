@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 
 import '../repositories/profile_repository.dart';
@@ -85,13 +86,13 @@ Future<void> showDeleteAccountDialog(BuildContext context) async {
                           Navigator.of(hostContext, rootNavigator: true).pop();
                           await hostContext.read<AuthViewmodel>().logout(hostContext);
                           if (!hostContext.mounted) return;
-                          ScaffoldMessenger.of(hostContext).showSnackBar(
+                          AppMessenger.showSnackBar(hostContext, 
                             const SnackBar(content: Text('Your account has been deleted.')),
                           );
                         } catch (e) {
                           if (!hostContext.mounted) return;
                           Navigator.of(hostContext, rootNavigator: true).pop();
-                          ScaffoldMessenger.of(hostContext).showSnackBar(
+                          AppMessenger.showSnackBar(hostContext, 
                             SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.redAccent),
                           );
                         }

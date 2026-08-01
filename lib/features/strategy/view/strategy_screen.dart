@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -71,7 +72,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
         if (i == retryCount - 1) {
           // Last retry failed, show error
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppMessenger.showSnackBar(context, 
               SnackBar(
                 content: Text('Failed to load strategies: ${e.toString().replaceAll('Exception: ', '')}'),
                 backgroundColor: Colors.red,
@@ -716,50 +717,38 @@ class _StrategyScreenState extends State<StrategyScreen> {
     final entry = await showStrategyCreationOptionsSheet(context);
     if (!context.mounted || entry == null) return;
 
-    await showDialog<void>(
+    final created = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => CreateStrategyDialog(
         entry: entry,
         onStrategyCreated:
             (title, description, category, sourceTypeForApi, plays, imagePath, videoUrl, tags, referenceUrl) async {
-          try {
-            await vm.createStrategy(
-                  title: title,
-                  category: category,
-                  sourceType: sourceTypeForApi,
-                  sourceText: description,
-                  videoUrl: (videoUrl ?? '').trim().isEmpty ? null : videoUrl!.trim(),
-                  tags: tags,
-                  metadata: {
-                    'playSteps': plays,
-                    'revisionState': 'draft',
-                    'creationEntry': entry.name,
-                    if (referenceUrl != null && referenceUrl.trim().isNotEmpty) 'referenceUrl': referenceUrl.trim(),
-                    if (imagePath != null && imagePath.isNotEmpty) 'localDiagramPath': imagePath,
-                  },
-                );
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Strategy created successfully!'),
-                  backgroundColor: Colors.green,
-                ),
+          await vm.createStrategy(
+                title: title,
+                category: category,
+                sourceType: sourceTypeForApi,
+                sourceText: description,
+                videoUrl: (videoUrl ?? '').trim().isEmpty ? null : videoUrl!.trim(),
+                tags: tags,
+                metadata: {
+                  'playSteps': plays,
+                  'revisionState': 'draft',
+                  'creationEntry': entry.name,
+                  if (referenceUrl != null && referenceUrl.trim().isNotEmpty) 'referenceUrl': referenceUrl.trim(),
+                  if (imagePath != null && imagePath.isNotEmpty) 'localDiagramPath': imagePath,
+                },
               );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to create strategy: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
         },
       ),
     );
+
+    if (created == true && mounted) {
+      AppMessenger.show(
+        context,
+        message: 'Strategy created successfully!',
+        kind: AppMessageKind.success,
+      );
+    }
   }
 
 }

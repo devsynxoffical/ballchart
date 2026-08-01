@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/core/models/messaging_models.dart';
 import 'package:ballchart/core/repositories/messaging_repository.dart';
@@ -83,7 +84,7 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
 
   Future<void> _openNewMessage() async {
     if (_contacts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         SnackBar(
           content: const Text('No contacts available yet'),
           backgroundColor: ConversationsListScreen.surfaceHigh,
@@ -157,16 +158,19 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
             conversationId: conv.id,
             otherName: o.username,
             otherId: o.id,
+            myUserId: context.read<ProfileViewmodel>().user?.id,
             otherAvatarUrl: o.avatarUrl,
             otherEmail: o.email,
             otherRole: o.role,
           ),
         ),
       );
+      if (!mounted) return;
+      await context.read<InboxViewModel>().refresh();
       _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }
@@ -370,6 +374,8 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
                     ),
                   ),
                 );
+                if (!mounted) return;
+                await context.read<InboxViewModel>().refresh();
                 _load();
               },
             ),

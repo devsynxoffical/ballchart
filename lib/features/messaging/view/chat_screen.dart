@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
@@ -15,7 +16,8 @@ import 'package:ballchart/features/messaging/widgets/chat_participant_profile_sh
 import 'package:ballchart/features/messaging/widgets/messaging_avatar.dart';
 import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
+import 'package:ballchart/core/widgets/in_app_pdf_viewer_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -105,6 +107,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (cid != widget.conversationId) return;
     if (!mounted) return;
     _ingestIncomingMessage(Map<String, dynamic>.from(data));
+    // Viewing this thread — keep it marked read so the home badge clears.
+    _markRead();
   }
 
   void _onConversationReadSocket(dynamic data) {
@@ -140,6 +144,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _markRead() async {
     try {
       await _repo.markRead(widget.conversationId);
+      if (!mounted) return;
+      // Refresh home chat badge after messages are seen.
+      await context.read<InboxViewModel>().refresh();
     } catch (_) {}
   }
 
@@ -257,7 +264,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showSendErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppMessenger.showSnackBar(context, 
       SnackBar(
         content: Text(message),
         backgroundColor: const Color(0xFFB3261E),
@@ -344,7 +351,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final permission = await ensureVoicePermissions();
     if (!permission.granted) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(
             content: Text(permission.message ?? 'Microphone permission denied'),
             backgroundColor: Colors.redAccent,
@@ -441,8 +448,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _myId(BuildContext context) {
     final fromWidget = widget.myUserId;
-    if (fromWidget != null && fromWidget.isNotEmpty) return fromWidget;
-    return context.read<ProfileViewmodel>().user?.id ?? '';
+    if (fromWidget != null && fromWidget.isNotEmpty) return fromWidget.trim();
+    return (context.read<ProfileViewmodel>().user?.id ?? '').trim();
+  }
+
+  bool _isMine(ChatMessage m, String myId) {
+    final sid = m.senderId.trim();
+    final mid = myId.trim();
+    if (sid.isEmpty || mid.isEmpty) return false;
+    return sid == mid;
   }
 
   bool _peerIsPlayer() {
@@ -769,9 +783,10 @@ class _ChatScreenState extends State<ChatScreen> {
                             if (row is! _MsgRow) return const SizedBox.shrink();
                             final index = row.index;
                             final m = _messages[index];
-                            final mine = m.senderId == myId;
+                            final mine = _isMine(m, myId);
                             final showAvatar = _showPeerAvatar(index);
                             final seen = mine && _msgSeen(m, myId);
+                            final bubbleMaxW = MediaQuery.of(context).size.width * 0.75;
                             final bubble = _MessageBubble(
                               body: m.body,
                               mine: mine,
@@ -792,37 +807,42 @@ class _ChatScreenState extends State<ChatScreen> {
                               seen: seen,
                             );
 
-                            final slidableBubble = Slidable(
-                              key: ValueKey<String>('msg-${m.id}'),
-                              closeOnScroll: true,
-                              startActionPane: ActionPane(
-                                extentRatio: 0.22,
-                                motion: const DrawerMotion(),
-                                children: [
-                                  SlidableAction(
-                                    onPressed: (_) => _startReply(m),
-                                    backgroundColor: const Color(0xFF3D4F57),
-                                    foregroundColor: ChatScreen.primaryColor,
-                                    icon: Icons.reply_rounded,
-                                    label: 'Reply',
-                                    borderRadius: BorderRadius.circular(8),
+                            // Keep bubble width intrinsic — Slidable expands to parent otherwise
+                            // and both sides look like the same full-width row.
+                            final slidableBubble = Align(
+                              alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: bubbleMaxW),
+                                child: Slidable(
+                                  key: ValueKey<String>('msg-${m.id}'),
+                                  closeOnScroll: true,
+                                  startActionPane: ActionPane(
+                                    extentRatio: 0.28,
+                                    motion: const DrawerMotion(),
+                                    children: [
+                                      SlidableAction(
+                                        onPressed: (_) => _startReply(m),
+                                        backgroundColor: const Color(0xFF3D4F57),
+                                        foregroundColor: ChatScreen.primaryColor,
+                                        icon: Icons.reply_rounded,
+                                        label: 'Reply',
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                  child: bubble,
+                                ),
                               ),
-                              child: bubble,
                             );
 
                             if (mine) {
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: slidableBubble,
-                                ),
+                                padding: const EdgeInsets.only(left: 48, bottom: 4),
+                                child: slidableBubble,
                               );
                             }
                             return Padding(
-                              padding: EdgeInsets.only(bottom: showAvatar ? 10 : 2),
+                              padding: EdgeInsets.only(right: 28, bottom: showAvatar ? 10 : 2),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
@@ -1272,9 +1292,18 @@ class _MessageBubble extends StatelessWidget {
                           final raw = (fileUrl ?? '').trim();
                           if (raw.isEmpty) return;
                           final resolved = ApiService.resolveMediaUrl(raw);
-                          final uri = Uri.tryParse(resolved);
-                          if (uri == null) return;
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          if (resolved.isEmpty) return;
+                          if (!context.mounted) return;
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => InAppPdfViewerScreen(
+                                url: resolved,
+                                title: (fileName != null && fileName!.trim().isNotEmpty)
+                                    ? fileName!
+                                    : 'PDF report',
+                              ),
+                            ),
+                          );
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

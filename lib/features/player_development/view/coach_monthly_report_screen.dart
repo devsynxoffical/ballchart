@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,8 +13,10 @@ import 'package:ballchart/core/utils/coach_player_resolver.dart';
 import 'package:ballchart/core/utils/share_utils.dart';
 import 'package:ballchart/features/inbox/viewmodel/inbox_viewmodel.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
+import 'package:ballchart/features/messaging/view/chat_screen.dart';
 import 'package:ballchart/features/player_development/view/coach_period_report_editor_screen.dart';
 import 'package:ballchart/features/player_development/view/coach_training_assignment_screen.dart';
+import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 
 /// Staff-only: pick player + month and generate the monthly development PDF.
 class CoachMonthlyReportScreen extends StatefulWidget {
@@ -84,7 +87,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
   Future<void> _downloadPdf() async {
     final pid = _selectedPlayerId;
     if (pid == null || pid.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(content: Text('Select a player first')),
       );
       return;
@@ -113,7 +116,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
         final friendly = raw.contains('404') || raw.toLowerCase().contains('not found')
             ? 'Save the performance report first (Edit ratings & insights), then generate the PDF.'
             : raw;
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text(friendly), backgroundColor: Colors.redAccent),
         );
       }
@@ -125,7 +128,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
   Future<void> _publishToPlayerChat(List<MapEntry<String, String>> players) async {
     final pid = _selectedPlayerId;
     if (pid == null || pid.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(content: Text('Select a player first')),
       );
       return;
@@ -155,14 +158,27 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
       await _messagingRepo.sendPdfMessage(
         convo.id,
         pdfFile: file,
-        title: '${playerName} — ${_monthName(_reportMonth)} $_reportYear',
+        title: '$playerName — ${_monthName(_reportMonth)} $_reportYear',
       );
       if (!mounted) return;
       context.read<InboxViewModel>().refresh();
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(
-          content: Text('PDF published to player chat'),
+          content: Text('Report sent in BallChart messages'),
           backgroundColor: Colors.green,
+        ),
+      );
+      final me = context.read<ProfileViewmodel>().user;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: convo.id,
+            otherName: playerName,
+            otherId: pid,
+            myUserId: me?.id,
+            otherAvatarUrl: convo.other?.avatarUrl,
+            otherEmail: convo.other?.email,
+          ),
         ),
       );
     } catch (e) {
@@ -171,7 +187,7 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
       final friendly = raw.contains('404') || raw.toLowerCase().contains('not found')
           ? 'Save the performance report first (Edit ratings & insights), then publish.'
           : raw;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         SnackBar(content: Text(friendly), backgroundColor: Colors.redAccent),
       );
     } finally {
@@ -307,8 +323,11 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
                                 ),
                               );
                               if (ok == true && mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Saved — you can generate the PDF below')),
+                                AppMessenger.showSnackBar(context, 
+                                  const SnackBar(
+                                    content: Text('Report saved'),
+                                    backgroundColor: Colors.green,
+                                  ),
                                 );
                               }
                             },
@@ -317,28 +336,10 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
                     ),
                     const SizedBox(height: 12),
                     FilledButton.icon(
-                      key: _shareButtonKey,
+                      key: _sendButtonKey,
                       style: FilledButton.styleFrom(
                         backgroundColor: CoachTrainingAssignmentScreen.primaryColor,
                         foregroundColor: Colors.black,
-                        minimumSize: const Size(double.infinity, 48),
-                      ),
-                      onPressed: _pdfBusy ? null : _downloadPdf,
-                      icon: _pdfBusy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                            )
-                          : const Icon(Icons.picture_as_pdf),
-                      label: Text(_pdfBusy ? 'Generating…' : 'Generate & share PDF'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      key: _sendButtonKey,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: CoachTrainingAssignmentScreen.primaryColor,
-                        side: BorderSide(color: CoachTrainingAssignmentScreen.primaryColor.withValues(alpha: 0.5)),
                         minimumSize: const Size(double.infinity, 48),
                       ),
                       onPressed: _sendBusy ? null : () => _publishToPlayerChat(players),
@@ -346,10 +347,49 @@ class _CoachMonthlyReportScreenState extends State<CoachMonthlyReportScreen> {
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: CoachTrainingAssignmentScreen.primaryColor),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                             )
-                          : const Icon(Icons.mark_chat_read_rounded),
-                      label: Text(_sendBusy ? 'Publishing…' : 'Publish PDF to player chat'),
+                          : const Icon(Icons.chat_rounded),
+                      label: Text(
+                        _sendBusy
+                            ? 'Sending to BallChart…'
+                            : 'Send report in BallChart messages',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      key: _shareButtonKey,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: CoachTrainingAssignmentScreen.primaryColor,
+                        side: BorderSide(
+                          color: CoachTrainingAssignmentScreen.primaryColor.withValues(alpha: 0.5),
+                        ),
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                      onPressed: _pdfBusy ? null : _downloadPdf,
+                      icon: _pdfBusy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: CoachTrainingAssignmentScreen.primaryColor,
+                              ),
+                            )
+                          : const Icon(Icons.ios_share_rounded),
+                      label: Text(
+                        _pdfBusy ? 'Generating…' : 'Share PDF outside the app',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use BallChart messages to send the report to the player inside the app. '
+                      'Outside share is only for email / WhatsApp / Files.',
+                      style: TextStyle(
+                        color: CoachTrainingAssignmentScreen.outlineColor.withValues(alpha: 0.85),
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 );

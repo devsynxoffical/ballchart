@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 import '../../management/viewmodel/academy_provider.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateStaffDialog.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
+import 'package:ballchart/core/widgets/user_avatar.dart';
 
 class StaffListScreen extends StatefulWidget {
   const StaffListScreen({super.key});
@@ -22,11 +24,11 @@ class _StaffListScreenState extends State<StaffListScreen> {
   Staff? _selectedStaff;
   bool _isDetailPasswordVisible = false;
   final Set<String> _updatingPermissionKeys = <String>{};
-
-  String _safeProfilePic(String? url, String name) {
-    if (url != null && url.startsWith('http')) return url;
-    return 'https://picsum.photos/seed/$name/100/100';
-  }
+  /// After a permission save, keep this staff's local permission flags for a short window
+  /// so any late overview refresh cannot snap the switches back off.
+  String? _pinnedStaffId;
+  Permissions? _pinnedPermissions;
+  DateTime? _pinUntil;
 
   String _staffRoleLabel(Staff s) {
     final role = s.role.toLowerCase();
@@ -43,13 +45,27 @@ class _StaffListScreenState extends State<StaffListScreen> {
       body: SafeArea(
         child: Consumer<AcademyProvider>(
           builder: (context, provider, _) {
-            // Find updated selected staff in provider's list to keep it reactive
-            if (_selectedStaff != null) {
+            // Keep selected staff in sync, but never overwrite while a permission
+            // toggle request is in flight (that caused switches to snap back).
+            // Also honor a short post-save pin so socket/overview races cannot flip toggles off.
+            final pinActive = _pinnedStaffId != null &&
+                _pinUntil != null &&
+                DateTime.now().isBefore(_pinUntil!) &&
+                _selectedStaff?.id == _pinnedStaffId;
+            if (_selectedStaff != null &&
+                _updatingPermissionKeys.isEmpty &&
+                !pinActive) {
               try {
-                _selectedStaff = provider.academy.staff.firstWhere((s) => s.id == _selectedStaff!.id);
+                final live =
+                    provider.academy.staff.firstWhere((s) => s.id == _selectedStaff!.id);
+                _selectedStaff = live;
               } catch (_) {
                 _selectedStaff = null;
               }
+            } else if (_selectedStaff != null &&
+                pinActive &&
+                _pinnedPermissions != null) {
+              _selectedStaff!.permissions = _pinnedPermissions!;
             }
 
             return RefreshIndicator(
@@ -138,9 +154,11 @@ class _StaffListScreenState extends State<StaffListScreen> {
                 ),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundImage: NetworkImage(_safeProfilePic(s.profilePic, s.name)),
+                    UserAvatar(
+                      name: s.name,
+                      imageUrl: s.profilePic,
+                      size: 40,
+                      usePersonIconFallback: true,
                       backgroundColor: surfaceContainer,
                     ),
                     const SizedBox(width: 14),
@@ -191,7 +209,13 @@ class _StaffListScreenState extends State<StaffListScreen> {
       decoration: BoxDecoration(color: surfaceHigh, borderRadius: BorderRadius.circular(20), border: Border.all(color: primaryColor.withOpacity(0.3))),
       child: Row(
         children: [
-          CircleAvatar(radius: 20, backgroundImage: NetworkImage(img), backgroundColor: surfaceContainer, child: img.contains('ui-avatars') ? Icon(Icons.person, color: Colors.white, size: 20) : null),
+          UserAvatar(
+            name: name,
+            imageUrl: img.contains('ui-avatars') ? null : img,
+            size: 40,
+            usePersonIconFallback: true,
+            backgroundColor: surfaceContainer,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -219,7 +243,13 @@ class _StaffListScreenState extends State<StaffListScreen> {
           decoration: BoxDecoration(color: surfaceContainer, borderRadius: BorderRadius.circular(12), border: Border.all(color: outlineColor.withOpacity(0.1))),
           child: Row(
             children: [
-              CircleAvatar(radius: 16, backgroundImage: NetworkImage(img), backgroundColor: surfaceContainer, child: img.contains('ui-avatars') ? Icon(Icons.person, color: Colors.white, size: 16) : null),
+              UserAvatar(
+                name: name,
+                imageUrl: img.contains('ui-avatars') ? null : img,
+                size: 32,
+                usePersonIconFallback: true,
+                backgroundColor: surfaceContainer,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -264,7 +294,13 @@ class _StaffListScreenState extends State<StaffListScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(radius: 32, backgroundImage: NetworkImage(_safeProfilePic(_selectedStaff!.profilePic, _selectedStaff!.name)), backgroundColor: surfaceContainer, child: (_selectedStaff!.profilePic?.contains('ui-avatars') ?? false) ? Icon(Icons.person, color: Colors.white, size: 32) : null),
+              UserAvatar(
+                name: _selectedStaff!.name,
+                imageUrl: _selectedStaff!.profilePic,
+                size: 64,
+                usePersonIconFallback: true,
+                backgroundColor: surfaceContainer,
+              ),
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
@@ -295,7 +331,7 @@ class _StaffListScreenState extends State<StaffListScreen> {
              if (val.isEmpty) return;
              _selectedStaff!.password = val;
              await provider.updateStaffInBackend(_selectedStaff!);
-             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PASSWORD UPDATED SECURELY')));
+             if (mounted) AppMessenger.showSnackBar(context, const SnackBar(content: Text('PASSWORD UPDATED SECURELY')));
           }, isPassword: true),
           const SizedBox(height: 32),
           const Text('IDENTITY & PERSONALIZATION', style: TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
@@ -479,26 +515,34 @@ class _StaffListScreenState extends State<StaffListScreen> {
         _selectedStaff!,
         refreshAfterUpdate: false,
         rethrowOnError: true,
+        announceSuccess: false,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permission updated'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 1),
-        ),
+      _pinnedStaffId = _selectedStaff!.id;
+      _pinnedPermissions = Permissions.fromMap(_selectedStaff!.permissions.toMap());
+      _pinUntil = DateTime.now().add(const Duration(seconds: 8));
+      // Prefer the local saved permissions over any stale overview row.
+      try {
+        final live =
+            provider.academy.staff.firstWhere((s) => s.id == _selectedStaff!.id);
+        live.permissions = _pinnedPermissions!;
+        _selectedStaff = live;
+      } catch (_) {}
+      if (mounted) setState(() {});
+      AppMessenger.show(
+        context,
+        message: 'Permission updated',
+        kind: AppMessageKind.success,
       );
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _selectedStaff!.permissions = Permissions.fromMap(previous);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update permission: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 3),
-        ),
+      AppMessenger.show(
+        context,
+        message: 'Failed to update permission: ${e.toString().replaceAll('Exception: ', '')}',
+        kind: AppMessageKind.error,
       );
     } finally {
       if (mounted) {
@@ -534,41 +578,26 @@ class _StaffListScreenState extends State<StaffListScreen> {
     );
   }
 
-  void _showAddStaffDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showAddStaffDialog(BuildContext context) async {
+    await showDialog<void>(
       context: context,
       builder: (context) => CreateStaffDialog(
         initialRole: 'Coach',
         onStaffCreated: (staffData) async {
           final provider = context.read<AcademyProvider>();
-          try {
-            await provider.addStaffToBackend(
-              Staff(
-                id: provider.nextId('s'),
-                name: staffData['name'] ?? '',
-                email: staffData['email'] ?? '',
-                password: staffData['password'] ?? '',
-                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
-                customRoleName: staffData['customRoleName']?.toString(),
-                assignedTeamIds: const [],
-                permissions: Permissions.fromDynamic(staffData['permissions']),
-              ),
-            );
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${staffData['name']} JOINED THE SQUAD', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
-                  backgroundColor: primaryColor,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('RECRUITMENT FAILED: $e'), backgroundColor: Colors.redAccent),
-              );
-            }
-          }
+          await provider.addStaffToBackend(
+            Staff(
+              id: provider.nextId('s'),
+              name: staffData['name'] ?? '',
+              email: staffData['email'] ?? '',
+              password: staffData['password'] ?? '',
+              role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+              customRoleName: staffData['customRoleName']?.toString(),
+              assignedTeamIds: const [],
+              permissions: Permissions.fromDynamic(staffData['permissions']),
+            ),
+            showSuccessMessage: false,
+          );
         },
       ),
     );

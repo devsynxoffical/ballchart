@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/battle_viewmodel.dart';
 import '../../../core/models/battle_model.dart';
@@ -53,7 +54,7 @@ class _BattleScreenState extends State<BattleScreen> {
         if (i == retryCount - 1) {
           // Last retry failed, show error
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppMessenger.showSnackBar(context, 
               SnackBar(
                 content: Text('Failed to load games: ${e.toString().replaceAll('Exception: ', '')}'),
                 backgroundColor: Colors.red,
@@ -148,8 +149,7 @@ class _BattleScreenState extends State<BattleScreen> {
               backgroundColor: primaryColor,
               onPressed: () => showCreateBattleSheet(
                     context,
-                    scaffoldMessenger: ScaffoldMessenger.of(context),
-                  ),
+                    ),
               child: const Icon(Icons.add, color: Colors.black),
             )
           : null,
@@ -591,9 +591,8 @@ class _BattleScreenState extends State<BattleScreen> {
         onTap: () => _openBattleHub(vm, b),
         onLongPress: b.isPending
             ? () => showCreateBattleSheet(
-                  context,
-                  scaffoldMessenger: ScaffoldMessenger.of(context),
-                  existing: b,
+                    context,
+                    existing: b,
                 )
             : null,
         borderRadius: BorderRadius.circular(16),
@@ -659,9 +658,8 @@ class _BattleScreenState extends State<BattleScreen> {
                   IconButton(
                     tooltip: 'Edit game',
                     onPressed: () => showCreateBattleSheet(
-                      context,
-                      scaffoldMessenger: ScaffoldMessenger.of(context),
-                      existing: b,
+                    context,
+                    existing: b,
                     ),
                     icon: const Icon(Icons.edit_outlined, color: outlineColor, size: 20),
                   ),

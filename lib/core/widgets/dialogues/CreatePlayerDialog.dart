@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -398,7 +399,7 @@ class _CreatePlayerDialogState extends State<CreatePlayerDialog> {
                     child: OutlinedButton(
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: 'Email: $email\nPassword: $password'));
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('COPIED TO CLIPBOARD')));
+                        AppMessenger.showSnackBar(context, const SnackBar(content: Text('COPIED TO CLIPBOARD')));
                       },
                       style: OutlinedButton.styleFrom(side: BorderSide(color: _AcademyTheme.outline.withOpacity(0.3))),
                       child: const Text('COPY', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),

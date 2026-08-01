@@ -1,3 +1,5 @@
+import 'package:ballchart/core/utils/avatar_url.dart';
+
 int _toUnreadInt(dynamic raw) {
   if (raw is num) return raw.toInt().clamp(0, 999);
   if (raw is String) return (int.tryParse(raw) ?? 0).clamp(0, 999);
@@ -87,7 +89,12 @@ class MessagingParticipant {
       username: json['username']?.toString() ?? '',
       role: json['role']?.toString() ?? '',
       email: json['email']?.toString(),
-      avatarUrl: json['avatarUrl']?.toString(),
+      avatarUrl: pickAvatarUrl(
+        avatarUrl: json['avatarUrl']?.toString(),
+        profileImageUrl: json['profileImageUrl']?.toString(),
+        profilePic: json['profilePic']?.toString(),
+        logoUrl: json['logoUrl']?.toString(),
+      ),
     );
   }
 }
@@ -130,9 +137,15 @@ class ChatMessage {
   bool get isFile => type == 'file' || (fileUrl?.isNotEmpty ?? false) || (mimeType?.contains('pdf') ?? false);
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    String idOf(dynamic v) {
+      if (v == null) return '';
+      if (v is Map) return (v['_id'] ?? v['id'] ?? '').toString();
+      return v.toString();
+    }
+
     return ChatMessage(
-      id: (json['_id'] ?? json['id'] ?? '').toString(),
-      senderId: (json['senderId'] ?? '').toString(),
+      id: idOf(json['_id'] ?? json['id']),
+      senderId: idOf(json['senderId'] ?? json['sender']),
       body: json['body']?.toString() ?? '',
       type: (json['type'] ?? 'text').toString(),
       voiceUrl: json['voiceUrl']?.toString(),
@@ -141,9 +154,9 @@ class ChatMessage {
       mimeType: (json['mimeType'] ?? json['contentType'])?.toString(),
       voiceDurationMs: (json['voiceDurationMs'] is num) ? (json['voiceDurationMs'] as num).toInt() : 0,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
-      replyToMessageId: json['replyToMessageId']?.toString(),
+      replyToMessageId: idOf(json['replyToMessageId']),
       replyBody: json['replyBody']?.toString(),
-      replySenderId: json['replySenderId']?.toString(),
+      replySenderId: idOf(json['replySenderId']),
       pending: json['pending'] == true,
     );
   }

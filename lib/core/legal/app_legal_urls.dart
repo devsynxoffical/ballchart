@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../services/api_service.dart';
-
-/// Public legal documents are served from the API origin (see `src/server.js`).
+/// Public legal documents on [ballchart.com](https://ballchart.com).
 abstract final class AppLegalUrls {
-  static Uri get privacyPolicy => Uri.parse('${ApiService.originUrl}/privacy-policy');
-  static Uri get termsOfService => Uri.parse('${ApiService.originUrl}/terms-of-service');
+  static Uri get privacyPolicy => Uri.parse('https://ballchart.com/privacy-policy');
+  static Uri get termsOfService => Uri.parse('https://ballchart.com/terms-of-service');
 
   static Future<void> openPrivacy(BuildContext context) => _open(context, privacyPolicy);
   static Future<void> openTerms(BuildContext context) => _open(context, termsOfService);
@@ -15,13 +14,15 @@ abstract final class AppLegalUrls {
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(
+          context,
           const SnackBar(content: Text('Could not open the link. Check your browser or connection.')),
         );
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(
+          context,
           const SnackBar(content: Text('Could not open the link.')),
         );
       }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ballchart/core/constants/colors.dart';
 import 'package:ballchart/core/widgets/custom_button.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateStaffDialog.dart';
+import 'package:ballchart/core/widgets/user_avatar.dart';
 import 'package:ballchart/features/staff/service/staff_service.dart';
 
 class SelectCoachDialog extends StatefulWidget {
@@ -36,10 +37,12 @@ class _SelectCoachDialogState extends State<SelectCoachDialog> {
       final staff = await _staffService.getStaffCredentials();
       _availableStaff = staff.map((s) {
         final role = (s['role'] ?? '').toString();
+        final map = s is Map ? Map<String, dynamic>.from(s as Map) : <String, dynamic>{};
         return {
           'name': s['username'] ?? 'Staff',
           'email': s['email'] ?? '',
           'role': role == 'assistant_coach' ? 'Assistant' : 'Coach',
+          'avatarUrl': pickAvatarUrl(raw: map),
         };
       }).toList();
     } catch (_) {
@@ -154,9 +157,11 @@ class _SelectCoachDialogState extends State<SelectCoachDialog> {
                       ),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            backgroundColor: Colors.grey[800],
-                            child: Text(staff['name']![0]),
+                          UserAvatar(
+                            name: staff['name']?.toString() ?? 'Staff',
+                            imageUrl: staff['avatarUrl']?.toString(),
+                            size: 40,
+                            usePersonIconFallback: true,
                           ),
                           const SizedBox(width: 12),
                           Expanded(

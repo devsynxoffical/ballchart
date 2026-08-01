@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/services/api_service.dart';
@@ -201,6 +203,15 @@ class AcademyProvider extends ChangeNotifier {
         throw Exception('Unexpected coach dashboard response');
       }
       _coachDashboard = Map<String, dynamic>.from(response);
+      final profileRaw = _coachDashboard!['profile'];
+      if (profileRaw is Map && _currentUser != null) {
+        final mapped = UserModel.fromJson(Map<String, dynamic>.from(profileRaw));
+        _currentUser = mapped.copyWith(
+          token: _currentUser!.token,
+          // Keep local token; prefer fresher avatar from dashboard profile.
+          profileImageUrl: mapped.profileImageUrl ?? _currentUser!.profileImageUrl,
+        );
+      }
       _setupSocketListeners();
     } catch (e) {
       _coachDashboard = null;
@@ -253,6 +264,14 @@ class AcademyProvider extends ChangeNotifier {
         map['player'] = map['profile'];
       }
       _playerDashboard = map;
+      final profileRaw = map['profile'] ?? map['player'];
+      if (profileRaw is Map && _currentUser != null) {
+        final mapped = UserModel.fromJson(Map<String, dynamic>.from(profileRaw));
+        _currentUser = mapped.copyWith(
+          token: _currentUser!.token,
+          profileImageUrl: mapped.profileImageUrl ?? _currentUser!.profileImageUrl,
+        );
+      }
       _playerDashboardError = null;
       _setupSocketListeners();
     } catch (e) {
@@ -288,33 +307,47 @@ class AcademyProvider extends ChangeNotifier {
     _cleanupSocketListeners();
 
     // Helper to refresh if academy matches
+    DateTime? lastOverviewRefreshAt;
     void refreshIfMatch(dynamic data) {
-      // For Admin
-      if (_hasLoadedOverview) {
-        loadAdminOverview(force: true);
-      }
-      
-      // For Coach
-      if (_coachDashboard != null) {
-        loadCoachDashboard(force: true);
-      }
-
-      // For Player
-      if (_playerDashboard != null) {
-        loadPlayerDashboard(force: true);
+      final staffId = data is Map ? data['staffId']?.toString() : null;
+      if (staffId != null && _currentUser != null && staffId == _currentUser!.id) {
+        unawaited(_refreshCurrentUserPermissions());
       }
     }
 
-    socket.on('STAFF_CREATED', refreshIfMatch);
+    // Staff UPDATED must not force a full admin reload — that races permission toggles
+    // and snaps switches back off. Create/delete still refresh the roster.
+    socket.on('STAFF_CREATED', (data) {
+      refreshIfMatch(data);
+      if (_hasLoadedOverview) loadAdminOverview(force: true);
+    });
     socket.on('STAFF_UPDATED', refreshIfMatch);
-    socket.on('STAFF_DELETED', refreshIfMatch);
-    socket.on('TEAM_CREATED', refreshIfMatch);
-    socket.on('TEAM_UPDATED', refreshIfMatch);
-    socket.on('TEAM_DELETED', refreshIfMatch);
-    socket.on('TEAM_LEADS_UPDATED', refreshIfMatch);
-    socket.on('PLAYER_CREATED', refreshIfMatch);
-    socket.on('PLAYER_UPDATED', refreshIfMatch);
-    socket.on('PLAYER_DELETED', refreshIfMatch);
+    socket.on('STAFF_DELETED', (data) {
+      refreshIfMatch(data);
+      if (_hasLoadedOverview) loadAdminOverview(force: true);
+    });
+
+    void refreshOverviewDebounced(dynamic data) {
+      final now = DateTime.now();
+      if (lastOverviewRefreshAt != null &&
+          now.difference(lastOverviewRefreshAt!) < const Duration(milliseconds: 1200)) {
+        return;
+      }
+      lastOverviewRefreshAt = now;
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        if (_hasLoadedOverview) loadAdminOverview(force: true);
+        if (_coachDashboard != null) loadCoachDashboard(force: true);
+        if (_playerDashboard != null) loadPlayerDashboard(force: true);
+      });
+    }
+
+    socket.on('TEAM_CREATED', refreshOverviewDebounced);
+    socket.on('TEAM_UPDATED', refreshOverviewDebounced);
+    socket.on('TEAM_DELETED', refreshOverviewDebounced);
+    socket.on('TEAM_LEADS_UPDATED', refreshOverviewDebounced);
+    socket.on('PLAYER_CREATED', refreshOverviewDebounced);
+    socket.on('PLAYER_UPDATED', refreshOverviewDebounced);
+    socket.on('PLAYER_DELETED', refreshOverviewDebounced);
     
     socket.on('BATTLE_CREATED', (data) {
       loadAdminOverview(force: true);
@@ -385,7 +418,7 @@ class AcademyProvider extends ChangeNotifier {
     final age = int.tryParse(RegExp(r'\d+').firstMatch(ageText)?.group(0) ?? '16') ?? 16;
     final stats = data['stats'] as Map<String, dynamic>? ?? {};
     final averages = data['averages'] as Map<String, dynamic>? ?? {};
-    final rawPic = data['profileImageUrl']?.toString().trim();
+    final rawPic = (data['profileImageUrl'] ?? data['profilePic'])?.toString().trim();
     String? profileImageUrl;
     if (rawPic != null && rawPic.isNotEmpty) {
       profileImageUrl = ApiService.resolveMediaUrl(rawPic);
@@ -432,18 +465,29 @@ class AcademyProvider extends ChangeNotifier {
   }
 
   Staff _mapStaff(Map<String, dynamic> json) {
+    final rawPic = (json['profilePic'] ?? json['profileImageUrl'] ?? json['logoUrl'])?.toString().trim();
+    String? profilePic;
+    if (rawPic != null && rawPic.isNotEmpty) {
+      profilePic = ApiService.resolveMediaUrl(rawPic);
+      if (profilePic.isEmpty) profilePic = rawPic;
+    }
+    Map<String, dynamic>? perms;
+    final rawPerms = json['permissions'];
+    if (rawPerms is Map) {
+      perms = Map<String, dynamic>.from(rawPerms);
+    }
     return Staff(
-      id: (json['_id'] ?? 's1').toString(),
-      name: (json['username'] ?? 'Unnamed Staff').toString(),
+      id: (json['_id'] ?? json['id'] ?? 's1').toString(),
+      name: (json['username'] ?? json['name'] ?? 'Unnamed Staff').toString(),
       email: (json['email'] ?? '').toString(),
       password: (json['password'] ?? '').toString(),
       role: (json['role'] ?? 'coach').toString(),
       customRoleName: json['customRoleName']?.toString(),
-      profilePic: json['profilePic']?.toString(),
+      profilePic: profilePic,
       assignedTeamIds: (json['assignedTeamIds'] as List? ?? json['assignedTeams'] as List? ?? [])
           .map((e) => e.toString())
           .toList(),
-      permissions: _mapPermissions(json['permissions']),
+      permissions: _mapPermissions(perms),
     );
   }
 
@@ -462,17 +506,28 @@ class AcademyProvider extends ChangeNotifier {
         manageStrategy: false,
       );
     }
+    bool flag(String key, {bool fallback = false}) {
+      final v = json[key];
+      if (v == null) return fallback;
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      if (v is String) {
+        final s = v.toLowerCase().trim();
+        return s == 'true' || s == '1' || s == 'yes';
+      }
+      return fallback;
+    }
     return Permissions(
-      createPlayer: json['createPlayer'] ?? false,
-      readPlayer: json['readPlayer'] ?? true,
-      updatePlayer: json['updatePlayer'] ?? false,
-      deletePlayer: json['deletePlayer'] ?? false,
-      createTeam: json['createTeam'] ?? false,
-      manageStaff: json['manageStaff'] ?? false,
-      createBattle: json['createBattle'] ?? false,
-      manageBattle: json['manageBattle'] ?? false,
-      createStrategy: json['createStrategy'] ?? false,
-      manageStrategy: json['manageStrategy'] ?? false,
+      createPlayer: flag('createPlayer'),
+      readPlayer: flag('readPlayer', fallback: true),
+      updatePlayer: flag('updatePlayer'),
+      deletePlayer: flag('deletePlayer'),
+      createTeam: flag('createTeam'),
+      manageStaff: flag('manageStaff'),
+      createBattle: flag('createBattle'),
+      manageBattle: flag('manageBattle'),
+      createStrategy: flag('createStrategy'),
+      manageStrategy: flag('manageStrategy'),
     );
   }
 
@@ -488,37 +543,73 @@ class AcademyProvider extends ChangeNotifier {
     if (_currentUser == null) return false;
 
     final role = _currentUser!.role.trim().toLowerCase();
+    if (role == 'admin') return true;
+
     final profilePerms = _currentUser!.permissions;
+    final staffRoles = {'coach', 'assistant_coach', 'head_coach', 'custom'};
 
-    // Explicit permission map from /auth/profile — required for coach / assistant / head coach
-    // so academy admins can revoke create battle, strategy, etc.
-    if (profilePerms != null && profilePerms.isNotEmpty) {
-      if (['coach', 'assistant_coach', 'head_coach'].contains(role)) {
-        return Permissions.fromDynamic(profilePerms).hasPermission(permission);
-      }
+    // Explicit permission map from /auth/profile (or refreshed after admin edit).
+    if (profilePerms != null && profilePerms.isNotEmpty && staffRoles.contains(role)) {
+      return Permissions.fromDynamic(profilePerms).hasPermission(permission);
     }
 
-    // Default role powers when the API has not sent a permission object yet
-    if (role == 'admin' || role == 'head_coach') {
-      return true;
+    // head_coach with no map yet → full access
+    if (role == 'head_coach') return true;
+
+    // Prefer live staff row from academy overview (admin session) or coach dashboard.
+    final live = _findLiveStaffForCurrentUser();
+    if (live != null) {
+      return live.permissions.hasPermission(permission);
     }
 
-    if (role == 'coach' || role == 'assistant_coach') {
-      final staff = academy.staff.firstWhere(
-        (s) => s.email == _currentUser!.email,
-        orElse: () => Staff(
-          id: _currentUser!.id,
-          name: _currentUser!.username,
-          email: _currentUser!.email,
-          password: '',
-          role: _currentUser!.role,
-          permissions: Permissions.forRole(_currentUser!.role),
-        ),
-      );
-      return staff.permissions.hasPermission(permission);
+    if (staffRoles.contains(role)) {
+      return Permissions.forRole(role).hasPermission(permission);
     }
 
     return false;
+  }
+
+  Staff? _findLiveStaffForCurrentUser() {
+    final user = _currentUser;
+    if (user == null) return null;
+    final email = user.email.trim().toLowerCase();
+    final id = user.id;
+
+    for (final s in academy.staff) {
+      if (s.id == id || s.email.trim().toLowerCase() == email) return s;
+    }
+
+    final raw = _coachDashboard?['staff'];
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final mapped = _mapStaff(Map<String, dynamic>.from(item));
+        if (mapped.id == id || mapped.email.trim().toLowerCase() == email) {
+          return mapped;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Pull latest permission flags from /auth/profile into the signed-in user.
+  Future<void> _refreshCurrentUserPermissions() async {
+    final user = _currentUser;
+    if (user == null) return;
+    try {
+      final response = await _apiService.get('/auth/profile');
+      if (response is! Map) return;
+      final fresh = UserModel.fromJson(Map<String, dynamic>.from(response));
+      _currentUser = user.copyWith(
+        permissions: fresh.permissions,
+        role: fresh.role,
+        assignedTeamIds: fresh.assignedTeamIds,
+        assignedTeams: fresh.assignedTeams,
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to refresh permissions: $e');
+    }
   }
 
   // Get current user's permissions (same rules as [hasPermission]).
@@ -526,33 +617,21 @@ class AcademyProvider extends ChangeNotifier {
     if (_currentUser == null) return Permissions();
 
     final role = _currentUser!.role.trim().toLowerCase();
+    if (role == 'admin') return Permissions.forRole('admin');
+
     final profilePerms = _currentUser!.permissions;
+    final staffRoles = {'coach', 'assistant_coach', 'head_coach', 'custom'};
 
-    if (profilePerms != null && profilePerms.isNotEmpty) {
-      if (['coach', 'assistant_coach', 'head_coach'].contains(role)) {
-        return Permissions.fromDynamic(profilePerms);
-      }
+    if (profilePerms != null && profilePerms.isNotEmpty && staffRoles.contains(role)) {
+      return Permissions.fromDynamic(profilePerms);
     }
 
-    if (role == 'admin' || role == 'head_coach') {
-      return Permissions.forRole(role);
-    }
+    if (role == 'head_coach') return Permissions.forRole(role);
 
-    if (role == 'coach' || role == 'assistant_coach') {
-      final staff = academy.staff.firstWhere(
-        (s) => s.email == _currentUser!.email,
-        orElse: () => Staff(
-          id: _currentUser!.id,
-          name: _currentUser!.username,
-          email: _currentUser!.email,
-          password: '',
-          role: _currentUser!.role,
-          permissions: Permissions.forRole(_currentUser!.role),
-        ),
-      );
-      return staff.permissions;
-    }
+    final live = _findLiveStaffForCurrentUser();
+    if (live != null) return live.permissions;
 
+    if (staffRoles.contains(role)) return Permissions.forRole(role);
     return Permissions();
   }
 
@@ -636,6 +715,7 @@ class AcademyProvider extends ChangeNotifier {
     Staff updatedStaff, {
     bool refreshAfterUpdate = true,
     bool rethrowOnError = false,
+    bool announceSuccess = true,
   }) async {
     try {
       _clearError();
@@ -648,6 +728,8 @@ class AcademyProvider extends ChangeNotifier {
         'role': updatedStaff.role,
         'customRoleName': updatedStaff.customRoleName,
         'assignedTeamIds': updatedStaff.assignedTeamIds,
+        if (updatedStaff.profilePic != null) 'profilePic': updatedStaff.profilePic,
+        if (updatedStaff.profilePic != null) 'profileImageUrl': updatedStaff.profilePic,
         'permissions': {
           'createPlayer': updatedStaff.permissions.createPlayer,
           'readPlayer': updatedStaff.permissions.readPlayer,
@@ -661,10 +743,32 @@ class AcademyProvider extends ChangeNotifier {
           'manageStrategy': updatedStaff.permissions.manageStrategy,
         },
       });
+
+      Staff merged = updatedStaff;
+      if (response is Map) {
+        final map = Map<String, dynamic>.from(response);
+        map['username'] ??= updatedStaff.name;
+        map['email'] ??= updatedStaff.email;
+        map['role'] ??= updatedStaff.role;
+        map['customRoleName'] ??= updatedStaff.customRoleName;
+        map['assignedTeamIds'] ??= updatedStaff.assignedTeamIds;
+        map['profilePic'] ??= updatedStaff.profilePic;
+        map['profileImageUrl'] ??= updatedStaff.profilePic;
+        map['_id'] ??= updatedStaff.id;
+        // Always keep the permissions we just saved — prevents legacy API/schema
+        // responses from dropping createBattle/createStrategy and flipping toggles off.
+        map['permissions'] = updatedStaff.permissions.toMap();
+        merged = _mapStaff(map);
+        merged.password = updatedStaff.password;
+        merged.permissions = updatedStaff.permissions;
+      }
       
       // Update local state immediately
-      updateStaff(updatedStaff);
-      _showSuccessMessage('Staff updated successfully!');
+      updateStaff(merged);
+
+      if (announceSuccess) {
+        _showSuccessMessage('Staff updated successfully!');
+      }
       
       // Refresh data from server when needed (avoid disruptive full refresh for small inline edits)
       if (refreshAfterUpdate) {
@@ -702,6 +806,7 @@ class AcademyProvider extends ChangeNotifier {
     required String teamId,
     String? coachStaffId,
     String? assistantCoachStaffId,
+    bool showSuccessMessage = true,
   }) async {
     try {
       _clearError();
@@ -724,10 +829,13 @@ class AcademyProvider extends ChangeNotifier {
         loadAdminOverview(force: true);
       }
 
-      _showSuccessMessage('Team leads assigned successfully!');
+      if (showSuccessMessage) {
+        _showSuccessMessage('Team leads assigned successfully!');
+      }
       notifyListeners();
     } catch (e) {
       _setError('Failed to assign team leads: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -738,6 +846,7 @@ class AcademyProvider extends ChangeNotifier {
     required String ownerName,
     required String ownerEmail,
     String? newPassword,
+    bool showSuccessMessage = true,
   }) async {
     try {
       _clearError();
@@ -758,14 +867,17 @@ class AcademyProvider extends ChangeNotifier {
         newPassword: newPassword,
       );
       
-      _showSuccessMessage('Academy profile updated successfully!');
+      if (showSuccessMessage) {
+        _showSuccessMessage('Academy profile updated successfully!');
+      }
       notifyListeners();
     } catch (e) {
       _setError('Failed to update academy profile: ${e.toString()}');
+      rethrow;
     }
   }
 
-  Future<void> addTeamToBackend(Team team) async {
+  Future<void> addTeamToBackend(Team team, {bool showSuccessMessage = true}) async {
     try {
       _clearError();
       
@@ -791,10 +903,13 @@ class AcademyProvider extends ChangeNotifier {
         ),
       );
       
-      _showSuccessMessage('Team created successfully!');
+      if (showSuccessMessage) {
+        _showSuccessMessage('Team created successfully!');
+      }
       notifyListeners();
     } catch (e) {
       _setError('Failed to create team: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -878,7 +993,7 @@ class AcademyProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addStaffToBackend(Staff staff) async {
+  Future<void> addStaffToBackend(Staff staff, {bool showSuccessMessage = true}) async {
     try {
       _clearError();
       
@@ -921,10 +1036,13 @@ class AcademyProvider extends ChangeNotifier {
         ),
       );
       
-      _showSuccessMessage('Staff created successfully!');
+      if (showSuccessMessage) {
+        _showSuccessMessage('Staff created successfully!');
+      }
       notifyListeners();
     } catch (e) {
       _setError('Failed to create staff: ${e.toString()}');
+      rethrow;
     }
   }
 

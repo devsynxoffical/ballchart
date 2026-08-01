@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../viewmodel/profile_viewmodel.dart';
@@ -15,6 +16,8 @@ import 'package:ballchart/features/player/view/player_detail_screen.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/models/user_model.dart';
 import 'package:ballchart/features/staff/service/staff_service.dart';
+import 'package:ballchart/core/widgets/square_image_crop_screen.dart';
+import 'package:ballchart/core/widgets/user_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -116,20 +119,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                   if (context.mounted) {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${nameController.text} enrolled successfully!'),
-                        backgroundColor: primaryColor,
-                      ),
+                    AppMessenger.show(
+                      context,
+                      message: '${nameController.text} enrolled successfully!',
+                      kind: AppMessageKind.success,
                     );
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to enroll player: $e'),
-                        backgroundColor: Colors.red,
-                      ),
+                    AppMessenger.show(
+                      context,
+                      message: 'Failed to enroll player: $e',
+                      kind: AppMessageKind.error,
                     );
                   }
                 }
@@ -226,22 +227,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildIdentityHeader(dynamic user) {
-    final initials = user.username
-        .toString()
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((e) => e.isNotEmpty)
-        .take(2)
-        .map((e) => e[0].toUpperCase())
-        .join();
     final role = user.role.toString();
-    final canEditIdentity = role == 'admin' || role.contains('coach');
+    final canEditIdentity = role == 'admin' || role.contains('coach') || role == 'custom';
     final academyProvider = context.watch<AcademyProvider>();
     String? networkAvatar;
     if (role == 'admin') {
       final logo = academyProvider.academy.logoUrl;
       if (logo != null && logo.trim().isNotEmpty) {
         networkAvatar = ApiService.resolveMediaUrl(logo);
+      }
+      if ((networkAvatar == null || networkAvatar.isEmpty) && user is UserModel) {
+        final pic = user.profileImageUrl;
+        if (pic != null && pic.trim().isNotEmpty) {
+          networkAvatar = ApiService.resolveMediaUrl(pic);
+        }
       }
     } else if (user is UserModel) {
       final pic = user.profileImageUrl;
@@ -261,51 +260,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: GestureDetector(
             onTap: canEditIdentity ? () => _showProfilePhotoMenu(context, user) : null,
             child: Stack(
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [primaryColor, Color(0xFFFFBA29)])),
-                child: CircleAvatar(
-                  radius: 46,
-                  backgroundColor: bgColor,
-                  backgroundImage: hasNetworkAvatar ? NetworkImage(networkAvatar!) : null,
-                  child: !hasNetworkAvatar
-                      ? (role == 'admin'
-                          ? Image.asset('basketball_icon.png', fit: BoxFit.cover)
-                          : Text(
-                              initials.isEmpty ? 'U' : initials,
-                              style: const TextStyle(color: primaryColor, fontSize: 30, fontWeight: FontWeight.w900),
-                            ))
-                      : null,
-                ),
-              ),
-              Positioned(
-                right: 2,
-                bottom: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle, border: Border.fromBorderSide(BorderSide(color: bgColor, width: 3))),
-                ),
-              ),
-              if (canEditIdentity)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
-                    child: const Icon(Icons.edit, size: 12, color: primaryColor),
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(colors: [primaryColor, Color(0xFFFFBA29)]),
+                  ),
+                  child: ClipOval(
+                    child: SizedBox(
+                      width: 92,
+                      height: 92,
+                      child: UserAvatar(
+                        key: ValueKey(networkAvatar ?? 'avatar-fallback'),
+                        name: user.username,
+                        imageUrl: hasNetworkAvatar ? networkAvatar : null,
+                        size: 92,
+                        usePersonIconFallback: true,
+                        backgroundColor: bgColor,
+                        accentColor: primaryColor,
+                      ),
+                    ),
                   ),
                 ),
-            ],
-          ),
+                Positioned(
+                  right: 2,
+                  bottom: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Colors.greenAccent,
+                      shape: BoxShape.circle,
+                      border: Border.fromBorderSide(BorderSide(color: bgColor, width: 3)),
+                    ),
+                  ),
+                ),
+                if (canEditIdentity)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.edit, size: 12, color: primaryColor),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),
-        Text(user.username.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Space Grotesk')),
-        Text('${user.role.replaceAll('_', ' ').toUpperCase()} // ACTIVE SQUADRON', style: const TextStyle(color: outlineColor, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        Text(
+          user.username.toUpperCase(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'Space Grotesk',
+          ),
+        ),
+        Text(
+          '${user.role.replaceAll('_', ' ').toUpperCase()} // ACTIVE SQUADRON',
+          style: const TextStyle(
+            color: outlineColor,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
       ],
     );
   }
@@ -382,8 +409,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showEditAcademyDialog(BuildContext context, AcademyProvider provider) {
-    showModalBottomSheet(
+  Future<void> _showEditAcademyDialog(BuildContext context, AcademyProvider provider) async {
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -394,26 +421,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
         currentEmail: provider.adminEmail,
       ),
     );
+    if (saved == true && context.mounted) {
+      await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
+      await provider.loadAdminOverview(force: true);
+      if (!context.mounted) return;
+      AppMessenger.show(
+        context,
+        message: 'Academy profile updated successfully! Use your new email to log in next time.',
+        kind: AppMessageKind.success,
+      );
+    }
   }
 
-  void _showCreateTeamDialog(BuildContext context, AcademyProvider provider) {
-    showModalBottomSheet(
+  Future<void> _showCreateTeamDialog(BuildContext context, AcademyProvider provider) async {
+    final created = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => CreateTeamDialog(onTeamCreated: (name, tier, color, logo, coachId, assistantId) async {
-        await provider.addTeamToBackend(Team(
-          id: '',
-          name: name,
-          ageGroup: tier,
-          colorValue: color.value,
-          logoPath: logo,
-          coachStaffId: coachId,
-          assistantCoachStaffId: assistantId,
-          players: [],
-        ));
+        await provider.addTeamToBackend(
+          Team(
+            id: '',
+            name: name,
+            ageGroup: tier,
+            colorValue: color.value,
+            logoPath: logo,
+            coachStaffId: coachId,
+            assistantCoachStaffId: assistantId,
+            players: [],
+          ),
+          showSuccessMessage: false,
+        );
       }),
     );
+    if (created == true && context.mounted) {
+      AppMessenger.show(
+        context,
+        message: 'Team created successfully!',
+        kind: AppMessageKind.success,
+      );
+    }
   }
 
   Widget _buildBentoGrid(BuildContext context, dynamic user) {
@@ -660,8 +707,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
                   await context.read<AcademyProvider>().loadCoachDashboard(force: true);
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Coach profile updated'), backgroundColor: primaryColor),
+                    AppMessenger.show(
+                      context,
+                      message: 'Coach profile updated',
+                      kind: AppMessageKind.success,
                     );
                   }
                 }
@@ -764,43 +813,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickAndSaveProfilePhoto(BuildContext context, dynamic user) async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
     if (file == null || !context.mounted) return;
+    final cropped = await Navigator.of(context).push<File>(
+      MaterialPageRoute(
+        builder: (_) => SquareImageCropScreen(imageFile: File(file.path)),
+      ),
+    );
+    if (cropped == null || !context.mounted) return;
     try {
       final staff = StaffService();
-      final url = await staff.uploadImage(File(file.path));
+      final url = await staff.uploadImage(cropped);
       if (url == null || url.isEmpty) {
         throw Exception('Upload returned no URL');
       }
+      final resolved = ApiService.resolveMediaUrl(url);
       final repo = ProfileRepository();
       final payload = <String, dynamic>{};
-      final r = user.role.toString();
+      final r = user.role.toString().toLowerCase();
       if (r == 'admin') {
         payload['logoUrl'] = url;
-      } else if (r.contains('coach')) {
+      } else if (r.contains('coach') || r == 'custom') {
+        // Backend stores both keys for coach/custom staff.
         payload['profilePic'] = url;
+        payload['profileImageUrl'] = url;
       } else if (r == 'player') {
         payload['profileImageUrl'] = url;
+        payload['profilePic'] = url;
       } else {
         payload['profilePic'] = url;
+        payload['profileImageUrl'] = url;
       }
-      await repo.completeProfile(payload);
+      final updated = await repo.completeProfile(payload);
       if (!context.mounted) return;
-      await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
-      final role = user.role.toString();
-      if (role == 'admin') {
+
+      // Prefer server user, but keep the uploaded URL if response omitted it.
+      final withPhoto = (updated.profileImageUrl == null || updated.profileImageUrl!.trim().isEmpty)
+          ? updated.copyWith(profileImageUrl: resolved.isNotEmpty ? resolved : url)
+          : updated;
+
+      context.read<ProfileViewmodel>().setUser(withPhoto);
+      context.read<AcademyProvider>().setCurrentUser(withPhoto);
+
+      if (r == 'admin') {
         await context.read<AcademyProvider>().loadAdminOverview(force: true);
-      } else if (role.contains('coach')) {
+      } else if (r.contains('coach') || r == 'custom') {
         await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+      } else if (r == 'player') {
+        await context.read<AcademyProvider>().loadPlayerDashboard(force: true);
       }
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo updated'), backgroundColor: primaryColor),
+      AppMessenger.show(
+        context,
+        message: 'Profile photo updated',
+        kind: AppMessageKind.success,
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update photo: $e'), backgroundColor: Colors.red),
+        AppMessenger.show(
+          context,
+          message: 'Could not update photo: $e',
+          kind: AppMessageKind.error,
         );
       }
     }
@@ -865,38 +938,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
               onPressed: () async {
-                final repo = ProfileRepository();
-                final payload = <String, dynamic>{
-                  'username': nameController.text.trim(),
-                  'email': emailController.text.trim(),
-                  'experienceLevel': experienceController.text.trim(),
-                };
-                final img = profileImageController.text.trim();
-                if (img.isNotEmpty) {
-                  final r = user.role.toString();
-                  if (r == 'admin') {
-                    payload['logoUrl'] = img;
-                  } else if (r.contains('coach')) {
-                    payload['profilePic'] = img;
-                  } else if (r == 'player') {
-                    payload['profileImageUrl'] = img;
-                  } else {
-                    payload['profilePic'] = img;
-                  }
-                }
-                await repo.completeProfile(payload);
-                if (context.mounted) {
-                  await context.read<ProfileViewmodel>().loadProfile(forceRefresh: true);
-                  final r = user.role.toString();
-                  if (r == 'admin') {
-                    await context.read<AcademyProvider>().loadAdminOverview(force: true);
-                  } else if (r.contains('coach')) {
-                    await context.read<AcademyProvider>().loadCoachDashboard(force: true);
-                  }
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated'), backgroundColor: primaryColor),
+                final email = emailController.text.trim().toLowerCase();
+                if (nameController.text.trim().isEmpty || email.isEmpty) {
+                  AppMessenger.show(
+                    context,
+                    message: 'Name and email are required',
+                    kind: AppMessageKind.warning,
                   );
+                  return;
+                }
+                if (!email.contains('@')) {
+                  AppMessenger.show(
+                    context,
+                    message: 'Please enter a valid email address',
+                    kind: AppMessageKind.warning,
+                  );
+                  return;
+                }
+                try {
+                  final repo = ProfileRepository();
+                  final payload = <String, dynamic>{
+                    'username': nameController.text.trim(),
+                    'email': email,
+                    'experienceLevel': experienceController.text.trim(),
+                  };
+                  final img = profileImageController.text.trim();
+                  if (img.isNotEmpty) {
+                    final r = user.role.toString().toLowerCase();
+                    if (r == 'admin') {
+                      payload['logoUrl'] = img;
+                    } else if (r.contains('coach') || r == 'custom') {
+                      payload['profilePic'] = img;
+                      payload['profileImageUrl'] = img;
+                    } else if (r == 'player') {
+                      payload['profileImageUrl'] = img;
+                      payload['profilePic'] = img;
+                    } else {
+                      payload['profilePic'] = img;
+                      payload['profileImageUrl'] = img;
+                    }
+                  }
+                  final updated = await repo.completeProfile(payload);
+                  if (!context.mounted) return;
+                  final resolvedImg = img.isEmpty ? null : ApiService.resolveMediaUrl(img);
+                  final withPhoto = (updated.profileImageUrl == null || updated.profileImageUrl!.trim().isEmpty) &&
+                          resolvedImg != null &&
+                          resolvedImg.isNotEmpty
+                      ? updated.copyWith(profileImageUrl: resolvedImg)
+                      : updated;
+                  context.read<ProfileViewmodel>().setUser(withPhoto);
+                  context.read<AcademyProvider>().setCurrentUser(withPhoto);
+                  final r = user.role.toString().toLowerCase();
+                  if (r == 'admin') {
+                    final academy = context.read<AcademyProvider>();
+                    academy.updateAcademyProfile(
+                      academyName: academy.academy.name,
+                      logoUrl: img.isNotEmpty ? img : academy.academy.logoUrl,
+                      ownerName: nameController.text.trim(),
+                      ownerEmail: email,
+                    );
+                    await academy.loadAdminOverview(force: true);
+                  } else if (r.contains('coach') || r == 'custom') {
+                    await context.read<AcademyProvider>().loadCoachDashboard(force: true);
+                  } else if (r == 'player') {
+                    await context.read<AcademyProvider>().loadPlayerDashboard(force: true);
+                  }
+                  if (!context.mounted) return;
+                  Navigator.pop(ctx);
+                  final emailChanged = email != user.email.toString().toLowerCase().trim();
+                  AppMessenger.show(
+                    context,
+                    message: emailChanged
+                        ? 'Profile updated! Next login use: $email'
+                        : 'Profile updated successfully!',
+                    kind: AppMessageKind.success,
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    AppMessenger.show(
+                      context,
+                      message: e.toString().replaceAll('Exception: ', ''),
+                      kind: AppMessageKind.error,
+                    );
+                  }
                 }
               },
               child: const Text('Save', style: TextStyle(color: Colors.black)),
@@ -965,6 +1089,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
           // TODO: Implement notification settings logic
         }),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: () => _showChangePasswordDialog(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: surfaceHigh.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: primaryColor.withOpacity(0.2)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.lock_outline_rounded, color: primaryColor, size: 18),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'CHANGE PASSWORD',
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: outlineColor, size: 18),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
         GestureDetector(
           onTap: () => Provider.of<AuthViewmodel>(context, listen: false).logout(context),
@@ -1010,6 +1160,140 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+    final oldCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    var obscureOld = true;
+    var obscureNew = true;
+    var obscureConfirm = true;
+    var saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> submit() async {
+            final oldPw = oldCtrl.text;
+            final newPw = newCtrl.text.trim();
+            final confirm = confirmCtrl.text.trim();
+            if (oldPw.isEmpty || newPw.isEmpty || confirm.isEmpty) {
+              AppMessenger.show(ctx, message: 'Fill all password fields', kind: AppMessageKind.warning);
+              return;
+            }
+            if (newPw.length < 6) {
+              AppMessenger.show(ctx, message: 'New password must be at least 6 characters', kind: AppMessageKind.warning);
+              return;
+            }
+            if (newPw != confirm) {
+              AppMessenger.show(ctx, message: 'New passwords do not match', kind: AppMessageKind.warning);
+              return;
+            }
+            setDialogState(() => saving = true);
+            try {
+              await ProfileRepository().changePassword(oldPassword: oldPw, newPassword: newPw);
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!context.mounted) return;
+              AppMessenger.show(
+                context,
+                message: 'Password updated successfully! Use it on your next login.',
+                kind: AppMessageKind.success,
+              );
+            } catch (e) {
+              if (ctx.mounted) {
+                setDialogState(() => saving = false);
+                AppMessenger.show(
+                  ctx,
+                  message: e.toString().replaceAll('Exception: ', ''),
+                  kind: AppMessageKind.error,
+                );
+              }
+            }
+          }
+
+          Widget field({
+            required String label,
+            required TextEditingController controller,
+            required bool obscure,
+            required VoidCallback onToggle,
+          }) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: outlineColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  obscureText: obscure,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: bgColor,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: outlineColor, size: 18),
+                      onPressed: onToggle,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return AlertDialog(
+            backgroundColor: surfaceHigh,
+            title: const Text('Change Password', style: TextStyle(color: Colors.white)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  field(
+                    label: 'CURRENT PASSWORD',
+                    controller: oldCtrl,
+                    obscure: obscureOld,
+                    onToggle: () => setDialogState(() => obscureOld = !obscureOld),
+                  ),
+                  const SizedBox(height: 16),
+                  field(
+                    label: 'NEW PASSWORD',
+                    controller: newCtrl,
+                    obscure: obscureNew,
+                    onToggle: () => setDialogState(() => obscureNew = !obscureNew),
+                  ),
+                  const SizedBox(height: 16),
+                  field(
+                    label: 'CONFIRM NEW PASSWORD',
+                    controller: confirmCtrl,
+                    obscure: obscureConfirm,
+                    onToggle: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: outlineColor)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                onPressed: saving ? null : submit,
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    : const Text('Update', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    oldCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
   }
 
   Widget _systemRow(String label, IconData icon, bool val, Function(bool) onChanged) {

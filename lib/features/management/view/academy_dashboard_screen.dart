@@ -1,9 +1,12 @@
+import 'package:ballchart/core/widgets/user_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/constants/colors.dart';
+import 'package:ballchart/core/widgets/app_exit_scope.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateTeamDialog.dart';
 import 'package:ballchart/core/widgets/dialogues/CreateStaffDialog.dart';
 import 'package:ballchart/core/widgets/inbox_header_icons.dart';
@@ -77,31 +80,24 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     
     // Show error message if exists
     if (provider.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.error!),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
+      final msg = provider.error!;
+      provider.clearError();
+      AppMessenger.show(
+        context,
+        message: msg,
+        kind: AppMessageKind.error,
       );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        provider.clearError();
-      });
     }
     
-    // Show success message if exists
+    // Show success message if exists (single popup — AppMessenger dedupes stacks)
     if (provider.successMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.successMessage!),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
+      final msg = provider.successMessage!;
+      provider.clearSuccessMessage();
+      AppMessenger.show(
+        context,
+        message: msg,
+        kind: AppMessageKind.success,
       );
-      // Clear the success message after showing
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        provider.clearSuccessMessage();
-      });
     }
   }
 
@@ -120,7 +116,7 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
         if (i == retryCount - 1) {
           // Last retry failed, show error
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppMessenger.showSnackBar(context, 
               SnackBar(
                 content: Text('Failed to load academy data: ${e.toString().replaceAll('Exception: ', '')}'),
                 backgroundColor: Colors.red,
@@ -143,8 +139,14 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return AppExitScope(
+      onBack: () async {
+        if (_currentTab != 0) {
+          if (mounted) setState(() => _currentTab = 0);
+          return true;
+        }
+        return false;
+      },
       child: Scaffold(
         backgroundColor: bgColor,
         appBar: _buildTopAppBar(),
@@ -163,46 +165,6 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
           },
         ),
         bottomNavigationBar: _buildModernBottomNav(),
-      ),
-    );
-  }
-
-  Future<bool> _onWillPop() async {
-    if (_currentTab != 0) {
-      if (mounted) setState(() => _currentTab = 0);
-      return false;
-    }
-    final shouldExit = await _showExitDialog(context);
-    if (shouldExit == true) {
-      SystemNavigator.pop();
-    }
-    return false;
-  }
-
-  Future<void> _handleBackNavigation() async {
-    await _onWillPop();
-  }
-
-  Future<bool?> _showExitDialog(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: surfaceContainer,
-        title: const Text('Exit App', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Do you want to exit the application?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Exit', style: TextStyle(color: primaryColor)),
-          ),
-        ],
       ),
     );
   }
@@ -623,17 +585,11 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
         ),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundColor: surfaceHigh,
-              child: Text(
-                topPlayer.name.trim().isNotEmpty ? topPlayer.name.trim()[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: primaryColor,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                ),
-              ),
+            UserAvatar(
+              name: topPlayer.name,
+              imageUrl: topPlayer.profileImageUrl,
+              size: 64,
+              usePersonIconFallback: true,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -762,67 +718,58 @@ class _AcademyDashboardScreenState extends State<AcademyDashboardScreen> {
     }
   }
 
-  void _showCreateTeamDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showCreateTeamDialog(BuildContext context) async {
+    final created = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (_) => CreateTeamDialog(
         onTeamCreated: (name, age, color, logoPath, coachId, assistantId) async {
           final provider = context.read<AcademyProvider>();
-          try {
-            await provider.addTeamToBackend(
-              Team(
-                id: provider.nextId('t'),
-                name: name,
-                players: const [],
-                ageGroup: age,
-                colorValue: color.value,
-                logoPath: logoPath,
-                coachStaffId: coachId,
-                assistantCoachStaffId: assistantId,
-              ),
-            );
-            if (context.mounted) Navigator.pop(context);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('SQUAD $name INITIALIZED')),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('FAILED: $e'), backgroundColor: Colors.redAccent),
-              );
-            }
-          }
+          await provider.addTeamToBackend(
+            Team(
+              id: provider.nextId('t'),
+              name: name,
+              players: const [],
+              ageGroup: age,
+              colorValue: color.value,
+              logoPath: logoPath,
+              coachStaffId: coachId,
+              assistantCoachStaffId: assistantId,
+            ),
+            showSuccessMessage: false,
+          );
         },
       ),
     );
+    if (created == true && mounted) {
+      AppMessenger.show(
+        context,
+        message: 'Squad initialized successfully!',
+        kind: AppMessageKind.success,
+      );
+    }
   }
 
-  void _showInviteStaffDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showInviteStaffDialog(BuildContext context) async {
+    await showDialog<void>(
       context: context,
       builder: (context) => CreateStaffDialog(
         initialRole: 'Coach',
         onStaffCreated: (staffData) async {
           final provider = context.read<AcademyProvider>();
-          try {
-            await provider.addStaffToBackend(
-              Staff(
-                id: provider.nextId('s'),
-                name: staffData['name'] ?? '',
-                email: staffData['email'] ?? '',
-                password: staffData['password'] ?? '',
-                role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
-                customRoleName: staffData['customRoleName']?.toString(),
-                assignedTeamIds: const [],
-                permissions: Permissions.fromDynamic(staffData['permissions']),
-              ),
-            );
-          } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-          }
+          await provider.addStaffToBackend(
+            Staff(
+              id: provider.nextId('s'),
+              name: staffData['name'] ?? '',
+              email: staffData['email'] ?? '',
+              password: staffData['password'] ?? '',
+              role: (staffData['role'] ?? 'coach').toString().toLowerCase().replaceAll(' ', '_'),
+              customRoleName: staffData['customRoleName']?.toString(),
+              assignedTeamIds: const [],
+              permissions: Permissions.fromDynamic(staffData['permissions']),
+            ),
+            showSuccessMessage: false,
+          );
         },
       ),
     );

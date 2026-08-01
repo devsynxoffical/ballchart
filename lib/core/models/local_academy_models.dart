@@ -229,17 +229,29 @@ class Permissions {
 
   // Create from Map for API responses
   factory Permissions.fromMap(Map<String, dynamic> map) {
+    bool flag(String key, {bool fallback = false}) {
+      final v = map[key];
+      if (v == null) return fallback;
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      if (v is String) {
+        final s = v.toLowerCase().trim();
+        return s == 'true' || s == '1' || s == 'yes';
+      }
+      return fallback;
+    }
+
     return Permissions(
-      createPlayer: map['createPlayer'] ?? false,
-      readPlayer: map['readPlayer'] ?? true,
-      updatePlayer: map['updatePlayer'] ?? false,
-      deletePlayer: map['deletePlayer'] ?? false,
-      createTeam: map['createTeam'] ?? false,
-      manageStaff: map['manageStaff'] ?? false,
-      createBattle: map['createBattle'] ?? false,
-      manageBattle: map['manageBattle'] ?? false,
-      createStrategy: map['createStrategy'] ?? false,
-      manageStrategy: map['manageStrategy'] ?? false,
+      createPlayer: flag('createPlayer'),
+      readPlayer: flag('readPlayer', fallback: true),
+      updatePlayer: flag('updatePlayer'),
+      deletePlayer: flag('deletePlayer'),
+      createTeam: flag('createTeam'),
+      manageStaff: flag('manageStaff'),
+      createBattle: flag('createBattle'),
+      manageBattle: flag('manageBattle'),
+      createStrategy: flag('createStrategy'),
+      manageStrategy: flag('manageStrategy'),
     );
   }
 

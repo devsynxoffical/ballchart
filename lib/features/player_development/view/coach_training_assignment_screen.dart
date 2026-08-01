@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
 
 import 'package:ballchart/core/constants/relentless_program.dart';
@@ -26,19 +27,36 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
   TrainingCatalogDto? _catalog;
   List<TrainingAssignmentDto> _assignments = [];
   String? _selectedPlayerId;
+  static const String _customDrillSentinel = '__custom_training__';
+
   String _focus = '';
   String _drill = '';
   String _intent = 'training';
   final _notes = TextEditingController();
+  final _customDrill = TextEditingController();
   int _points = 10;
   DateTime? _due;
   bool _loading = true;
   bool _saving = false;
 
+  bool get _isCustomDrill => _drill == _customDrillSentinel;
+
+  String get _resolvedDrillName {
+    if (_isCustomDrill) return _customDrill.text.trim();
+    return _drill.trim();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    _customDrill.dispose();
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -60,7 +78,11 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
       setState(() {
         _catalog = cat;
         if (focusOpts.isNotEmpty) _focus = focusOpts.first;
-        if (cat.drillTemplates.isNotEmpty) _drill = cat.drillTemplates.first;
+        if (cat.drillTemplates.isNotEmpty) {
+          _drill = cat.drillTemplates.first;
+        } else {
+          _drill = _customDrillSentinel;
+        }
         _loading = false;
       });
       if (_selectedPlayerId != null) {
@@ -71,7 +93,7 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
         setState(() {
           _loading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }
@@ -90,14 +112,22 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
   Future<void> _submit() async {
     final pid = _selectedPlayerId;
     if (pid == null || pid.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(content: Text('Select a player')),
       );
       return;
     }
     if (_focus.isEmpty || _drill.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.showSnackBar(context, 
         const SnackBar(content: Text('Choose focus area and drill')),
+      );
+      return;
+    }
+    final drillName = _resolvedDrillName;
+    if (drillName.isEmpty) {
+      AppMessenger.showSnackBar(
+        context,
+        const SnackBar(content: Text('Enter a custom training name')),
       );
       return;
     }
@@ -106,22 +136,23 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
       await _repo.createAssignment(
         playerId: pid,
         focusArea: _focus,
-        drillName: _drill,
+        drillName: drillName,
         sessionIntent: _intent,
         dueAt: _due,
         notes: _notes.text.trim(),
         pointsValue: _points,
       );
       _notes.clear();
+      _customDrill.clear();
       await _loadAssignments();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           const SnackBar(content: Text('Training assigned')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.showSnackBar(context, 
           SnackBar(content: Text('$e'), backgroundColor: Colors.redAccent),
         );
       }
@@ -131,11 +162,6 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
   }
 
   @override
-  void dispose() {
-    _notes.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -250,14 +276,37 @@ class _CoachTrainingAssignmentScreenState extends State<CoachTrainingAssignmentS
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _catalog!.drillTemplates.contains(_drill) ? _drill : _catalog!.drillTemplates.first,
+                        value: () {
+                          final drills = _catalog!.drillTemplates;
+                          if (_drill == _customDrillSentinel) return _customDrillSentinel;
+                          if (drills.contains(_drill)) return _drill;
+                          return drills.isNotEmpty ? drills.first : _customDrillSentinel;
+                        }(),
                         dropdownColor: CoachTrainingAssignmentScreen.surfaceHigh,
                         decoration: _inputDecoration('Drill / practice'),
-                        items: _catalog!.drillTemplates
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(color: Colors.white))))
-                            .toList(),
+                        items: [
+                          ..._catalog!.drillTemplates.map(
+                            (e) => DropdownMenuItem(
+                              value: e,
+                              child: Text(e, style: const TextStyle(color: Colors.white)),
+                            ),
+                          ),
+                          const DropdownMenuItem(
+                            value: _customDrillSentinel,
+                            child: Text('Custom training', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
                         onChanged: (v) => setState(() => _drill = v ?? ''),
                       ),
+                      if (_isCustomDrill) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _customDrill,
+                          style: const TextStyle(color: Colors.white),
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: _inputDecoration('Custom training name'),
+                        ),
+                      ],
                     ],
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(

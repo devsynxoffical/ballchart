@@ -8,6 +8,7 @@ class StrategyModel {
   final DateTime createdAt;
   final String createdByName;
   final String createdByRole;
+  final String? createdByAvatarUrl;
   final List<String> tags;
   final int viewCount;
   final int likeCount;
@@ -27,6 +28,7 @@ class StrategyModel {
     required this.createdAt,
     required this.createdByName,
     required this.createdByRole,
+    this.createdByAvatarUrl,
     this.tags = const [],
     this.viewCount = 0,
     this.likeCount = 0,
@@ -53,6 +55,16 @@ class StrategyModel {
           DateTime.now(),
       createdByName: (createdBy['username'] ?? 'Coach').toString(),
       createdByRole: (createdBy['role'] ?? '').toString(),
+      createdByAvatarUrl: () {
+        final raw = (createdBy['avatarUrl'] ??
+                createdBy['profileImageUrl'] ??
+                createdBy['profilePic'] ??
+                createdBy['logoUrl'])
+            ?.toString()
+            .trim();
+        if (raw == null || raw.isEmpty) return null;
+        return raw;
+      }(),
       tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
       viewCount: (json['viewCount'] ?? 0) as int,
       likeCount: (json['likeCount'] ?? 0) as int,
@@ -136,6 +148,7 @@ class StrategyModel {
     DateTime? createdAt,
     String? createdByName,
     String? createdByRole,
+    String? createdByAvatarUrl,
     List<String>? tags,
     int? viewCount,
     int? likeCount,
@@ -155,6 +168,7 @@ class StrategyModel {
       createdAt: createdAt ?? this.createdAt,
       createdByName: createdByName ?? this.createdByName,
       createdByRole: createdByRole ?? this.createdByRole,
+      createdByAvatarUrl: createdByAvatarUrl ?? this.createdByAvatarUrl,
       tags: tags ?? this.tags,
       viewCount: viewCount ?? this.viewCount,
       likeCount: likeCount ?? this.likeCount,

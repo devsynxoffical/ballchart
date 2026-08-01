@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:ballchart/features/management/viewmodel/academy_provider.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
+import 'package:ballchart/core/widgets/user_avatar.dart';
 
 class CreateTeamDialog extends StatefulWidget {
   final FutureOr<void> Function(
@@ -302,7 +303,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
               'Head Coach',
               coach?.name,
               coach?.role ?? 'COACH',
-              null, // No avatar link for now in memory
+              coach?.profilePic,
               () => _showStaffSelection(true),
             ),
             const SizedBox(height: 16),
@@ -310,7 +311,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
               'Assistant Coach',
               assistant?.name,
               assistant?.role ?? 'ASST COACH',
-              null,
+              assistant?.profilePic,
               () => _showStaffSelection(false),
             ),
           ],
@@ -348,7 +349,14 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                     },
                     selected: isCoach ? _selectedCoachId == s.id : _selectedAssistantId == s.id,
                     selectedTileColor: _AcademyTheme.primaryContainer.withOpacity(0.1),
-                    leading: CircleAvatar(backgroundColor: _AcademyTheme.surfaceHigh, child: const Icon(Icons.person_rounded, color: _AcademyTheme.primaryContainer)),
+                    leading: UserAvatar(
+                      name: s.name,
+                      imageUrl: s.profilePic,
+                      size: 40,
+                      usePersonIconFallback: true,
+                      accentColor: _AcademyTheme.primaryContainer,
+                      backgroundColor: _AcademyTheme.surfaceHigh,
+                    ),
                     title: Text(s.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     subtitle: Text(s.role.toUpperCase(), style: const TextStyle(color: _AcademyTheme.outline, fontSize: 10)),
                     trailing: const Icon(Icons.add_circle_outline_rounded, color: _AcademyTheme.primaryContainer),
@@ -373,8 +381,15 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
             decoration: BoxDecoration(color: _AcademyTheme.surfaceContainer, borderRadius: BorderRadius.circular(16), border: Border.all(color: _AcademyTheme.outlineVariant.withOpacity(0.3))),
             child: Row(
               children: [
-                if (img != null)
-                  CircleAvatar(radius: 20, backgroundImage: NetworkImage(img))
+                if (name != null)
+                  UserAvatar(
+                    name: name,
+                    imageUrl: img,
+                    size: 40,
+                    usePersonIconFallback: true,
+                    accentColor: _AcademyTheme.primaryContainer,
+                    backgroundColor: _AcademyTheme.surfaceHigh,
+                  )
                 else
                   Container(width: 40, height: 40, decoration: BoxDecoration(color: _AcademyTheme.surfaceHigh, shape: BoxShape.circle), child: const Icon(Icons.person_add, color: _AcademyTheme.outline)),
                 const SizedBox(width: 12),
@@ -422,6 +437,9 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                         _selectedCoachId,
                         _selectedAssistantId,
                       );
+                      if (mounted) Navigator.pop(context, true);
+                    } catch (_) {
+                      // Host/dialog caller handles error feedback.
                     } finally {
                       if (mounted) setState(() => _isSubmitting = false);
                     }

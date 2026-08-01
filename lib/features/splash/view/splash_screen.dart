@@ -45,22 +45,29 @@ class _SplashScreenState extends State<SplashScreen> {
         Provider.of<AcademyProvider>(context, listen: false).setCurrentUser(user);
 
         if (user.role == 'admin') {
-          Navigator.pushReplacementNamed(context, RouteNames.academyDashboard);
+          Navigator.pushNamedAndRemoveUntil(
+            context, RouteNames.academyDashboard, (route) => false);
         } else if (user.profileCompleted) {
-          Navigator.pushReplacementNamed(context, RouteNames.mainApp, arguments: user.role);
+          Navigator.pushNamedAndRemoveUntil(
+            context, RouteNames.mainApp, (route) => false,
+            arguments: user.role);
         } else {
           if (user.role == 'coach' || user.role == 'assistant_coach' || user.role == 'head_coach') {
-            Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_coach);
+            Navigator.pushNamedAndRemoveUntil(
+              context, RouteNames.profilecomplete_coach, (route) => false);
           } else {
-            Navigator.pushReplacementNamed(context, RouteNames.profilecomplete_player);
+            Navigator.pushNamedAndRemoveUntil(
+              context, RouteNames.profilecomplete_player, (route) => false);
           }
         }
         return;
       }
     }
 
-    // Default fallback: start directly at login flow
-    Navigator.pushReplacementNamed(context, RouteNames.login, arguments: 'admin');
+    // Default fallback: start directly at login flow (clear stack).
+    Navigator.pushNamedAndRemoveUntil(
+      context, RouteNames.login, (route) => false,
+      arguments: 'admin');
   }
 
   @override
@@ -167,29 +174,25 @@ class _SplashScreenState extends State<SplashScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo Container
+                      // Logo — no frame/border; asset already has transparent corners
                       Container(
                         width: 140,
                         height: 140,
                         decoration: BoxDecoration(
-                          color: primaryColor,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(28),
                           boxShadow: [
                             BoxShadow(
-                              color: primaryColor.withOpacity(0.3),
-                              blurRadius: 50,
+                              color: primaryColor.withOpacity(0.35),
+                              blurRadius: 40,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
-                        alignment: Alignment.center,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.asset(
-                            'basketball_icon.png',
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                          ),
+                        child: Image.asset(
+                          'basketball_icon.png',
+                          width: 140,
+                          height: 140,
+                          fit: BoxFit.contain,
                         ),
                       ),
                       const SizedBox(height: 24),
