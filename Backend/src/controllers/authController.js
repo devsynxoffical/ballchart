@@ -6,6 +6,7 @@ const Coach = require('../models/Coach');
 const Player = require('../models/Player');
 const Admin = require('../models/Admin');
 const Team = require('../models/Team');
+const Battle = require('../models/Battle');
 
 // Helper to generate JWT
 const generateToken = (id, role) => {
@@ -1343,10 +1344,23 @@ const getCoachDashboard = asyncHandler(async (req, res) => {
         staff = await Coach.find({ managedBy: req.user.managedBy }).select('-password');
     }
 
+    // Same academy scope used by the battles API so coaches see the games they schedule.
+    const academyScopeId = req.user.role === 'admin' ? req.user._id : (req.user.managedBy || null);
+    const upcomingBattles = academyScopeId
+        ? await Battle.find({
+              managedBy: academyScopeId,
+              status: 'pending',
+              dateTime: { $gt: new Date() },
+          })
+              .sort({ dateTime: 1, createdAt: -1 })
+              .limit(5)
+        : [];
+
     res.status(200).json({
         profile: normalizeUserResponse(coachDoc || req.user),
         teams,
         staff: staff.map((s) => normalizeUserResponse(s)),
+        upcomingBattles,
     });
 });
 
