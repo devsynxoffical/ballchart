@@ -177,9 +177,9 @@ class VoiceNoteService {
     return url;
   }
 
-  Future<void> playUrl(String url) async {
+  Future<void> playUrl(String url, {String ext = 'm4a'}) async {
     await _configurePlayer();
-    final resolved = ApiService.resolveMediaUrl(url);
+    final resolved = ApiService.resolveAudioUrl(url, ext: ext);
     if (resolved.isEmpty) {
       throw Exception('Voice URL is empty');
     }

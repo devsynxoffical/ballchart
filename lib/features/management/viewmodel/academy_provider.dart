@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/services/api_service.dart';
 import 'package:ballchart/core/models/user_model.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class AcademyProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -299,11 +300,14 @@ class AcademyProvider extends ChangeNotifier {
   }
 
   void _setupSocketListeners() {
+    // connectSocket() is async, so register through the callback — it fires
+    // the moment the socket connects instead of being missed.
+    _apiService.onSocketConnect(_attachSocketListeners);
     _apiService.connectSocket();
-    final socket = _apiService.socket;
-    if (socket == null || !socket.connected) return;
+  }
 
-    // Clean up existing listeners first to prevent memory leaks
+  void _attachSocketListeners(IO.Socket socket) {
+    // Clean up existing listeners first to prevent memory leaks.
     _cleanupSocketListeners();
 
     // Helper to refresh if academy matches

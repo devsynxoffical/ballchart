@@ -8,6 +8,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class ApiService {
+  ApiService._();
+
+  /// Single shared instance so the whole app uses one socket connection.
+  static final ApiService _instance = ApiService._();
+  factory ApiService() => _instance;
+
   // CONFIGURATION: Set your server IP here for physical devices
   // For Android Emulator: use '10.0.2.2'
   // For Web/iOS Simulator: use 'localhost'
@@ -28,6 +34,20 @@ class ApiService {
     if (t.startsWith('/')) return '$originUrl$t';
     return '$originUrl/$t';
   }
+
+  /// Resolve a media path for audio playback and append a file extension when
+  /// the URL has none — iOS AVPlayer (audioplayers) refuses extension-less
+  /// URLs. New uploads already carry an extension; this covers legacy data.
+  static String resolveAudioUrl(String? path, {String ext = 'm4a'}) {
+    final resolved = resolveMediaUrl(path);
+    if (resolved.isEmpty) return '';
+    final parsed = Uri.tryParse(resolved);
+    if (parsed == null) return resolved;
+    final last = parsed.path.split('/').last;
+    if (last.contains('.')) return resolved;
+    if (parsed.path.endsWith('/')) return '$resolved$ext';
+    return '$resolved.$ext';
+  }
   
   // Local backend for development - comment out for production
   // static const String baseUrl = 'http://localhost:5000/api';
@@ -35,6 +55,20 @@ class ApiService {
   
   final _storage = const FlutterSecureStorage();
   IO.Socket? socket;
+  final List<void Function(IO.Socket socket)> _socketConnectHandlers = [];
+
+  /// Register a callback that runs as soon as the socket connects. If the
+  /// socket is already connected the callback runs immediately. Handlers are
+  /// (re)run on every (re)connect so callers can rely on `socket` being ready.
+  void onSocketConnect(void Function(IO.Socket socket) handler) {
+    _socketConnectHandlers.add(handler);
+    final s = socket;
+    if (s?.connected == true) {
+      try {
+        handler(s!);
+      } catch (_) {}
+    }
+  }
 
   Future<Map<String, String>> _getHeaders() async {
     String? token = await _storage.read(key: 'jwt_token');
@@ -184,7 +218,10 @@ class ApiService {
     String? token = await getToken();
     if (token == null) return;
 
-    if (socket?.connected == true) return;
+    if (socket?.connected == true) {
+      _runSocketConnectHandlers();
+      return;
+    }
 
     socket = IO.io(socketUrl, IO.OptionBuilder()
       .setTransports(['websocket'])
@@ -196,6 +233,7 @@ class ApiService {
 
     socket!.onConnect((_) {
       print('Socket connected: ${socket!.id}');
+      _runSocketConnectHandlers();
     });
 
     socket!.onConnectError((error) {
@@ -205,6 +243,16 @@ class ApiService {
     socket!.onDisconnect((_) {
       print('Socket disconnected');
     });
+  }
+
+  void _runSocketConnectHandlers() {
+    final s = socket;
+    if (s == null) return;
+    for (final h in List.of(_socketConnectHandlers)) {
+      try {
+        h(s);
+      } catch (_) {}
+    }
   }
 
   void disconnectSocket() {

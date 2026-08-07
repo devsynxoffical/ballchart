@@ -101,6 +101,7 @@ class CoachVoiceClipsPanel extends StatelessWidget {
                     durationMs: clip.durationMs,
                     localPath: clip.localPath,
                     mine: false,
+                    audioExt: 'wav',
                   ),
                 ],
               ],

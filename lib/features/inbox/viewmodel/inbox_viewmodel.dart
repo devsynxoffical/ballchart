@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 import '../../../core/models/messaging_models.dart';
 import '../../../core/models/notification_model.dart';
@@ -25,19 +26,28 @@ class InboxViewModel extends ChangeNotifier {
   Timer? _pollTimer;
   void Function(dynamic)? _onMessageNew;
   void Function(dynamic)? _onNotificationNew;
+  bool _socketAttached = false;
 
   void start() {
     if (_started) return;
     _started = true;
-    _api.connectSocket();
     _onMessageNew = (_) => refresh();
     _onNotificationNew = (_) => refresh();
-    _api.socket?.on('MESSAGE_NEW', _onMessageNew!);
-    _api.socket?.on('message:new', _onMessageNew!);
-    _api.socket?.on('NOTIFICATION_NEW', _onNotificationNew!);
-    _api.socket?.on('NOTIFICATION_CREATED', _onNotificationNew!);
+    // connectSocket() is async, so register handlers through the callback —
+    // they fire the moment the socket connects (fixes missed real-time events).
+    _api.onSocketConnect(_attachSocketHandlers);
+    _api.connectSocket();
     refresh();
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => refresh());
+  }
+
+  void _attachSocketHandlers(IO.Socket s) {
+    if (_socketAttached) return;
+    _socketAttached = true;
+    s.on('MESSAGE_NEW', _onMessageNew!);
+    s.on('message:new', _onMessageNew!);
+    s.on('NOTIFICATION_NEW', _onNotificationNew!);
+    s.on('NOTIFICATION_CREATED', _onNotificationNew!);
   }
 
   Future<void> refresh() async {

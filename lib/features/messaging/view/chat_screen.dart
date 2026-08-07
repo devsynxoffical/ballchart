@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:ballchart/core/models/local_academy_models.dart';
 import 'package:ballchart/core/models/messaging_models.dart';
 import 'package:ballchart/core/repositories/messaging_repository.dart';
@@ -84,19 +85,22 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, String> _nameByUserId = {};
   final Map<String, String?> _avatarByUserId = {};
   final Map<String, String> _pendingVoiceLocalPaths = {};
+  bool _socketAttached = false;
 
   @override
   void initState() {
     super.initState();
+    // connectSocket() is async, so subscribe through the callback — it fires
+    // the moment the socket connects (fixes missed real-time messages).
+    _api.onSocketConnect(_socketSub);
     _api.connectSocket();
-    _socketSub();
     _load(animatedScroll: false);
     WidgetsBinding.instance.addPostFrameCallback((_) => _markRead());
   }
 
-  void _socketSub() {
-    final s = _api.socket;
-    if (s == null) return;
+  void _socketSub(IO.Socket s) {
+    if (_socketAttached || !mounted) return;
+    _socketAttached = true;
     s.on('MESSAGE_NEW', _onMessageNewSocket);
     s.on('CONVERSATION_READ', _onConversationReadSocket);
   }

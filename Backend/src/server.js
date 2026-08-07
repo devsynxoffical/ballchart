@@ -35,7 +35,10 @@ app.use((req, res, next) => {
 });
 
 const { serveMedia } = require('./controllers/uploadController');
-// Persistent media (Mongo). Must be registered before static /uploads fallback.
+// Persistent media (Mongo). The optional trailing `.ext` keeps URLs playable
+// on iOS AVPlayer while remaining compatible with legacy extension-less URLs.
+// Must be registered before static /uploads fallback.
+app.get('/uploads/media/:id.:ext', serveMedia);
 app.get('/uploads/media/:id', serveMedia);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

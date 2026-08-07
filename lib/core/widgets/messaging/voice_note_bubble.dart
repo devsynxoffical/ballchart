@@ -15,6 +15,7 @@ class VoiceNoteBubble extends StatefulWidget {
     this.mine = false,
     this.localPath,
     this.uploading = false,
+    this.audioExt = 'm4a',
   });
 
   final String voiceUrl;
@@ -22,6 +23,8 @@ class VoiceNoteBubble extends StatefulWidget {
   final bool mine;
   final String? localPath;
   final bool uploading;
+  /// Fallback file extension for legacy extension-less media URLs (iOS AVPlayer).
+  final String audioExt;
 
   @override
   State<VoiceNoteBubble> createState() => _VoiceNoteBubbleState();
@@ -42,7 +45,7 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
       return widget.localPath!;
     }
     if (widget.voiceUrl.isNotEmpty) {
-      return ApiService.resolveMediaUrl(widget.voiceUrl);
+      return ApiService.resolveAudioUrl(widget.voiceUrl, ext: widget.audioExt);
     }
     return '';
   }
@@ -132,7 +135,7 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
       if (widget.localPath != null && widget.localPath!.isNotEmpty) {
         await _voice.playLocal(widget.localPath!);
       } else if (widget.voiceUrl.isNotEmpty) {
-        await _voice.playUrl(widget.voiceUrl);
+        await _voice.playUrl(widget.voiceUrl, ext: widget.audioExt);
       } else {
         throw Exception('No audio available for this clip yet.');
       }
