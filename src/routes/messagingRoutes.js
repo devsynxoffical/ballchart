@@ -8,9 +8,11 @@ const {
     getMessages,
     sendMessage,
     markRead,
+    getPresence,
 } = require('../controllers/messagingController');
 
 router.get('/eligible-contacts', protect, getEligibleContacts);
+router.get('/presence', protect, getPresence);
 router.get('/conversations', protect, listConversations);
 router.post('/conversations', protect, createOrGetConversation);
 router.get('/conversations/:id/messages', protect, getMessages);

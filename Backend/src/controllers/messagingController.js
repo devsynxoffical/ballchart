@@ -6,6 +6,7 @@ const Coach = require('../models/Coach');
 const Player = require('../models/Player');
 const Team = require('../models/Team');
 const { findUserById, academyScopeId, participantDto } = require('../utils/userLookup');
+const { onlineUserIds } = require('../utils/presence');
 
 function userInConversation(conversation, userId) {
     return conversation.participants.some((p) => `${p.userId}` === `${userId}`);
@@ -71,14 +72,29 @@ async function conversationSummary(conversation, userId) {
     };
 }
 
-async function emitMessageNew(io, conversationId, messageDoc) {
+async function emitMessageNew(io, conversation, messageDoc) {
     if (!io) return;
+    const conversationId = `${conversation._id || conversation}`;
     const payload = {
-        conversationId: `${conversationId}`,
         ...messageDoc,
-        _id: messageDoc._id,
-        id: messageDoc._id,
+        conversationId,
+        _id: `${messageDoc._id}`,
+        id: `${messageDoc._id}`,
+        senderId: `${messageDoc.senderId}`,
+        createdAt: messageDoc.createdAt instanceof Date
+            ? messageDoc.createdAt.toISOString()
+            : messageDoc.createdAt,
     };
+    io.to(`conversation:${conversationId}`).emit('MESSAGE_NEW', payload);
+    io.to(`conversation:${conversationId}`).emit('message:new', payload);
+    const participants = conversation.participants || [];
+    for (const p of participants) {
+        const uid = `${p.userId || p}`;
+        if (!uid || uid === 'undefined') continue;
+        io.to(`user:${uid}`).emit('MESSAGE_NEW', payload);
+        io.to(`user:${uid}`).emit('message:new', payload);
+    }
+    // Fallback for clients that have not joined rooms yet.
     io.emit('MESSAGE_NEW', payload);
     io.emit('message:new', payload);
 }
@@ -381,7 +397,7 @@ const sendMessage = asyncHandler(async (req, res) => {
         createdAt: message.createdAt,
     };
 
-    await emitMessageNew(req.io, conversation._id, payload);
+    await emitMessageNew(req.io, conversation, payload);
 
     // Notify every other member for team chats (not just one peer).
     const recipients = (conversation.participants || [])
@@ -443,6 +459,10 @@ const markRead = asyncHandler(async (req, res) => {
     res.json({ ok: true });
 });
 
+const getPresence = asyncHandler(async (req, res) => {
+    res.json({ onlineUserIds: onlineUserIds() });
+});
+
 module.exports = {
     getEligibleContacts,
     listConversations,
@@ -450,4 +470,5 @@ module.exports = {
     getMessages,
     sendMessage,
     markRead,
+    getPresence,
 };

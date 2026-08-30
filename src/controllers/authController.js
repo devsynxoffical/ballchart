@@ -28,6 +28,19 @@ const canManagePlayerAction = (user, actionKey) => {
     return user.permissions && user.permissions[actionKey] === true;
 };
 
+const defaultCoachPermissions = () => ({
+    createPlayer: true,
+    readPlayer: true,
+    updatePlayer: true,
+    deletePlayer: false,
+    createTeam: false,
+    manageStaff: false,
+    createBattle: true,
+    manageBattle: true,
+    createStrategy: true,
+    manageStrategy: true,
+});
+
 /** Normalize the full staff permission map used by Flutter admin toggles. */
 const normalizeStaffPermissions = (permissions = {}) => ({
     createPlayer: !!permissions.createPlayer,
@@ -42,11 +55,29 @@ const normalizeStaffPermissions = (permissions = {}) => ({
     manageStrategy: !!permissions.manageStrategy,
 });
 
+const permissionsPlain = (user) => {
+    const p = user?.permissions;
+    if (!p) return {};
+    return typeof p.toObject === 'function' ? p.toObject() : { ...p };
+};
+
 const hasStaffPermission = (user, actionKey) => {
     if (!user) return false;
     if (['admin', 'head_coach'].includes(user.role)) return true;
     if (!['coach', 'assistant_coach', 'custom'].includes(user.role)) return false;
-    return user.permissions && user.permissions[actionKey] === true;
+    const raw = permissionsPlain(user);
+    if (raw[actionKey] === true) return true;
+    if (raw[actionKey] === false) {
+        // Full coaches can schedule games even if an old schema default stored false.
+        if (user.role === 'coach' && ['createBattle', 'manageBattle', 'createStrategy', 'manageStrategy'].includes(actionKey)) {
+            return true;
+        }
+        return false;
+    }
+    if (user.role === 'coach') {
+        return defaultCoachPermissions()[actionKey] === true;
+    }
+    return actionKey === 'readPlayer';
 };
 
 const roleToTeamLeadField = (role) => {
@@ -179,6 +210,12 @@ const normalizeUserResponse = (doc) => {
         profileImageUrl: doc.profileImageUrl || doc.profilePic || doc.logoUrl || null,
         logoUrl: doc.logoUrl || null,
         academyName: doc.academyName || null,
+        height: doc.height || '',
+        weight: doc.weight || '',
+        wingspan: doc.wingspan || '',
+        jerseyNumber: doc.jerseyNumber || doc.jersey || '',
+        classYear: doc.classYear || '',
+        scoutingNotes: doc.scoutingNotes || '',
     };
 };
 
@@ -242,6 +279,7 @@ const registerCoach = asyncHandler(async (req, res) => {
         managedBy: academyId,
         profileCompleted: false,
         isVerified: false,
+        permissions: defaultCoachPermissions(),
     });
 
     if (coach) {
@@ -443,6 +481,12 @@ const updateProfile = asyncHandler(async (req, res) => {
             'teamName',
             'profileImageUrl',
             'profilePic',
+            'height',
+            'weight',
+            'wingspan',
+            'jerseyNumber',
+            'classYear',
+            'scoutingNotes',
         ];
         for (const key of allowedFields) {
             if (Object.prototype.hasOwnProperty.call(req.body, key)) {
@@ -453,6 +497,23 @@ const updateProfile = asyncHandler(async (req, res) => {
         if (pic) {
             payload.profileImageUrl = pic;
             payload.profilePic = pic;
+        }
+        if (req.body.password && String(req.body.password).trim()) {
+            const salt = await bcrypt.genSalt(10);
+            const plain = String(req.body.password).trim();
+            payload.password = await bcrypt.hash(plain, salt);
+            payload.tempPassword = plain;
+        }
+        if (req.body.stats && typeof req.body.stats === 'object') {
+            const incoming = req.body.stats;
+            payload.stats = {
+                matchesPlayed: incoming.matchesPlayed ?? user.stats?.matchesPlayed ?? 0,
+                wins: incoming.wins ?? user.stats?.wins ?? 0,
+                points: incoming.points ?? user.stats?.points ?? 0,
+                ppg: incoming.ppg ?? user.stats?.ppg ?? 0,
+                apg: incoming.apg ?? user.stats?.apg ?? 0,
+                rpg: incoming.rpg ?? user.stats?.rpg ?? 0,
+            };
         }
         payload.profileCompleted = true;
         updatedUser = await Player.findByIdAndUpdate(
@@ -756,7 +817,9 @@ const createStaff = asyncHandler(async (req, res) => {
         assignedTeamIds: normalizedAssignedTeamIds,
         assignedTeams: normalizedAssignedTeamIds,
         customRoleName: role === 'custom' ? (customRoleName || null) : null,
-        permissions: normalizeStaffPermissions(permissions),
+        permissions: normalizeStaffPermissions(
+            role === 'coach' ? { ...defaultCoachPermissions(), ...permissions } : permissions
+        ),
     });
 
     await syncStaffLeadAssignments({
@@ -1208,10 +1271,16 @@ const updatePlayerByAdmin = asyncHandler(async (req, res) => {
         throw new Error('Player not found');
     }
 
-    const { username, email, password, position, ageRange } = req.body;
+    const { username, email, password, position, ageRange, height, weight, wingspan, jerseyNumber, classYear, scoutingNotes } = req.body;
     if (username !== undefined) player.username = username;
     if (position !== undefined) player.position = position;
     if (ageRange !== undefined) player.ageRange = ageRange;
+    if (height !== undefined) player.height = height;
+    if (weight !== undefined) player.weight = weight;
+    if (wingspan !== undefined) player.wingspan = wingspan;
+    if (jerseyNumber !== undefined) player.jerseyNumber = jerseyNumber;
+    if (classYear !== undefined) player.classYear = classYear;
+    if (scoutingNotes !== undefined) player.scoutingNotes = scoutingNotes;
     if (email !== undefined && email.trim()) {
         const cleanEmail = email.toLowerCase().trim();
         if (cleanEmail !== player.email) {
@@ -1241,6 +1310,12 @@ const updatePlayerByAdmin = asyncHandler(async (req, res) => {
         role: updated.role,
         position: updated.position,
         ageRange: updated.ageRange,
+        height: updated.height || '',
+        weight: updated.weight || '',
+        wingspan: updated.wingspan || '',
+        jerseyNumber: updated.jerseyNumber || '',
+        classYear: updated.classYear || '',
+        scoutingNotes: updated.scoutingNotes || '',
     });
 });
 
@@ -1403,7 +1478,14 @@ const getPlayerById = asyncHandler(async (req, res) => {
         role: player.role,
         position: player.position,
         ageRange: player.ageRange,
-        jersey: player.jersey,
+        jersey: player.jerseyNumber || player.jersey,
+        jerseyNumber: player.jerseyNumber || player.jersey || '',
+        height: player.height || '',
+        weight: player.weight || '',
+        wingspan: player.wingspan || '',
+        classYear: player.classYear || '',
+        scoutingNotes: player.scoutingNotes || '',
+        stats: player.stats || {},
         profileImageUrl: player.profileImageUrl || player.profilePic || null,
         profilePic: player.profilePic || player.profileImageUrl || null,
         teamName: team?.name,

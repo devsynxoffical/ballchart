@@ -9,7 +9,14 @@ const hasStaffFlag = (user, key) => {
     if (!user) return false;
     if (['admin', 'head_coach'].includes(user.role)) return true;
     if (!createAllowedRoles.includes(user.role)) return false;
-    return !!(user.permissions && user.permissions[key] === true);
+    const raw = user.permissions && typeof user.permissions.toObject === 'function'
+        ? user.permissions.toObject()
+        : (user.permissions || {});
+    if (raw[key] === true) return true;
+    if (user.role === 'coach' && ['createStrategy', 'manageStrategy'].includes(key)) {
+        return true;
+    }
+    return false;
 };
 
 const toIdString = (value) => (value ? value.toString() : '');

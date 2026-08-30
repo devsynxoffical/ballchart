@@ -59,16 +59,16 @@ const coachSchema = mongoose.Schema(
         permissions: {
             type: mongoose.Schema.Types.Mixed,
             default: () => ({
-                createPlayer: false,
+                createPlayer: true,
                 readPlayer: true,
-                updatePlayer: false,
+                updatePlayer: true,
                 deletePlayer: false,
                 createTeam: false,
                 manageStaff: false,
-                createBattle: false,
-                manageBattle: false,
-                createStrategy: false,
-                manageStrategy: false,
+                createBattle: true,
+                manageBattle: true,
+                createStrategy: true,
+                manageStrategy: true,
             }),
         },
         managedBy: {

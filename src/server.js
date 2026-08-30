@@ -35,6 +35,7 @@ app.use((req, res, next) => {
 });
 
 const { serveMedia } = require('./controllers/uploadController');
+const presence = require('./utils/presence');
 // Persistent media (Mongo). Must be registered before static /uploads fallback.
 app.get('/uploads/media/:id', serveMedia);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -79,7 +80,33 @@ io.use((socket, next) => {
 
 // Socket.io Connection
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id, socket.userId || '');
+    const userId = `${socket.userId || ''}`;
+    console.log('A user connected:', socket.id, userId);
+
+    if (userId && userId !== 'undefined') {
+        socket.join(`user:${userId}`);
+        const { becameOnline } = presence.addSocket(userId, socket.id);
+        if (becameOnline) {
+            io.emit('USER_ONLINE', { userId });
+        }
+    }
+
+    socket.on('join_conversation', ({ conversationId } = {}) => {
+        if (conversationId) socket.join(`conversation:${conversationId}`);
+    });
+
+    socket.on('leave_conversation', ({ conversationId } = {}) => {
+        if (conversationId) socket.leave(`conversation:${conversationId}`);
+    });
+
+    socket.on('typing', ({ conversationId, isTyping } = {}) => {
+        if (!conversationId || !userId) return;
+        socket.to(`conversation:${conversationId}`).emit('TYPING', {
+            conversationId: `${conversationId}`,
+            userId,
+            isTyping: !!isTyping,
+        });
+    });
 
     socket.on('join_tactical_room', ({ battleId }) => {
         if (battleId) socket.join(`tactical:${battleId}`);
@@ -92,6 +119,10 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
+        const { becameOffline } = presence.removeSocket(userId, socket.id);
+        if (becameOffline) {
+            io.emit('USER_OFFLINE', { userId });
+        }
     });
 });
 

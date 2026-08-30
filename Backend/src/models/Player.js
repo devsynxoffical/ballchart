@@ -38,6 +38,30 @@ const playerSchema = mongoose.Schema(
         additionalGoals: {
             type: String,
         },
+        height: {
+            type: String,
+            default: '',
+        },
+        weight: {
+            type: String,
+            default: '',
+        },
+        wingspan: {
+            type: String,
+            default: '',
+        },
+        jerseyNumber: {
+            type: String,
+            default: '',
+        },
+        classYear: {
+            type: String,
+            default: '',
+        },
+        scoutingNotes: {
+            type: String,
+            default: '',
+        },
         profileImageUrl: {
             type: String,
             default: '',
@@ -62,6 +86,9 @@ const playerSchema = mongoose.Schema(
             matchesPlayed: { type: Number, default: 0 },
             wins: { type: Number, default: 0 },
             points: { type: Number, default: 0 },
+            ppg: { type: Number, default: 0 },
+            apg: { type: Number, default: 0 },
+            rpg: { type: Number, default: 0 },
         },
         managedBy: {
             type: mongoose.Schema.Types.ObjectId,

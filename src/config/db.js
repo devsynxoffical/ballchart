@@ -9,6 +9,32 @@ const connectDB = async () => {
         const conn = await mongoose.connect(dbUri); // No deprecated options needed in Mongoose 6+
         console.log(`MongoDB Connected: ${conn.connection.host}`);
 
+        try {
+            const Coach = require('../models/Coach');
+            const result = await Coach.updateMany(
+                {
+                    role: 'coach',
+                    $or: [
+                        { 'permissions.createBattle': { $ne: true } },
+                        { permissions: { $exists: false } },
+                    ],
+                },
+                {
+                    $set: {
+                        'permissions.createBattle': true,
+                        'permissions.manageBattle': true,
+                        'permissions.createStrategy': true,
+                        'permissions.manageStrategy': true,
+                    },
+                }
+            );
+            if (result.modifiedCount) {
+                console.log(`Backfilled createBattle for ${result.modifiedCount} coaches`);
+            }
+        } catch (err) {
+            console.log('Coach permission backfill skipped:', err.message);
+        }
+
         // Temporarily drop index to allow duplicate usernames
         try {
             await mongoose.connection.collection('players').dropIndex('username_1');
