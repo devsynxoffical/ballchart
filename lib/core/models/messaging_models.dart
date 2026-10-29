@@ -65,6 +65,24 @@ class ConversationSummary {
       unreadCount: _parseUnread(json),
     );
   }
+
+  ConversationSummary copyWith({
+    String? lastMessagePreview,
+    DateTime? lastMessageAt,
+    int? unreadCount,
+    MessagingParticipant? other,
+  }) {
+    return ConversationSummary(
+      id: id,
+      lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      other: other ?? this.other,
+      kind: kind,
+      teamId: teamId,
+      teamName: teamName,
+      unreadCount: unreadCount ?? this.unreadCount,
+    );
+  }
 }
 
 class MessagingParticipant {

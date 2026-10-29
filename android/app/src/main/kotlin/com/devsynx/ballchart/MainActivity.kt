@@ -1,4 +1,4 @@
-package com.devsynx.courtiq
+package com.devsynx.ballchart
 
 import io.flutter.embedding.android.FlutterActivity
 

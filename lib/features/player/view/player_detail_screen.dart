@@ -39,6 +39,8 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   /// Live row from GET /auth/player/:id when admin/coach opens this screen.
   Map<String, dynamic>? _staffPlayerJson;
   bool _staffPlayerLoading = false;
+  /// Fields the player just saved — shown immediately even if dashboard lags.
+  final Map<String, dynamic> _ownOverlay = {};
 
   String _staffStr(String key, String fallback) {
     final raw = _staffPlayerJson?[key];
@@ -77,6 +79,13 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return Map<String, dynamic>.from(value);
     return {};
+  }
+
+  Map<String, dynamic> _ownPlayerData(AcademyProvider provider) {
+    return {
+      ..._asStringMap(provider.playerDashboard?['player']),
+      ..._ownOverlay,
+    };
   }
 
   /// Full URL for display (handles `/uploads/...` from API).
@@ -579,9 +588,12 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           );
         }
         
-        final playerData = _asStringMap(dashboard?['player']);
+        final playerData = {
+          ..._asStringMap(dashboard?['player']),
+          ..._ownOverlay,
+        };
         final isEliteProspect = playerData['isEliteProspect'] ?? widget.player.isEliteProspect;
-        final classYear = playerData['classYear'] ?? widget.player.classYear;
+        final classYear = (playerData['classYear'] ?? widget.player.classYear).toString();
         final heroPic = _resolvePlayerImageUrl(
           playerData['profileImageUrl'] ?? playerData['profilePic'] ?? widget.player.profileImageUrl,
         );
@@ -590,9 +602,9 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           name: widget.player.name,
           isEliteProspect: isEliteProspect,
           classYear: classYear,
-          position: widget.player.position,
+          position: (playerData['position'] ?? widget.player.position).toString(),
           heroImageUrl: heroPic,
-          jerseyNumber: widget.player.jerseyNumber,
+          jerseyNumber: (playerData['jerseyNumber'] ?? widget.player.jerseyNumber).toString(),
           onTapHeroPhoto: () => _showPlayerProfilePhotoMenu(context),
         );
       },
@@ -636,8 +648,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
       await _pickAndSavePlayerPhoto(context);
     } else if (choice == 'edit') {
       final provider = Provider.of<AcademyProvider>(context, listen: false);
-      final dashboard = provider.playerDashboard;
-      final playerData = _asStringMap(dashboard?['player']);
+      final playerData = _ownPlayerData(provider);
       if (context.mounted) {
         _showEditBiometricsDialog(context, playerData);
       }
@@ -895,7 +906,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   Widget _buildBiometricsBento() {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
-        final dashboard = provider.playerDashboard;
         final isOwnProfile = _isOwnProfile(provider);
         
         if (!isOwnProfile) {
@@ -926,7 +936,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           return const SizedBox.shrink(); // Don't show biometrics if dashboard failed
         }
 
-        final playerData = _asStringMap(dashboard?['player']);
+        final playerData = _ownPlayerData(provider);
         
         return _buildBiometricsContent(
           height: playerData['height'] ?? widget.player.height,
@@ -1092,8 +1102,10 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
 
     if (shouldSave != true || !mounted) return;
     final profileRepository = ProfileRepository();
-    await profileRepository.completeProfile({fieldKey: controller.text.trim()});
+    final value = controller.text.trim();
+    await profileRepository.completeProfile({fieldKey: value});
     if (!mounted) return;
+    setState(() => _ownOverlay[fieldKey] = value);
     await Provider.of<AcademyProvider>(context, listen: false).loadPlayerDashboard(force: true);
     if (mounted) {
       AppMessenger.show(
@@ -1499,7 +1511,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     return Consumer<AcademyProvider>(
       builder: (context, provider, _) {
         final isOwnProfile = _isOwnProfile(provider);
-        final dashboard = (isOwnProfile ? provider.playerDashboard : {'player': {}}) ?? {'player': {}};
         
         if (isOwnProfile && (provider.isPlayerLoading || provider.playerDashboard == null)) {
           return const Padding(
@@ -1512,7 +1523,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           return const SizedBox.shrink(); // Don't show scouting notes if there's an error
         }
 
-        final playerData = _asStringMap(dashboard['player']);
+        final playerData = _ownPlayerData(provider);
         final scoutingNotes = isOwnProfile
             ? (playerData['scoutingNotes'] ?? widget.player.scoutingNotes)
             : _staffStr('scoutingNotes', widget.player.scoutingNotes);
@@ -1735,7 +1746,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               }
               try {
                 final profileRepository = ProfileRepository();
-                await profileRepository.completeProfile({
+                final payload = {
                   'height': heightController.text,
                   'weight': weightController.text,
                   'wingspan': wingspanController.text,
@@ -1746,11 +1757,22 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                   'profileImageUrl': profileImageController.text.trim().isEmpty ? null : profileImageController.text.trim(),
                   'email': emailController.text.trim(),
                   if (passwordController.text.trim().isNotEmpty) 'password': passwordController.text.trim(),
-                });
+                };
+                await profileRepository.completeProfile(payload);
 
                 if (context.mounted) {
                   Navigator.pop(context);
-                  // Refresh the dashboard data
+                  setState(() {
+                    _ownOverlay.addAll({
+                      'height': heightController.text,
+                      'weight': weightController.text,
+                      'wingspan': wingspanController.text,
+                      'position': positionController.text,
+                      'jerseyNumber': jersey,
+                      'classYear': classYearController.text,
+                      'scoutingNotes': scoutingNotesController.text,
+                    });
+                  });
                   final provider = Provider.of<AcademyProvider>(context, listen: false);
                   await provider.loadPlayerDashboard(force: true);
                   

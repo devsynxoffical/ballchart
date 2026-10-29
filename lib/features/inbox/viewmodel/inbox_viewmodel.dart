@@ -26,7 +26,6 @@ class InboxViewModel extends ChangeNotifier {
   Timer? _pollTimer;
   void Function(dynamic)? _onMessageNew;
   void Function(dynamic)? _onNotificationNew;
-  bool _socketAttached = false;
 
   void start() {
     if (_started) return;
@@ -42,8 +41,10 @@ class InboxViewModel extends ChangeNotifier {
   }
 
   void _attachSocketHandlers(IO.Socket s) {
-    if (_socketAttached) return;
-    _socketAttached = true;
+    s.off('MESSAGE_NEW', _onMessageNew);
+    s.off('message:new', _onMessageNew);
+    s.off('NOTIFICATION_NEW', _onNotificationNew);
+    s.off('NOTIFICATION_CREATED', _onNotificationNew);
     s.on('MESSAGE_NEW', _onMessageNew!);
     s.on('message:new', _onMessageNew!);
     s.on('NOTIFICATION_NEW', _onNotificationNew!);

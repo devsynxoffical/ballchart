@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ballchart/core/utils/app_messenger.dart';
 import 'package:provider/provider.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:ballchart/core/models/messaging_models.dart';
 import 'package:ballchart/core/repositories/messaging_repository.dart';
 import 'package:ballchart/core/services/api_service.dart';
@@ -29,39 +30,121 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
   List<MessagingParticipant> _contacts = [];
   bool _loading = true;
   String? _error;
+  final Set<String> _onlineUserIds = {};
+  final Map<String, String> _typingByConversation = {};
 
   void _onMessageNewSocket(dynamic data) {
-    if (!mounted) return;
+    if (!mounted || data is! Map) return;
+    final map = Map<String, dynamic>.from(data);
+    final cid = map['conversationId']?.toString() ?? '';
+    if (cid.isEmpty) {
+      _load(silent: true);
+      return;
+    }
+    final preview = (map['body'] ?? map['lastMessagePreview'] ?? '').toString();
+    final createdAt = DateTime.tryParse(map['createdAt']?.toString() ?? '');
+    final senderId = map['senderId']?.toString();
+    final myId = context.read<ProfileViewmodel>().user?.id ?? '';
+    setState(() {
+      final idx = _items.indexWhere((c) => c.id == cid);
+      if (idx >= 0) {
+        final c = _items.removeAt(idx);
+        final bumpUnread = senderId != null && senderId.isNotEmpty && senderId != myId;
+        _items.insert(
+          0,
+          c.copyWith(
+            lastMessagePreview: preview.isNotEmpty ? preview : c.lastMessagePreview,
+            lastMessageAt: createdAt ?? c.lastMessageAt,
+            unreadCount: bumpUnread ? c.unreadCount + 1 : c.unreadCount,
+          ),
+        );
+      }
+    });
+    if (!_items.any((c) => c.id == cid)) {
+      _load(silent: true);
+    }
     context.read<InboxViewModel>().refresh();
-    _load();
+  }
+
+  void _socketSub(IO.Socket s) {
+    s.off('MESSAGE_NEW', _onMessageNewSocket);
+    s.off('message:new', _onMessageNewSocket);
+    s.off('TYPING', _onTypingSocket);
+    s.off('USER_ONLINE', _onUserOnline);
+    s.off('USER_OFFLINE', _onUserOffline);
+    s.on('MESSAGE_NEW', _onMessageNewSocket);
+    s.on('message:new', _onMessageNewSocket);
+    s.on('TYPING', _onTypingSocket);
+    s.on('USER_ONLINE', _onUserOnline);
+    s.on('USER_OFFLINE', _onUserOffline);
+  }
+
+  void _onTypingSocket(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final cid = data['conversationId']?.toString();
+    final uid = data['userId']?.toString();
+    if (cid == null || uid == null) return;
+    setState(() {
+      if (data['isTyping'] == true) {
+        _typingByConversation[cid] = uid;
+      } else {
+        _typingByConversation.remove(cid);
+      }
+    });
+  }
+
+  void _onUserOnline(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['userId']?.toString();
+    if (id == null || id.isEmpty) return;
+    setState(() => _onlineUserIds.add(id));
+  }
+
+  void _onUserOffline(dynamic data) {
+    if (!mounted || data is! Map) return;
+    final id = data['userId']?.toString();
+    if (id == null || id.isEmpty) return;
+    setState(() => _onlineUserIds.remove(id));
   }
 
   @override
   void initState() {
     super.initState();
+    _api.onSocketConnect(_socketSub);
     _api.connectSocket();
-    _api.socket?.on('MESSAGE_NEW', _onMessageNewSocket);
     _load();
   }
 
   @override
   void dispose() {
-    _api.socket?.off('MESSAGE_NEW', _onMessageNewSocket);
+    _api.offSocketConnect(_socketSub);
+    final s = _api.socket;
+    s?.off('MESSAGE_NEW', _onMessageNewSocket);
+    s?.off('message:new', _onMessageNewSocket);
+    s?.off('TYPING', _onTypingSocket);
+    s?.off('USER_ONLINE', _onUserOnline);
+    s?.off('USER_OFFLINE', _onUserOffline);
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final list = await _repo.fetchConversations();
       final contacts = await _repo.fetchEligibleContacts();
+      final online = await _repo.fetchOnlineUserIds();
       if (mounted) {
         setState(() {
           _items = list;
           _contacts = contacts;
+          _onlineUserIds
+            ..clear()
+            ..addAll(online);
           _loading = false;
         });
       }
@@ -299,9 +382,12 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
           final name = isTeam
               ? (item.teamName != null && item.teamName!.trim().isNotEmpty ? item.teamName!.trim() : 'Team chat')
               : (item.other?.username ?? 'Unknown');
-          final subtitle = item.lastMessagePreview.isEmpty
-              ? (isTeam ? 'Team group · players & coaches' : 'Tap to chat')
-              : item.lastMessagePreview;
+          final typingUid = _typingByConversation[item.id];
+          final subtitle = typingUid != null
+              ? 'typing…'
+              : (item.lastMessagePreview.isEmpty
+                  ? (isTeam ? 'Team group · players & coaches' : 'Tap to chat')
+                  : item.lastMessagePreview);
           final trailingText = _listTime(item.lastMessageAt);
           return Material(
             color: ConversationsListScreen.surfaceHigh,
@@ -320,6 +406,7 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
                         name: name,
                         imageUrl: item.other?.avatarUrl,
                         size: 52,
+                        isOnline: item.other != null && _onlineUserIds.contains(item.other!.id),
                       ),
               ),
               title: Text(
@@ -330,7 +417,13 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
                 subtitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: ConversationsListScreen.outlineColor, fontSize: 13),
+                style: TextStyle(
+                  color: typingUid != null
+                      ? const Color(0xFF25D366)
+                      : ConversationsListScreen.outlineColor,
+                  fontSize: 13,
+                  fontStyle: typingUid != null ? FontStyle.italic : FontStyle.normal,
+                ),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -376,7 +469,7 @@ class _ConversationsListScreenState extends State<ConversationsListScreen> {
                 );
                 if (!mounted) return;
                 await context.read<InboxViewModel>().refresh();
-                _load();
+                _load(silent: true);
               },
             ),
           );

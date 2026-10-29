@@ -554,7 +554,15 @@ class AcademyProvider extends ChangeNotifier {
 
     // Explicit permission map from /auth/profile (or refreshed after admin edit).
     if (profilePerms != null && profilePerms.isNotEmpty && staffRoles.contains(role)) {
-      return Permissions.fromDynamic(profilePerms).hasPermission(permission);
+      final mapped = Permissions.fromDynamic(profilePerms);
+      if (mapped.hasPermission(permission)) return true;
+      // Full coaches can always schedule games / manage playbooks.
+      if (role == 'coach' &&
+          {'createBattle', 'manageBattle', 'createStrategy', 'manageStrategy'}
+              .contains(permission)) {
+        return true;
+      }
+      if (role != 'coach') return mapped.hasPermission(permission);
     }
 
     // head_coach with no map yet → full access
@@ -627,7 +635,14 @@ class AcademyProvider extends ChangeNotifier {
     final staffRoles = {'coach', 'assistant_coach', 'head_coach', 'custom'};
 
     if (profilePerms != null && profilePerms.isNotEmpty && staffRoles.contains(role)) {
-      return Permissions.fromDynamic(profilePerms);
+      final mapped = Permissions.fromDynamic(profilePerms);
+      if (role == 'coach') {
+        mapped.createBattle = true;
+        mapped.manageBattle = true;
+        mapped.createStrategy = true;
+        mapped.manageStrategy = true;
+      }
+      return mapped;
     }
 
     if (role == 'head_coach') return Permissions.forRole(role);

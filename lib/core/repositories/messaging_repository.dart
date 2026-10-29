@@ -104,6 +104,16 @@ class MessagingRepository {
     await _api.post('/messages/conversations/$conversationId/read', {});
   }
 
+  Future<Set<String>> fetchOnlineUserIds() async {
+    try {
+      final res = await _api.get('/messages/presence');
+      if (res is Map && res['onlineUserIds'] is List) {
+        return (res['onlineUserIds'] as List).map((e) => e.toString()).toSet();
+      }
+    } catch (_) {}
+    return <String>{};
+  }
+
   /// Uploads a PDF and sends it as an in-app message payload.
   /// Falls back to plain text with link if backend doesn't support `type:file`.
   Future<void> sendPdfMessage(

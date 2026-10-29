@@ -15,11 +15,11 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.devsynx.courtiq"
+    namespace = "com.devsynx.ballchart"
     compileSdk = flutter.compileSdkVersion
-    // whisper_ggml needs NDK 29; all other plugins want 27 or lower and NDK
-    // versions are backward compatible, so pin the highest one required.
-    ndkVersion = "29.0.13113456"
+    // whisper_ggml needs NDK 29+; all other plugins want 27 or lower and NDK
+    // versions are backward compatible, so pin the highest installed one.
+    ndkVersion = "30.0.16248370"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -31,7 +31,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.devsynx.courtiq"
+        applicationId = "com.devsynx.ballchart"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

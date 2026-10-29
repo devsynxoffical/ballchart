@@ -70,6 +70,10 @@ class ApiService {
     }
   }
 
+  void offSocketConnect(void Function(IO.Socket socket) handler) {
+    _socketConnectHandlers.remove(handler);
+  }
+
   Future<Map<String, String>> _getHeaders() async {
     String? token = await _storage.read(key: 'jwt_token');
     return {
@@ -218,14 +222,20 @@ class ApiService {
     String? token = await getToken();
     if (token == null) return;
 
-    if (socket?.connected == true) {
-      _runSocketConnectHandlers();
+    if (socket != null) {
+      if (socket!.connected) {
+        _runSocketConnectHandlers();
+        return;
+      }
+      socket!.io.options?['auth'] = {'token': token};
+      socket!.connect();
       return;
     }
 
     socket = IO.io(socketUrl, IO.OptionBuilder()
-      .setTransports(['websocket'])
+      .setTransports(['websocket', 'polling'])
       .setAuth({'token': token})
+      .enableReconnection()
       .disableAutoConnect()
       .build());
 

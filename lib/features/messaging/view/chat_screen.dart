@@ -63,7 +63,7 @@ class _MsgRow {
   final int index;
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final MessagingRepository _repo = MessagingRepository();
   final ApiService _api = ApiService();
   final VoiceNoteService _voiceSvc = VoiceNoteService();
@@ -85,24 +85,56 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, String> _nameByUserId = {};
   final Map<String, String?> _avatarByUserId = {};
   final Map<String, String> _pendingVoiceLocalPaths = {};
-  bool _socketAttached = false;
+  Timer? _typingIdle;
+  bool _sentTyping = false;
+  final Set<String> _typingUserIds = {};
+  final Set<String> _onlineUserIds = {};
 
   @override
   void initState() {
     super.initState();
-    // connectSocket() is async, so subscribe through the callback — it fires
-    // the moment the socket connects (fixes missed real-time messages).
+    WidgetsBinding.instance.addObserver(this);
     _api.onSocketConnect(_socketSub);
     _api.connectSocket();
     _load(animatedScroll: false);
+    _loadPresence();
     WidgetsBinding.instance.addPostFrameCallback((_) => _markRead());
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _load(animatedScroll: false);
+      _loadPresence();
+      _api.connectSocket();
+    }
+  }
+
   void _socketSub(IO.Socket s) {
-    if (_socketAttached || !mounted) return;
-    _socketAttached = true;
+    if (!mounted) return;
+    s.off('MESSAGE_NEW', _onMessageNewSocket);
+    s.off('message:new', _onMessageNewSocket);
+    s.off('CONVERSATION_READ', _onConversationReadSocket);
+    s.off('TYPING', _onTypingSocket);
+    s.off('USER_ONLINE', _onUserOnlineSocket);
+    s.off('USER_OFFLINE', _onUserOfflineSocket);
     s.on('MESSAGE_NEW', _onMessageNewSocket);
+    s.on('message:new', _onMessageNewSocket);
     s.on('CONVERSATION_READ', _onConversationReadSocket);
+    s.on('TYPING', _onTypingSocket);
+    s.on('USER_ONLINE', _onUserOnlineSocket);
+    s.on('USER_OFFLINE', _onUserOfflineSocket);
+    s.emit('join_conversation', {'conversationId': widget.conversationId});
+  }
+
+  Future<void> _loadPresence() async {
+    final ids = await _repo.fetchOnlineUserIds();
+    if (!mounted) return;
+    setState(() {
+      _onlineUserIds
+        ..clear()
+        ..addAll(ids);
+    });
   }
 
   void _onMessageNewSocket(dynamic data) {
@@ -111,8 +143,76 @@ class _ChatScreenState extends State<ChatScreen> {
     if (cid != widget.conversationId) return;
     if (!mounted) return;
     _ingestIncomingMessage(Map<String, dynamic>.from(data));
-    // Viewing this thread — keep it marked read so the home badge clears.
     _markRead();
+  }
+
+  void _onUserOnlineSocket(dynamic data) {
+    if (data is! Map) return;
+    final id = data['userId']?.toString();
+    if (id == null || id.isEmpty || !mounted) return;
+    setState(() => _onlineUserIds.add(id));
+  }
+
+  void _onUserOfflineSocket(dynamic data) {
+    if (data is! Map) return;
+    final id = data['userId']?.toString();
+    if (id == null || id.isEmpty || !mounted) return;
+    setState(() => _onlineUserIds.remove(id));
+  }
+
+  void _onTypingSocket(dynamic data) {
+    if (data is! Map) return;
+    if (data['conversationId']?.toString() != widget.conversationId) return;
+    final uid = data['userId']?.toString();
+    if (uid == null || uid.isEmpty || uid == widget.myUserId) return;
+    final typing = data['isTyping'] == true;
+    if (!mounted) return;
+    setState(() {
+      if (typing) {
+        _typingUserIds.add(uid);
+      } else {
+        _typingUserIds.remove(uid);
+      }
+    });
+  }
+
+  void _emitTyping(bool isTyping) {
+    final s = _api.socket;
+    if (s == null || !s.connected) return;
+    if (isTyping) {
+      if (!_sentTyping) {
+        s.emit('typing', {'conversationId': widget.conversationId, 'isTyping': true});
+        _sentTyping = true;
+      }
+      _typingIdle?.cancel();
+      _typingIdle = Timer(const Duration(seconds: 2), () => _emitTyping(false));
+    } else {
+      _typingIdle?.cancel();
+      if (_sentTyping) {
+        s.emit('typing', {'conversationId': widget.conversationId, 'isTyping': false});
+        _sentTyping = false;
+      }
+    }
+  }
+
+  String _statusSubtitle() {
+    if (_typingUserIds.isNotEmpty) {
+      if (widget.isTeamGroup) {
+        final names = _typingUserIds
+            .map((id) => _nameByUserId[id] ?? 'Someone')
+            .take(2)
+            .join(', ');
+        return '$names typing…';
+      }
+      return 'typing…';
+    }
+    if (widget.isTeamGroup) {
+      final onlineCount = _roster.where((p) => _onlineUserIds.contains(p.id)).length;
+      if (onlineCount > 0) return '$onlineCount online · tap for members';
+      return 'Team chat · tap for members';
+    }
+    final online = _onlineUserIds.contains(widget.otherId);
+    return online ? 'online' : (_peerIsPlayer() ? 'Tap for player profile' : 'Tap for profile');
   }
 
   void _onConversationReadSocket(dynamic data) {
@@ -134,9 +234,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _api.offSocketConnect(_socketSub);
     final s = _api.socket;
+    s?.emit('leave_conversation', {'conversationId': widget.conversationId});
     s?.off('MESSAGE_NEW', _onMessageNewSocket);
+    s?.off('message:new', _onMessageNewSocket);
     s?.off('CONVERSATION_READ', _onConversationReadSocket);
+    s?.off('TYPING', _onTypingSocket);
+    s?.off('USER_ONLINE', _onUserOnlineSocket);
+    s?.off('USER_OFFLINE', _onUserOfflineSocket);
+    _emitTyping(false);
+    _typingIdle?.cancel();
     _recordingTimer?.cancel();
     _voiceSvc.dispose();
     _text.dispose();
@@ -213,7 +322,9 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       });
       _scrollToEnd(animated: true);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to ingest chat message: $e');
+    }
   }
 
   int _msgSortKey(ChatMessage m) {
@@ -411,6 +522,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _replyingTo = null;
     });
     _text.clear();
+    _emitTyping(false);
     _scrollToEnd(animated: true);
 
     setState(() => _sending = true);
@@ -692,6 +804,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           imageUrl: widget.otherAvatarUrl,
                           size: 40,
                           fontSize: 16,
+                          isOnline: _onlineUserIds.contains(widget.otherId),
                         ),
                 ),
                 const SizedBox(width: 12),
@@ -712,11 +825,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       ),
                       Text(
-                        widget.isTeamGroup
-                            ? 'Team chat · tap for members'
-                            : (_peerIsPlayer() ? 'Tap for player profile' : 'Tap for profile'),
+                        _statusSubtitle(),
                         style: TextStyle(
-                          color: ChatScreen.outlineColor.withValues(alpha: 0.85),
+                          color: _typingUserIds.isNotEmpty || _onlineUserIds.contains(widget.otherId)
+                              ? const Color(0xFF25D366)
+                              : ChatScreen.outlineColor.withValues(alpha: 0.85),
                           fontSize: 12,
                         ),
                       ),
@@ -975,6 +1088,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       ),
                       textInputAction: TextInputAction.send,
+                      onChanged: (v) => _emitTyping(v.trim().isNotEmpty),
                       onSubmitted: (_) => _send(),
                     ),
                   ),
