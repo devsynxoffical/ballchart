@@ -8,7 +8,7 @@
 PRODUCT_NAME = BallChart
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.devsynx.courtiq
+PRODUCT_BUNDLE_IDENTIFIER = com.devsynx.ballchart
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.devsynx. All rights reserved.
