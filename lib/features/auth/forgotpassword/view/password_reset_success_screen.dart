@@ -6,8 +6,8 @@ class PasswordResetSuccessScreen extends StatelessWidget {
   const PasswordResetSuccessScreen({super.key, required this.role});
 
   // BallChart Design Colors
-  static const Color primaryColor = Color(0xFFFFD900);
-  static const Color bgColor = Color(0xFF181710);
+  static const Color primaryColor = Color(0xFFFF6B00);
+  static const Color bgColor = Color(0xFF0A0C10);
   static const Color cardColor = Color(0xFF1E293B);
 
   @override

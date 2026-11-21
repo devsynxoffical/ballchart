@@ -7,7 +7,7 @@ import 'package:ballchart/core/widgets/notification_panel.dart';
 class MessagesIconButton extends StatelessWidget {
   const MessagesIconButton({
     super.key,
-    this.iconColor = const Color(0xFFFFD900),
+    this.iconColor = const Color(0xFFFF6B00),
     this.iconSize = 26,
   });
 
@@ -43,7 +43,7 @@ class MessagesIconButton extends StatelessWidget {
 class NotificationBellButton extends StatelessWidget {
   const NotificationBellButton({
     super.key,
-    this.iconColor = const Color(0xFFFFD900),
+    this.iconColor = const Color(0xFFFF6B00),
     this.iconSize = 26,
   });
 
@@ -104,7 +104,7 @@ class _BadgedIcon extends StatelessWidget {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFD900),
+                      color: const Color(0xFFFF6B00),
                       shape: BoxShape.circle,
                       border: Border.all(color: const Color(0xFF131313), width: 1.5),
                     ),
@@ -113,7 +113,7 @@ class _BadgedIcon extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFD900),
+                      color: const Color(0xFFFF6B00),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFF131313), width: 1),
                     ),

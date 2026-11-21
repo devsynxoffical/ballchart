@@ -31,7 +31,7 @@ class Team {
     required this.name,
     required this.players,
     this.ageGroup = 'Open',
-    this.colorValue = 0xFFF59E0B,
+    this.colorValue = 0xFFFF6B00,
     this.logoPath,
     this.coachStaffId,
     this.assistantCoachStaffId,

@@ -81,7 +81,7 @@ class CustomDialog extends StatelessWidget {
                     if (onOk != null) onOk!();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD900),
+                    backgroundColor: const Color(0xFFFF6B00),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

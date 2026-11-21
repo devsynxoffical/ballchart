@@ -110,13 +110,13 @@ class _NotificationPanelState extends State<NotificationPanel> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFD900).withValues(alpha: 0.2),
+                            color: const Color(0xFFFF6B00).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '$_unreadCount new',
                             style: const TextStyle(
-                              color: Color(0xFFFFD900),
+                              color: Color(0xFFFF6B00),
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),
@@ -128,7 +128,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
                       child: const Text(
                         'Mark all read',
                         style: TextStyle(
-                          color: Color(0xFFFFD900),
+                          color: Color(0xFFFF6B00),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -150,7 +150,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: CircularProgressIndicator(color: Color(0xFFFFD900)),
+          child: CircularProgressIndicator(color: Color(0xFFFF6B00)),
         ),
       );
     }
@@ -169,7 +169,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              TextButton(onPressed: _load, child: const Text('Retry', style: TextStyle(color: Color(0xFFFFD900)))),
+              TextButton(onPressed: _load, child: const Text('Retry', style: TextStyle(color: Color(0xFFFF6B00)))),
             ],
           ),
         ),
@@ -221,7 +221,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
         border: Border.all(
           color: notification.isRead
               ? Colors.transparent
-              : const Color(0xFFFFD900).withValues(alpha: 0.2),
+              : const Color(0xFFFF6B00).withValues(alpha: 0.2),
         ),
       ),
       child: ListTile(
@@ -274,7 +274,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFFD900),
+                  color: Color(0xFFFF6B00),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -290,7 +290,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
       case 'coach_added':
         return Colors.green;
       case 'team_created':
-        return const Color(0xFFFFD900);
+        return const Color(0xFFFF6B00);
       case 'battle_scheduled':
         return Colors.orange;
       case 'strategy_added':

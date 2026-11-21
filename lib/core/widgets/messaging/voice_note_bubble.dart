@@ -161,7 +161,7 @@ class _VoiceNoteBubbleState extends State<VoiceNoteBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = widget.mine ? const Color(0xFFFFD900) : Colors.white70;
+    final accent = widget.mine ? const Color(0xFFFF6B00) : Colors.white70;
     final resolved = widget.voiceUrl.isNotEmpty ? ApiService.resolveMediaUrl(widget.voiceUrl) : '';
     final displayDuration = _playing ? _position : _total;
     final barCount = 28;

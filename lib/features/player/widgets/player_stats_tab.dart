@@ -16,7 +16,7 @@ class PlayerStatsTab extends StatefulWidget {
 }
 
 class PlayerStatsTabState extends State<PlayerStatsTab> {
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color surfaceContainer = Color(0xFF201F1F);
   static const Color surfaceHigh = Color(0xFF2A2A2A);
   static const Color outlineColor = Color(0xFF9D8F79);

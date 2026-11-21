@@ -10,7 +10,7 @@ class CoachVoiceClipsPanel extends StatelessWidget {
     required this.clips,
     this.title = 'COACH VOICE',
     this.subtitle,
-    this.accentColor = const Color(0xFFFFD900),
+    this.accentColor = const Color(0xFFFF6B00),
     this.surfaceColor = const Color(0xFF201F1F),
     this.outlineColor = const Color(0xFF9D8F79),
   });

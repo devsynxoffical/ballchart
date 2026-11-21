@@ -25,7 +25,7 @@ Future<bool?> showAppExitDialog(BuildContext context) {
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text(
             'Yes',
-            style: TextStyle(color: Color(0xFFFFD900)),
+            style: TextStyle(color: Color(0xFFFF6B00)),
           ),
         ),
       ],

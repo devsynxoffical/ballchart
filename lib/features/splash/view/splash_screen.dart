@@ -14,8 +14,8 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   // BallChart Splash Assets & Colors
-  static const Color primaryColor = Color(0xFFFFD900);
-  static const Color bgColor = Color(0xFF12110A); // Background dark
+  static const Color primaryColor = Color(0xFFFF6B00);
+  static const Color bgColor = Color(0xFF0A0C10); // Background dark
 
   @override
   void initState() {

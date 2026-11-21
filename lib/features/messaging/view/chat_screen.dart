@@ -43,7 +43,7 @@ class ChatScreen extends StatefulWidget {
   /// Whole-team thread (players + coaches); titles use [otherName] as team label.
   final bool isTeamGroup;
 
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color bubbleOther = Color(0xFF1F2C33);
   static const Color bubbleMine = Color(0xFF2A3942);

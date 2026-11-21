@@ -12,7 +12,7 @@ class StrategyPdfGenerator {
   static const PdfColor _line = PdfColor.fromInt(0xFFE6E6E6);
   static const PdfColor _card = PdfColor.fromInt(0xFFF6F6F6);
   static const PdfColor _header = PdfColor.fromInt(0xFF141414);
-  static const PdfColor _gold = PdfColor.fromInt(0xFFFFD900);
+  static const PdfColor _gold = PdfColor.fromInt(0xFFFF6B00);
   static const PdfColor _goldDark = PdfColor.fromInt(0xFFC9A600);
 
   /// Strip / replace characters that Helvetica cannot encode (avoids PDF failures).

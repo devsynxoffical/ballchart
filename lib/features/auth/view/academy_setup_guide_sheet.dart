@@ -8,8 +8,8 @@ Future<void> showAcademySetupGuide(BuildContext context) {
     backgroundColor: Colors.transparent,
     useSafeArea: true,
     builder: (ctx) {
-      const primaryColor = Color(0xFFFFD900);
-      const bgColor = Color(0xFF181710);
+      const primaryColor = Color(0xFFFF6B00);
+      const bgColor = Color(0xFF0A0C10);
       const surfaceColor = Color(0xFF1E293B);
       const outlineColor = Color(0xFF9D8F79);
 

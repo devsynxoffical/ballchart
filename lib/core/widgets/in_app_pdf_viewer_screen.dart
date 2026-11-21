@@ -21,7 +21,7 @@ class InAppPdfViewerScreen extends StatefulWidget {
 
 class _InAppPdfViewerScreenState extends State<InAppPdfViewerScreen> {
   static const Color _bg = Color(0xFF131313);
-  static const Color _primary = Color(0xFFFFD900);
+  static const Color _primary = Color(0xFFFF6B00);
 
   late Future<Uint8List> _bytesFuture;
 

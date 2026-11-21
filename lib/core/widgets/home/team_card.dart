@@ -15,7 +15,7 @@ class TeamCard extends StatelessWidget {
   });
 
   // BallChart Design Tokens
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color cardColor = Color(0xFF1A1A1A);
 
   @override

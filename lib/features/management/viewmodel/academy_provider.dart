@@ -407,7 +407,7 @@ class AcademyProvider extends ChangeNotifier {
       id: (data['_id'] ?? data['id'] ?? '').toString(),
       name: (data['name'] ?? '').toString(),
       ageGroup: (data['ageGroup'] ?? 'Open').toString(),
-      colorValue: (data['colorValue'] is int) ? data['colorValue'] as int : 0xFFF59E0B,
+      colorValue: (data['colorValue'] is int) ? data['colorValue'] as int : 0xFFFF6B00,
       logoPath: data['logoPath']?.toString(),
       coachStaffId: data['coachStaffId']?.toString(),
       assistantCoachStaffId: data['assistantCoachStaffId']?.toString(),

@@ -136,7 +136,7 @@ class _TacticalLabScreenState extends State<TacticalLabScreen> with SingleTicker
 
   late final AnimationController _micPulseCtrl;
 
-  static const Color _primary = Color(0xFFFFD900);
+  static const Color _primary = Color(0xFFFF6B00);
   static const Color _bg = Color(0xFF131313);
   static const Color _surface = Color(0xFF201F1F);
   static const Color _outline = Color(0xFF9D8F79);
@@ -1821,13 +1821,13 @@ class _FingerDrawPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final strokePaint = Paint()
-      ..color = const Color(0xFFFFD900)
+      ..color = const Color(0xFFFF6B00)
       ..strokeWidth = 3.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final dotPaint = Paint()
-      ..color = const Color(0xFFFFD900)
+      ..color = const Color(0xFFFF6B00)
       ..style = PaintingStyle.fill;
 
     for (final stroke in strokes) {

@@ -32,7 +32,7 @@ class _EnhancedStrategyScreenState extends State<EnhancedStrategyScreen> {
   final TextEditingController _searchController = TextEditingController();
   StrategyViewmodel? _strategyViewmodel;
 
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF201F1F);
   static const Color surfaceContainer = Color(0xFF1C1B1B);
@@ -899,7 +899,7 @@ class StrategyOptionsSheet extends StatelessWidget {
           const SizedBox(height: 20),
           
           ListTile(
-            leading: const Icon(Icons.edit, color: Color(0xFFFFD900)),
+            leading: const Icon(Icons.edit, color: Color(0xFFFF6B00)),
             title: const Text('Edit Strategy', style: TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
@@ -907,7 +907,7 @@ class StrategyOptionsSheet extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.share, color: Color(0xFFFFD900)),
+            leading: const Icon(Icons.share, color: Color(0xFFFF6B00)),
             title: const Text('Share Strategy', style: TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);

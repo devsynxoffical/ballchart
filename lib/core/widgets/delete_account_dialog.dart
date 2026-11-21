@@ -40,7 +40,7 @@ Future<void> showDeleteAccountDialog(BuildContext context) async {
                   const SizedBox(height: 6),
                   SelectableText(
                     kDeleteAccountConfirmPhrase,
-                    style: const TextStyle(color: Color(0xFFFFD900), fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                    style: const TextStyle(color: Color(0xFFFF6B00), fontWeight: FontWeight.w800, letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -76,7 +76,7 @@ Future<void> showDeleteAccountDialog(BuildContext context) async {
                             child: SizedBox(
                               width: 48,
                               height: 48,
-                              child: CircularProgressIndicator(color: Color(0xFFFFD900)),
+                              child: CircularProgressIndicator(color: Color(0xFFFF6B00)),
                             ),
                           ),
                         );

@@ -14,7 +14,7 @@ import 'package:ballchart/features/profile/viewmodel/profile_viewmodel.dart';
 class ConversationsListScreen extends StatefulWidget {
   const ConversationsListScreen({super.key});
 
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF2A2A2A);
   static const Color outlineColor = Color(0xFF9D8F79);

@@ -8,7 +8,7 @@ import 'strategy_creation_entry.dart';
 Future<StrategyCreationEntry?> showStrategyCreationOptionsSheet(
   BuildContext context,
 ) {
-  const primaryColor = Color(0xFFFFD900);
+  const primaryColor = Color(0xFFFF6B00);
   const bgColor = Color(0xFF131313);
   const surfaceHigh = Color(0xFF2A2A2A);
   const outlineColor = Color(0xFF9D8F79);

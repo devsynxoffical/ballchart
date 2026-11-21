@@ -113,7 +113,7 @@ class _StrategyKpisBodyState extends State<_StrategyKpisBody> {
 
   @override
   Widget build(BuildContext context) {
-    const primary = Color(0xFFFFD900);
+    const primary = Color(0xFFFF6B00);
     const outline = Color(0xFF9D8F79);
 
     return Padding(

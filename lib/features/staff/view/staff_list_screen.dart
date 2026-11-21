@@ -14,7 +14,7 @@ class StaffListScreen extends StatefulWidget {
 }
 
 class _StaffListScreenState extends State<StaffListScreen> {
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color tertiaryColor = Color(0xFF28D8FF);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF2A2A2A);

@@ -23,7 +23,7 @@ class StrategyDetailScreen extends StatelessWidget {
 
   const StrategyDetailScreen({super.key, required this.strategy});
 
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF201F1F);
   static const Color outlineColor = Color(0xFF9D8F79);
@@ -554,7 +554,7 @@ class _VideoPlayerDialogState extends State<_VideoPlayerDialog> {
           if (_error != null)
              Padding(padding: const EdgeInsets.all(20), child: Text('Error: $_error', style: const TextStyle(color: Colors.red)))
           else if (!_initialized)
-            const Padding(padding: const EdgeInsets.all(40), child: CircularProgressIndicator(color: Color(0xFFFFD900)))
+            const Padding(padding: const EdgeInsets.all(40), child: CircularProgressIndicator(color: Color(0xFFFF6B00)))
           else
             AspectRatio(
               aspectRatio: _controller.value.aspectRatio,
@@ -562,7 +562,7 @@ class _VideoPlayerDialogState extends State<_VideoPlayerDialog> {
                 alignment: Alignment.bottomCenter,
                 children: [
                   VideoPlayer(_controller),
-                  VideoProgressIndicator(_controller, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFFFFD900))),
+                  VideoProgressIndicator(_controller, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFFFF6B00))),
                   Center(
                     child: IconButton(
                       icon: Icon(_controller.value.isPlaying ? Icons.pause : Icons.play_arrow, size: 50, color: Colors.white.withOpacity(0.5)),

@@ -34,7 +34,7 @@ class _InvitePlayerDialogState extends State<InvitePlayerDialog> {
             Row(
               children: [
                 const CircleAvatar(
-                  backgroundColor: Color(0xFFF59E0B),
+                  backgroundColor: Color(0xFFFF6B00),
                   child: Icon(Icons.add, color: Colors.black),
                 ),
                 const SizedBox(width: 12),
@@ -91,7 +91,7 @@ class _InvitePlayerDialogState extends State<InvitePlayerDialog> {
                       borderRadius: BorderRadius.circular(14),
                       border: isSelected
                           ? Border.all(
-                        color: const Color(0xFFF59E0B),
+                        color: const Color(0xFFFF6B00),
                         width: 1.5,
                       )
                           : null,
@@ -110,7 +110,7 @@ class _InvitePlayerDialogState extends State<InvitePlayerDialog> {
                         if (isSelected)
                           const Icon(
                             Icons.check,
-                            color: Color(0xFFF59E0B),
+                            color: Color(0xFFFF6B00),
                           ),
                       ],
                     ),
@@ -171,7 +171,7 @@ class _InvitePlayerDialogState extends State<InvitePlayerDialog> {
               child: ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF59E0B),
+                  backgroundColor: const Color(0xFFFF6B00),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),

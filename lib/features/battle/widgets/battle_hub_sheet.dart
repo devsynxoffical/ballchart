@@ -43,7 +43,7 @@ class _BattleHubContent extends StatelessWidget {
   final BattleModel battle;
   final BattleViewmodel battleVm;
 
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color outlineColor = Color(0xFF9D8F79);
 
   String _when(DateTime d) {

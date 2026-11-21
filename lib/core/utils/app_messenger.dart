@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 enum AppMessageKind { error, success, info, warning }
 
 class AppMessenger {
-  static const Color _primary = Color(0xFFFFD900);
+  static const Color _primary = Color(0xFFFF6B00);
   static const Color _surface = Color(0xFF201F1F);
   static bool _dialogOpen = false;
 

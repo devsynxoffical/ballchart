@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._(); // prevents instantiation
 
-  /// Primary Yellow (Used for buttons, highlights, selected states)
-  static const Color yellow = Color(0xFFF59E0B);
-  // static const Color yellow = Color(0xFF2563EB);
+  /// Primary Orange (Used for buttons, highlights, selected states)
+  static const Color orange = Color(0xFFFF6B00);
+  static const Color yellow = Color(0xFFFF6B00); // alias for backwards compatibility
+  static const Color goldenOrange = Color(0xFFFFB800);
   static const Color blue = Color(0xFF2563EB);
   static const Color green = Color(0xFF10B981); // Emerald Green
 
   /// Background colors
-  static const Color darkBackground = Color(0xFF020617);
+  static const Color darkBackground = Color(0xFF0A0C10);
 
   /// Neutral colors
   static const Color black = Color(0xFF000000); // Pure Black

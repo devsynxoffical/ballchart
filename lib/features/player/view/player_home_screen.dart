@@ -22,7 +22,7 @@ class PlayerHomeScreenState extends State<PlayerHomeScreen> {
   final GlobalKey<PlayerStatsTabState> _playerStatsTabKey = GlobalKey<PlayerStatsTabState>();
 
   // BallChart Redesign Tokens - Same as Admin Panel
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceContainer = Color(0xFF201F1F);
   static const Color surfaceHigh = Color(0xFF2A2A2A);

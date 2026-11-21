@@ -34,7 +34,7 @@ class _StrategyScreenState extends State<StrategyScreen> {
   int? _formationKpi;
   int? _drillKpi;
 
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF201F1F);
   static const Color outlineColor = Color(0xFF9D8F79);

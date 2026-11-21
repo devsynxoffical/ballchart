@@ -74,7 +74,7 @@ Future<void> showChatParticipantProfileSheet(
                   width: double.infinity,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFD900),
+                      backgroundColor: const Color(0xFFFF6B00),
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),

@@ -18,7 +18,7 @@ class SquareImageCropScreen extends StatefulWidget {
 }
 
 class _SquareImageCropScreenState extends State<SquareImageCropScreen> {
-  static const Color _primary = Color(0xFFFFD900);
+  static const Color _primary = Color(0xFFFF6B00);
   static const Color _bg = Color(0xFF131313);
 
   final _boundaryKey = GlobalKey();

@@ -6,7 +6,7 @@ import '../../../features/management/viewmodel/academy_provider.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const Color primaryColor = Color(0xFFFFD900); // FDB927 equivalent
+  static const Color primaryColor = Color(0xFFFF6B00); // FDB927 equivalent
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceHigh = Color(0xFF201F1F);
   static const Color surfaceLow = Color(0xFF1C1B1B);

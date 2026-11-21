@@ -18,7 +18,7 @@ class TeamsTab extends StatefulWidget {
 
 class _TeamsTabState extends State<TeamsTab> {
   // BallChart Redesign Tokens - Same as Admin Panel
-  static const Color primaryColor = Color(0xFFFFD900);
+  static const Color primaryColor = Color(0xFFFF6B00);
   static const Color bgColor = Color(0xFF131313);
   static const Color surfaceContainer = Color(0xFF201F1F);
   static const Color surfaceHigh = Color(0xFF2A2A2A);
@@ -443,7 +443,7 @@ class _TeamsTabState extends State<TeamsTab> {
 
   Widget _buildSquadCard(Map<String, dynamic> team, Map<String, dynamic> dashboard, AcademyProvider provider) {
     final cv = team['colorValue'];
-    final color = Color(cv is int ? cv : 0xFFFFD900);
+    final color = Color(cv is int ? cv : 0xFFFF6B00);
     final currentUser = provider.currentUser;
     final coachId = _staffRefId(team['coachStaffId']);
     final asstId = _staffRefId(team['assistantCoachStaffId']);

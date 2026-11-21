@@ -15,7 +15,7 @@ class UserAvatar extends StatelessWidget {
     this.borderColor,
     this.borderWidth = 0,
     this.backgroundColor = const Color(0xFF353534),
-    this.accentColor = const Color(0xFFFFD900),
+    this.accentColor = const Color(0xFFFF6B00),
     this.usePersonIconFallback = false,
   });
 
